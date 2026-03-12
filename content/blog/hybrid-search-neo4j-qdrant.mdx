@@ -1,0 +1,22 @@
+---
+title: Implementing Hybrid Search with Neo4j and Qdrant
+date: 2026-03-10
+tags: [RAG, Neo4j, Qdrant, IR]
+summary: Practical notes on combining graph + vector retrieval for grounded answers.
+featured: true
+published: true
+---
+
+## Motivation
+
+Vector search is great for semantic similarity, while graph search is great for relationship-aware traversal. Hybrid retrieval combines both.
+
+## Code sample
+
+```python
+def hybrid_retrieve(query: str):
+    vector_hits = qdrant.search(query)
+    graph_hits = neo4j.traverse(vector_hits)
+    return rerank(query, vector_hits + graph_hits)
+```
+
