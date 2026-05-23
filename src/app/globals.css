@@ -130,6 +130,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
     font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
     background-image:
       linear-gradient(to right, var(--grid) 1px, transparent 1px),
@@ -139,6 +140,7 @@
   }
   html {
     @apply font-sans;
+    overflow-x: hidden;
   }
   h1,
   h2,
@@ -152,4 +154,10 @@
   .tech-mono {
     @apply font-mono tracking-tight;
   }
+}
+
+html:not([data-language]) [data-i18n="en"],
+html[data-language="vi"] [data-i18n="en"],
+html[data-language="en"] [data-i18n="vi"] {
+  display: none;
 }

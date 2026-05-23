@@ -9,7 +9,7 @@ type TypingSubtitleProps = Readonly<{
 
 export function TypingSubtitle({ text, speedMs = 22 }: TypingSubtitleProps) {
   const characters = useMemo(() => Array.from(text), [text]);
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useState(characters.length);
 
   useEffect(() => {
     setCount(0);
@@ -26,9 +26,9 @@ export function TypingSubtitle({ text, speedMs = 22 }: TypingSubtitleProps) {
   }, [characters.length, speedMs]);
 
   return (
-    <span className="inline-flex items-center gap-1.5 tech-mono text-xs text-muted-foreground">
+    <span className="flex max-w-full min-w-0 flex-wrap items-center gap-1.5 tech-mono text-xs text-muted-foreground">
       <span className="select-none text-[var(--color-accent-text)]">$</span>
-      <span className="whitespace-pre">
+      <span className="min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
         {characters.slice(0, count).join("")}
       </span>
       <span

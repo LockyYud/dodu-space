@@ -5,6 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { openCommandPalette } from "@/components/custom/command-palette";
+import {
+  LanguageToggle,
+  useLanguage,
+} from "@/components/custom/language-provider";
 import { ThemeToggle } from "@/components/custom/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +19,7 @@ import {
 } from "@/components/ui/navigation-menu";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -26,6 +31,7 @@ import { cn } from "@/lib/utils";
 
 export function Header() {
   const pathname = usePathname();
+  const { language } = useLanguage();
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/70 backdrop-blur supports-backdrop-filter:bg-background/60">
@@ -46,7 +52,7 @@ export function Header() {
                       pathname === item.href && "font-medium text-foreground",
                     )}
                   >
-                    {item.title}
+                    {language === "vi" ? item.title : item.titleEn}
                   </NavigationMenuLink>
                 </NavigationMenuItem>
               ))}
@@ -64,6 +70,7 @@ export function Header() {
           >
             ⌘K
           </Button>
+          <LanguageToggle />
           <ThemeToggle />
 
           <Sheet>
@@ -87,16 +94,20 @@ export function Header() {
 
               <div className="flex flex-col gap-1 px-4">
                 {navigationConfig.map((item) => (
-                  <Link
+                  <SheetClose
                     key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                      pathname === item.href && "bg-muted text-foreground",
-                    )}
+                    render={
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                          pathname === item.href && "bg-muted text-foreground",
+                        )}
+                      />
+                    }
                   >
-                    {item.title}
-                  </Link>
+                    {language === "vi" ? item.title : item.titleEn}
+                  </SheetClose>
                 ))}
               </div>
             </SheetContent>

@@ -5,6 +5,7 @@ import {
   CommandPalette,
   type CommandPaletteItem,
 } from "@/components/custom/command-palette";
+import { LanguageProvider } from "@/components/custom/language-provider";
 import { PageTransition } from "@/components/custom/page-transition";
 import { ThemeProvider } from "@/components/custom/theme-provider";
 import { Footer } from "@/components/layout/footer";
@@ -38,20 +39,21 @@ export default async function RootLayout({
     ...navigationConfig.map((n) => ({
       id: `page:${n.href}`,
       title: n.title,
+      titleEn: n.titleEn,
       href: n.href,
-      group: "Pages" as const,
+      group: "pages" as const,
     })),
     ...projects.slice(0, 8).map((p) => ({
       id: `project:${p.slug}`,
       title: p.title,
       href: `/projects/${p.slug}`,
-      group: "Projects" as const,
+      group: "projects" as const,
     })),
     ...posts.slice(0, 8).map((p) => ({
       id: `note:${p.slug}`,
       title: p.title,
       href: `/blog/${p.slug}`,
-      group: "Notes" as const,
+      group: "notes" as const,
     })),
   ];
 
@@ -61,14 +63,16 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <TooltipProvider>
-            <Header />
-            <main className="mx-auto min-h-[calc(100svh-3.5rem)] max-w-4xl px-4 py-10">
-              <PageTransition>{children}</PageTransition>
-            </main>
-            <Footer />
-            <CommandPalette items={items} />
-          </TooltipProvider>
+          <LanguageProvider>
+            <TooltipProvider>
+              <Header />
+              <main className="mx-auto min-h-[calc(100svh-3.5rem)] w-full max-w-4xl overflow-x-hidden px-4 py-10">
+                <PageTransition>{children}</PageTransition>
+              </main>
+              <Footer />
+              <CommandPalette items={items} />
+            </TooltipProvider>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

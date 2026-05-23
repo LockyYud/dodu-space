@@ -4,6 +4,7 @@ import { FileTextIcon, FolderIcon, HomeIcon, SearchIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { useLanguage } from "@/components/custom/language-provider";
 import {
   Command,
   CommandDialog,
@@ -19,8 +20,9 @@ import {
 export type CommandPaletteItem = Readonly<{
   id: string;
   title: string;
+  titleEn?: string;
   href: string;
-  group: "Pages" | "Projects" | "Notes";
+  group: "pages" | "projects" | "notes";
 }>;
 
 type CommandPaletteProps = Readonly<{
@@ -32,12 +34,23 @@ const OPEN_EVENT = "command-palette:open";
 export function CommandPalette({ items }: CommandPaletteProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const { language } = useLanguage();
+  const labels = {
+    empty: language === "vi" ? "Không tìm thấy kết quả." : "No results found.",
+    placeholder:
+      language === "vi"
+        ? "Tìm trang, dự án, bài viết..."
+        : "Search pages, projects, notes...",
+    pages: language === "vi" ? "Trang" : "Pages",
+    projects: language === "vi" ? "Dự án" : "Projects",
+    notes: language === "vi" ? "Bài viết" : "Notes",
+  };
 
   const grouped = useMemo(() => {
     const groups: Record<CommandPaletteItem["group"], CommandPaletteItem[]> = {
-      Pages: [],
-      Projects: [],
-      Notes: [],
+      pages: [],
+      projects: [],
+      notes: [],
     };
     for (const item of items) groups[item.group].push(item);
     return groups;
@@ -71,15 +84,19 @@ export function CommandPalette({ items }: CommandPaletteProps) {
   return (
     <CommandDialog open={open} onOpenChange={setOpen} title="Command Palette">
       <Command>
-        <CommandInput placeholder="Search pages, projects, notes..." />
+        <CommandInput placeholder={labels.placeholder} />
         <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandEmpty>{labels.empty}</CommandEmpty>
 
-          <CommandGroup heading="Pages">
-            {grouped.Pages.map((item) => (
+          <CommandGroup heading={labels.pages}>
+            {grouped.pages.map((item) => (
               <CommandItem key={item.id} onSelect={() => run(item.href)}>
                 {item.href === "/" ? <HomeIcon /> : <SearchIcon />}
-                <span className="flex-1">{item.title}</span>
+                <span className="flex-1">
+                  {language === "vi"
+                    ? item.title
+                    : (item.titleEn ?? item.title)}
+                </span>
                 <CommandShortcut>↵</CommandShortcut>
               </CommandItem>
             ))}
@@ -87,8 +104,8 @@ export function CommandPalette({ items }: CommandPaletteProps) {
 
           <CommandSeparator />
 
-          <CommandGroup heading="Projects">
-            {grouped.Projects.map((item) => (
+          <CommandGroup heading={labels.projects}>
+            {grouped.projects.map((item) => (
               <CommandItem key={item.id} onSelect={() => run(item.href)}>
                 <FolderIcon />
                 <span className="flex-1">{item.title}</span>
@@ -98,8 +115,8 @@ export function CommandPalette({ items }: CommandPaletteProps) {
 
           <CommandSeparator />
 
-          <CommandGroup heading="Notes">
-            {grouped.Notes.map((item) => (
+          <CommandGroup heading={labels.notes}>
+            {grouped.notes.map((item) => (
               <CommandItem key={item.id} onSelect={() => run(item.href)}>
                 <FileTextIcon />
                 <span className="flex-1">{item.title}</span>

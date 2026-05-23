@@ -35,12 +35,12 @@ export function CodeBlock({ className, children, ...props }: CodeBlockProps) {
         variant="outline"
         size="xs"
         className={cn(
-          "absolute right-2 top-2 z-10 tech-mono text-[10px] opacity-0 transition-opacity",
-          "border-foreground/15 bg-background/60 hover:border-[var(--color-accent-text)] group-hover:opacity-100",
+          "absolute right-2 top-2 z-10 tech-mono text-[10px] opacity-100 transition-opacity md:opacity-0",
+          "border-foreground/15 bg-background/80 hover:border-[var(--color-accent-text)] group-hover:opacity-100 focus-visible:opacity-100",
         )}
         onClick={copy}
       >
-        {copied ? "Copied" : "Copy"}
+        {copied ? "Đã copy" : "Copy"}
       </Button>
 
       <pre

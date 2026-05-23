@@ -1,6 +1,6 @@
 export const socialConfig = {
-  email: "hello@example.com",
+  email: "",
   github: "https://github.com/do-duy",
-  linkedin: "https://www.linkedin.com/in/",
-  x: "https://x.com/",
+  linkedin: "",
+  x: "",
 } as const;
