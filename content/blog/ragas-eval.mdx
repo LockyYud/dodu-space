@@ -30,12 +30,13 @@ Câu hỏi nghiên cứu của paper: *Có thể đánh giá từng thành phầ
 
 ## 2. Đóng Góp Chính
 
-Paper đưa ra bốn đóng góp cụ thể:
+Paper EACL 2024 đưa ra ba metric reference-free:
 
-1. **Bốn metric đặc thù cho RAG** — faithfulness, answer relevance, context precision, context recall — mỗi metric nhắm vào một điểm thất bại khác nhau trong pipeline.
-2. **Framework evaluation reference-free** — ba trong bốn metric (faithfulness, answer relevance, context precision) không cần ground truth answer, chỉ cần câu hỏi, retrieved context và generated answer.
-3. **Testset generation tự động** — RAGAS cung cấp quy trình sinh synthetic QA pairs từ corpus để bootstrap evaluation mà không cần human annotator.
-4. **Validation bằng human annotation** — paper báo cáo tương quan Pearson và Spearman giữa RAGAS scores và human judgement trên nhiều dataset, chứng minh các metric tự động này đáng tin.
+1. **Faithfulness** — answer có được suy ra từ retrieved context hay không.
+2. **Answer relevance** — answer có trực tiếp giải quyết question hay không.
+3. **Context relevance** — context có tập trung vào thông tin cần thiết, thay vì chứa nhiều phần dư thừa hay không.
+
+Paper đồng thời công bố **WikiEval**, một bộ 50 examples có human pairwise judgements để kiểm tra mức agreement của các metric này.
 
 ---
 
@@ -84,88 +85,38 @@ Metric này **không cần ground truth answer** và penalize các answer vague,
 
 ---
 
-### 3.3 Context Precision
+### 3.3 Context Relevance
 
-Context precision đo chất lượng của retrieved context — retrieved chunks có liên quan đến việc generate answer hay không, hay chứa nhiều noise?
+Context relevance đo mức độ retrieved context tập trung vào thông tin cần để trả lời câu hỏi, thay vì chứa sentence dư thừa.
 
-Với mỗi chunk `cₖ` trong retrieved context `C = {c₁, ..., cₖ}`, LLM đánh giá liệu chunk đó có relevant để trả lời câu hỏi không (binary: 1 = relevant, 0 = not relevant). Sau đó tính weighted precision theo thứ tự rank:
-
-**Công thức (Average Precision):**
+LLM được yêu cầu trích nguyên văn các câu cần thiết từ context `C`. Nếu không tìm được evidence, model trả về `Insufficient Information`. Metric là tỷ lệ câu được chọn trên tổng số câu trong context:
 
 ```text
-\text{ContextPrecision}(q, C, a) = \frac{\sum_{k=1}^{K} \left( P@k \cdot v_k \right)}{\sum_{k=1}^{K} v_k}
+\text{ContextRelevance}(q, C) =
+  \frac{\text{number of extracted sentences}}{\text{total number of sentences in } C}
 ```
 
-trong đó `P@k` là precision tại rank `k`, và `v_k ∈ {0, 1}` cho biết chunk tại rank `k` có relevant không. Công thức này thưởng cho các relevant chunk xuất hiện ở rank cao hơn (tương tự Mean Average Precision).
-
-Metric này **không cần ground truth answer**.
-
----
-
-### 3.4 Context Recall
-
-Context recall đo mức độ retrieved context chứa đủ thông tin cần thiết để trả lời câu hỏi. Đây là metric **duy nhất trong RAGAS yêu cầu reference answer** (ground truth).
-
-**Thuật toán:**
-1. Decompose ground truth answer `a_gt` thành tập atomic claims `{s₁, ..., sₘ}`.
-2. Với mỗi claim `sⱼ`, LLM xác định liệu claim đó có thể được attributed (suy ra từ) retrieved context `C` không.
-
-**Công thức:**
-
-```text
-\text{ContextRecall}(C, a_{gt}) = \frac{|\{s_j : s_j \text{ can be attributed to } C\}|}{|GT|}
-```
-
-trong đó `GT = {s₁, ..., sₘ}` là tập atomic claims của ground truth answer. Score nằm trong `[0, 1]`.
-
-**Lưu ý quan trọng:** Vì context recall cần `a_gt`, nó không hoàn toàn reference-free. Paper thừa nhận điều này và xếp nó vào nhóm "semi-reference" metric.
-
----
-
-### 3.5 Testset Generation
-
-RAGAS cũng cung cấp pipeline sinh synthetic evaluation dataset từ raw documents, giải quyết vấn đề thiếu labeled data:
-
-1. **Question generation**: LLM sinh câu hỏi từ các đoạn văn trong corpus.
-2. **Answer generation**: LLM sinh ground truth answer từ câu hỏi và context.
-3. **Evolution**: Các câu hỏi được "evolve" theo các hướng khác nhau — reasoning questions, multi-context questions, conditional questions — để tăng độ khó và đa dạng.
-4. **Filtering**: Lọc bỏ câu hỏi quá đơn giản hoặc không thể trả lời.
-
-Quy trình này cho phép tạo testset không cần human annotator, phù hợp với domain-specific corpus mà không có public benchmark.
+Đây là metric context-level, không phải average precision theo ranked chunks và không cần reference answer trong phương pháp được paper mô tả.
 
 ---
 
 ## 4. Thực Nghiệm và Kết Quả
 
-### 4.1 Tương Quan với Human Annotation
+### 4.1 Agreement với Human Annotation
 
-Paper đánh giá RAGAS trên WikiEval dataset — tập gồm 50 câu hỏi với human annotation ở nhiều mức độ về faithfulness và relevance. Kết quả tương quan:
+WikiEval gồm 50 Wikipedia-based examples và pairwise human judgements ở ba chiều đo. Paper dùng `gpt-3.5-turbo-16k` cho prompts và báo cáo accuracy agreement:
 
-| Metric | Pearson (r) | Spearman (ρ) |
-|---|---|---|
-| Faithfulness | 0.82 | 0.79 |
-| Answer Relevance | 0.76 | 0.73 |
-| Context Precision | 0.69 | 0.68 |
-| Context Recall | 0.71 | 0.70 |
+| Phương pháp | Faithfulness | Answer Relevance | Context Relevance |
+|---|---:|---:|---:|
+| **RAGAS** | **0.95** | **0.78** | **0.70** |
+| GPT Score | 0.72 | 0.52 | 0.63 |
+| GPT Ranking | 0.54 | 0.40 | 0.52 |
 
-Faithfulness có tương quan cao nhất với human judgment, cho thấy LLM-as-judge đáng tin cậy nhất khi đánh giá grounding. Answer relevance và context recall cũng cho kết quả tốt. Context precision có tương quan thấp hơn, một phần do annotation của con người ở chiều này ít nhất quán hơn.
+*Số liệu từ Table 4, Es et al. (EACL 2024). Paper báo cáo accuracy trên pairwise comparisons, không báo cáo bảng Pearson/Spearman hay so sánh GPT-4 như phiên bản trước của bài viết này.*
 
-### 4.2 LLM Judge
+### 4.2 Reproducibility
 
-Paper sử dụng GPT-3.5-turbo và GPT-4 làm judge. GPT-4 cho kết quả tương quan cao hơn đáng kể với human annotation so với GPT-3.5-turbo, đặc biệt với faithfulness (nơi cần lý luận phức tạp hơn về NLI). Các model mạnh hơn như GPT-4 là judge tốt hơn cho task này.
-
-### 4.3 So Sánh với Baseline
-
-RAGAS so với ROUGE-L và BERTScore trên cùng WikiEval:
-
-| Phương pháp | Tương quan với human (avg) |
-|---|---|
-| ROUGE-L | ~0.31 |
-| BERTScore | ~0.47 |
-| RAGAS (GPT-3.5) | ~0.68 |
-| RAGAS (GPT-4) | ~0.75 |
-
-ROUGE và BERTScore có tương quan rất thấp với human judgment về faithfulness và relevance vì chúng chỉ đo lexical/semantic overlap với reference, không đo grounding.
+Paper lưu ý kết quả prompt-based evaluation có thể thay đổi giữa các runs hoặc khi API thay đổi. Tác giả đo độ nhất quán khi ép output theo JSON format và quan sát format có cấu trúc giúp kết quả ổn định hơn.
 
 ---
 
@@ -179,9 +130,9 @@ LLM-as-judge có xu hướng thiên vị: thường đánh giá cao hơn các an
 
 Faithfulness dùng LLM để decompose answer thành atomic claims (bước 1), rồi dùng LLM khác để verify từng claim (bước 2). Nếu bước decomposition sai (missed claim, merged claims), bước verification sẽ nhận input sai và propagate error. Metric cuối bị ảnh hưởng bởi chất lượng của cả hai bước LLM riêng biệt.
 
-### 5.3 Context Recall Không Hoàn Toàn Reference-Free
+### 5.3 Phạm Vi Của Paper
 
-Paper claim RAGAS là "reference-free" nhưng context recall cần ground truth answer. Trong thực tế, đây là điểm yếu khi deploy ở production — người dùng thường không có ground truth answer sẵn có cho mọi query.
+Paper EACL mô tả ba metric reference-free nêu trên. Các metric `context_precision` hoặc `context_recall` trong phiên bản thư viện RAGAS về sau cần được dẫn theo documentation/version tương ứng, không nên quy trực tiếp cho bảng thực nghiệm của paper này.
 
 ### 5.4 Metric Gaming
 
@@ -197,7 +148,7 @@ Kết quả RAGAS phụ thuộc vào prompt của judge. Nếu prompt thay đổ
 
 | Framework | Metric chính | Cần ground truth? | LLM judge? | Testset gen? | Open source? |
 |---|---|---|---|---|---|
-| **RAGAS** | Faithfulness, relevance, context precision/recall | Một phần | Có | Có | Có |
+| **RAGAS (paper EACL)** | Faithfulness, answer relevance, context relevance | Không | Có | WikiEval dùng để validate | Có |
 | **ARES** | Context relevance, answer faithfulness, answer relevance | Có (few-shot) | Có (fine-tuned) | Có | Có |
 | **TruLens** | RAG Triad (context relevance, groundedness, Q-A relevance) | Không | Có | Không | Có |
 | **Human Eval** | Tùy task | Có | Không | Không | N/A |
@@ -215,12 +166,12 @@ Kết quả RAGAS phụ thuộc vào prompt của judge. Nếu prompt thay đổ
 ## 7. Takeaway
 
 **1. Không có metric nào là "đủ" một mình.**
-Faithfulness cao mà answer relevance thấp nghĩa là answer grounded nhưng lạc đề. Context recall cao mà context precision thấp nghĩa là retriever lấy đúng nhưng có nhiều noise. Cần nhìn cả bốn metric cùng nhau để chẩn đoán đúng vấn đề.
+Faithfulness cao mà answer relevance thấp nghĩa là answer grounded nhưng lạc đề. Context relevance thấp cho biết context có nhiều thông tin dư thừa. Cần nhìn cả ba metric cùng nhau để chẩn đoán đúng vấn đề.
 
 **2. Reference-free evaluation có giới hạn thực tế.**
-Ba trong bốn RAGAS metrics không cần ground truth — đây là lợi thế lớn khi không có labeled data. Tuy nhiên, context recall vẫn cần reference, và tất cả metrics đều phụ thuộc chất lượng của LLM judge. Khi judge model thay đổi hoặc prompt thay đổi, kết quả không còn so sánh được với run cũ.
+Ba metric trong paper không cần ground truth answer, đây là lợi thế khi không có labeled data. Tuy nhiên, tất cả metric đều phụ thuộc chất lượng của LLM judge; khi judge model hoặc prompt thay đổi, kết quả không còn so sánh trực tiếp với run cũ.
 
-**3. LLM judge tốt nhất hiện tại là GPT-4 class, nhưng cần ghi lại metadata đầy đủ.**
+**3. Cần ghi lại metadata của judge.**
 Judge model, prompt version, temperature và token usage phải được log cùng với scores. Nếu không, không thể phân biệt improvement thật sự với drift từ judge.
 
 ---

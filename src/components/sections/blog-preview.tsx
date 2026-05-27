@@ -31,7 +31,7 @@ export async function BlogPreviewSection() {
         ))}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 tech-mono text-[11px] text-muted-foreground">
+      <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
         {["RAG", "Retrieval", "Evaluation", "Agents", "Backend"].map((tag) => (
           <span
             key={tag}

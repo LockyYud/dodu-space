@@ -6,7 +6,7 @@ summary: "RAG-Fusion kết hợp query diversification với Reciprocal Rank Fus
 featured: false
 published: true
 ---
-> **Nguồn gốc**: Zackary Rackauckas (2023), blog post trên Medium/Towards Data Science; kết hợp với RRF (Cormack, Clarke & Buettcher, SIGIR 2009)
+> **Nguồn gốc**: Adrian H. Raudaschl (2023), bài viết và reference implementation; kết hợp với RRF (Cormack, Clarke & Buettcher, SIGIR 2009). Zackary Rackauckas (2024) sau đó đăng một nghiên cứu đánh giá trên arXiv.
 > **Lưu ý quan trọng**: RAG-Fusion là một blog post và open-source implementation — **không phải peer-reviewed paper**. Đây là điểm cần ghi nhớ khi đánh giá độ tin cậy của các claim.
 > **Loại**: `paper_inspired`
 
@@ -45,9 +45,9 @@ RAG-Fusion có hai contribution thực dụng đáng chú ý:
 
 **Thứ nhất — LLM-based query diversification**: Dùng LLM để sinh ra N reformulation của query gốc, thay vì dựa vào query expansion dựa trên term co-occurrence. LLM có thể paraphrase, đặt lại góc nhìn, hoặc đặt câu hỏi phụ liên quan — tạo ra diversity thực sự ở mức semantic.
 
-**Thứ hai — RRF cho score-free rank combination**: Đây thực chất là đóng góp của Cormack et al. (SIGIR 2009), không phải của RAG-Fusion. Tuy nhiên, việc áp dụng RRF vào bài toán multi-query RAG là đóng góp thực dụng của Rackauckas. RRF không yêu cầu các ranked list phải dùng cùng score scale — điều này rất quan trọng khi fuse kết quả từ BM25 và dense retriever.
+**Thứ hai — RRF cho score-free rank combination**: Đây thực chất là đóng góp của Cormack et al. (SIGIR 2009), không phải của RAG-Fusion. Tuy nhiên, việc áp dụng RRF vào bài toán multi-query RAG là đóng góp thực dụng của Raudaschl. RRF không yêu cầu các ranked list phải dùng cùng score scale — điều này rất quan trọng khi fuse kết quả từ BM25 và dense retriever.
 
-> **Cần ghi nhớ**: Bản thân Rackauckas không claim novelty về thuật toán. Blog post mang tính engineering/recipe nhiều hơn là đề xuất thuật toán mới.
+> **Cần ghi nhớ**: Bài viết/reference implementation ban đầu của Raudaschl mang tính engineering recipe; bài arXiv của Rackauckas là một đánh giá sau đó, không phải nguồn gốc của thuật toán RRF.
 
 ---
 
@@ -137,7 +137,7 @@ Kết quả chính: RRF đạt MAP (Mean Average Precision) cao hơn hoặc ngan
 
 ### 4.2 RAG-Fusion: Thiếu hụt đánh giá học thuật nghiêm ngặt
 
-**Không có peer-reviewed benchmark nào đánh giá RAG-Fusion một cách cô lập.** Blog post của Rackauckas không bao gồm controlled experiments với statistical significance testing. Các con số được trích dẫn trong cộng đồng thường đến từ:
+**Không có peer-reviewed benchmark nào được nguồn gốc ban đầu cung cấp để đánh giá RAG-Fusion một cách cô lập.** Bài viết của Raudaschl tập trung vào pattern triển khai; Rackauckas (2024) cung cấp một đánh giá công bố trên arXiv nhưng không phải bài peer-reviewed. Vì vậy, các claim deployment vẫn cần kiểm thử trên corpus đích:
 - Anecdotal reports của practitioners.
 - Leaderboard không chính thức trên datasets nhỏ.
 - Comparisons không có ablation control.
@@ -242,7 +242,9 @@ Bảng so sánh các kỹ thuật xử lý retrieval failure:
 
 - **Cormack, G. V., Clarke, C. L. A., & Buettcher, S.** (2009). Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods. *Proceedings of the 32nd International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR 2009)*, pp. 758–759. ACM.
 
-- **Rackauckas, Z.** (2023). RAG-Fusion: a New Take on Retrieval-Augmented Generation. Blog post (Medium / Towards Data Science). Implementation: [github.com/Raudaschl/rag-fusion](https://github.com/Raudaschl/rag-fusion). *(Không phải peer-reviewed paper.)*
+- **Raudaschl, A. H.** (2023). *Forget RAG, the Future is RAG-Fusion: The Next Frontier of Search Technology*. Towards Data Science. Reference implementation: [github.com/Raudaschl/rag-fusion](https://github.com/Raudaschl/rag-fusion). *(Không phải peer-reviewed paper.)*
+
+- **Rackauckas, Z.** (2024). *RAG-Fusion: a New Take on Retrieval-Augmented Generation*. arXiv:2402.03367. *(Bài đánh giá sau đó; không phải nguồn gốc của RRF.)*
 
 - **Gao, L., Ma, X., Lin, J., & Callan, J.** (2022). Precise Zero-Shot Dense Retrieval without Relevance Labels. arXiv:2212.10496. Published at NAACL 2023. *(HyDE — để so sánh.)*
 

@@ -113,11 +113,11 @@ Ablation cho thấy BM25 hard negatives cải thiện đáng kể so với chỉ
 
 ### Inference với FAISS
 
-Sau training, toàn bộ ~21 triệu passages từ Wikipedia được encode bằng `E_P` và lưu vào FAISS index (Facebook AI Similarity Search). DPR dùng flat L2 / inner product index (FAISS `IndexFlatIP`) — không approximate, đảm bảo exact top-k.
+Sau training, toàn bộ ~21 triệu passages từ Wikipedia được encode bằng `E_P` và lưu vào FAISS index (Facebook AI Similarity Search). Thiết lập được paper profile dùng FAISS HNSW index trên CPU, tức approximate maximum inner product search thay vì exact flat search.
 
 - Encode 21M passages: ~8.8 giờ trên 8 GPU (theo paper).
 - Storage: ~65GB cho 768-dim float32 vectors.
-- Query latency: ~1ms per query với GPU-based ANN search.
+- Throughput retrieval: 995 câu hỏi/giây để trả top-100 passages trên server CPU được mô tả trong paper.
 
 ---
 
@@ -125,23 +125,23 @@ Sau training, toàn bộ ~21 triệu passages từ Wikipedia được encode b�
 
 ### Top-20 Retrieval Accuracy (%)
 
-| Dataset | BM25 | DPR | Gain |
+| Dataset | BM25 | DPR (Single) | Gain |
 |---|---|---|---|
-| Natural Questions | 59.1 | **79.4** | +20.3 |
-| TriviaQA | 66.9 | **78.8** | +11.9 |
+| Natural Questions | 59.1 | **78.4** | +19.3 |
+| TriviaQA | 66.9 | **79.4** | +12.5 |
 | WebQuestions | 55.0 | **73.2** | +18.2 |
-| CuratedTREC | 70.9 | **89.1** | +18.2 |
-| SQuAD | **81.8** | 63.2 | -18.6 |
+| CuratedTREC | 70.9 | **79.8** | +8.9 |
+| SQuAD | **68.8** | 63.2 | -5.6 |
 
 ### Top-100 Retrieval Accuracy (%)
 
-| Dataset | BM25 | DPR | Gain |
+| Dataset | BM25 | DPR (Single) | Gain |
 |---|---|---|---|
 | Natural Questions | 73.7 | **85.4** | +11.7 |
-| TriviaQA | 76.7 | **79.4** | +2.7 |
-| WebQuestions | 64.5 | **77.8** | +13.3 |
-| CuratedTREC | 84.1 | **93.6** | +9.5 |
-| SQuAD | **92.8** | 78.4 | -14.4 |
+| TriviaQA | 76.7 | **85.0** | +8.3 |
+| WebQuestions | 71.1 | **81.4** | +10.3 |
+| CuratedTREC | 84.1 | **89.1** | +5.0 |
+| SQuAD | **80.0** | 77.2 | -2.8 |
 
 > Nguồn: Table 2 trong paper gốc (Karpukhin et al., EMNLP 2020).
 
@@ -149,14 +149,14 @@ Sau training, toàn bộ ~21 triệu passages từ Wikipedia được encode b�
 
 ### Ablation: Loại Negative Ảnh Hưởng Thế Nào
 
-| Training Setup | NQ Top-20 |
-|---|---|
-| Random negatives only | 60.0 |
-| In-batch negatives (IB) | 76.2 |
-| IB + BM25 hard negatives | **78.4** |
-| IB + BM25 + gold passage distractor | **79.4** |
+| Training Setup | NQ Top-20 (dev) |
+|---|---:|
+| Gold negatives, không in-batch (`#N=7`) | 63.1 |
+| Gold negatives, in-batch (`#N=31`) | 70.8 |
+| Gold + một BM25 hard negative, in-batch (`#N=31+32`) | 77.3 |
+| Gold + một BM25 hard negative, in-batch (`#N=127+128`) | **78.0** |
 
-Kết quả ablation trên NaturalQuestions cho thấy: in-batch negatives là cải thiện lớn nhất (+16.2), và BM25 hard negatives bổ sung thêm ~2-3 điểm.
+Kết quả Table 3 cho thấy in-batch negatives cải thiện mạnh so với gold negatives thông thường, và thêm một BM25 hard negative nâng tiếp kết quả trong cùng thiết lập.
 
 ### So Sánh Với ORQA và REALM
 
@@ -165,7 +165,7 @@ Kết quả ablation trên NaturalQuestions cho thấy: in-batch negatives là c
 | BM25 | 59.1 | 66.9 |
 | ORQA | 31.3 | 45.0 |
 | REALM | 54.9 | — |
-| **DPR** | **79.4** | **78.8** |
+| **DPR (Single)** | **78.4** | **79.4** |
 
 ORQA và REALM thua DPR đáng kể, dù phức tạp hơn nhiều về training. Điều này cho thấy supervision trực tiếp từ QA pairs quan trọng hơn unsupervised pre-training kiểu ICT.
 

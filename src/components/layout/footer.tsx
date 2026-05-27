@@ -33,7 +33,7 @@ export function Footer() {
         </div>
 
         <div className="flex flex-col gap-2 text-sm">
-          <p className="tech-mono text-xs uppercase text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             <LocalizedText vi="Site" en="Site" />
           </p>
           {navigationConfig.map((item) => (
@@ -48,7 +48,7 @@ export function Footer() {
         </div>
 
         <div className="flex flex-col gap-2 text-sm">
-          <p className="tech-mono text-xs uppercase text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             <LocalizedText vi="Liên hệ" en="Contact" />
           </p>
           {hasEmail ? (

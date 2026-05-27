@@ -103,23 +103,27 @@ Thought buộc model phải **tường minh hóa kế hoạch** trước khi hà
 
 | Phương pháp | EM (%) |
 |---|---|
-| Standard prompting | 29.7 |
-| CoT (Chain-of-Thought) | 35.1 |
-| Act-only | 28.0 |
-| **ReAct** | **35.1** |
-| ReAct → CoT (best of both) | **40.4** |
+| Standard prompting | 28.7 |
+| CoT (Chain-of-Thought) | 29.4 |
+| CoT-SC (self-consistency) | 33.4 |
+| Act-only | 25.7 |
+| ReAct | 27.4 |
+| CoT-SC → ReAct | 34.2 |
+| **ReAct → CoT-SC** | **35.1** |
 
 **FEVER** (fact verification, metric: Accuracy):
 
 | Phương pháp | Accuracy (%) |
 |---|---|
-| Standard prompting | 56.3 |
+| Standard prompting | 57.1 |
 | CoT | 56.3 |
+| CoT-SC | 60.4 |
 | Act-only | 58.9 |
-| **ReAct** | **63.1** |
-| ReAct → CoT (best of both) | **66.6** |
+| ReAct | 60.9 |
+| CoT-SC → ReAct | **64.6** |
+| ReAct → CoT-SC | 62.0 |
 
-Trên FEVER, ReAct vượt trội rõ rệt so với CoT vì task yêu cầu verification dựa trên evidence thực tế — không thể suy luận thuần túy.
+Trong Table 1, ReAct đơn lẻ tốt hơn CoT trên FEVER nhưng kém CoT-SC; các chiến lược kết hợp đạt kết quả tốt nhất. Trên HotpotQA, ReAct đơn lẻ kém CoT, còn fallback từ ReAct sang CoT-SC đứng đầu bảng prompting.
 
 ### Decision-Making Tasks
 
@@ -127,18 +131,18 @@ Trên FEVER, ReAct vượt trội rõ rệt so với CoT vì task yêu cầu ver
 
 | Phương pháp | Success Rate (%) |
 |---|---|
-| Act-only (BUTLER) | 45 |
-| ReAct (1-shot) | 71 |
-| **ReAct (2-shot)** | **71** |
+| Act-only (best of 6 trials) | 45 |
+| BUTLER (best of 8 trials) | 37 |
+| **ReAct (best of 6 trials)** | **71** |
 
-ReAct đạt 71% success rate so với 45% của Act-only baseline BUTLER — cải thiện 26 điểm phần trăm tuyệt đối. Điều này cho thấy reasoning traces giúp model lập kế hoạch tốt hơn trong môi trường nhiều bước.
+ReAct đạt 71% success rate so với 45% của Act-only prompting và 37% của BUTLER. Điều này cho thấy reasoning traces giúp model lập kế hoạch tốt hơn trong môi trường nhiều bước.
 
 **WebShop** (e-commerce shopping environment, metric: Average Reward):
 
 | Phương pháp | Avg. Reward | Success Rate (%) |
 |---|---|---|
 | IL + RL (imitation + reinforcement learning) | 62.4 | 28.7 |
-| Act-only | 62.2 | 30.1 |
+| Act-only | 62.3 | 30.1 |
 | **ReAct** | **66.6** | **40.0** |
 
 ReAct đạt average reward 66.6 và success rate 40.0% — vượt cả Act-only lẫn hệ thống IL+RL được train chuyên biệt, chỉ bằng few-shot prompting.

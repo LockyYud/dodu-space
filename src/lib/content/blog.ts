@@ -54,13 +54,14 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
       return {
         slug,
         ...fm,
+        published: fm.published === true && content.trim().length > 0,
         readingMinutes: estimateReadingMinutes(content),
       } satisfies BlogPost;
     }),
   );
 
   return posts
-    .filter((p) => p.published !== false)
+    .filter((p) => p.published === true)
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
@@ -73,6 +74,10 @@ export async function getBlogPostBySlug(slug: string) {
     slug,
     data as Record<string, unknown>,
   );
+
+  if (frontmatter.published !== true || content.trim().length === 0) {
+    throw new Error("Blog post is not published.");
+  }
 
   return compileMdx({
     frontmatter: {

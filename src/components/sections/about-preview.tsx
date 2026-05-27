@@ -64,7 +64,7 @@ export function AboutPreviewSection() {
                 <h3 className="mt-4 text-base font-semibold">
                   <LocalizedText vi={item.title.vi} en={item.title.en} />
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                <p className="mt-2 text-sm leading-6 text-foreground/75">
                   <LocalizedText
                     vi={item.description.vi}
                     en={item.description.en}

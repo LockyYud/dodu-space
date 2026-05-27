@@ -11,7 +11,7 @@ published: true
 > **Venue**: arXiv:2404.16130, 2024
 > **Loại**: `paper_inspired`
 
-GraphRAG xây dựng knowledge graph từ corpus bằng LLM, phân cụm thành communities qua thuật toán Leiden, và dùng community summaries kết hợp Map-Reduce để trả lời các câu hỏi mang tính tổng quan toàn bộ tài liệu — loại câu hỏi mà flat top-k chunk retrieval về nguyên lý không thể xử lý đầy đủ.
+GraphRAG xây dựng knowledge graph từ corpus bằng LLM, phân cụm thành communities qua thuật toán Leiden, và dùng community summaries kết hợp Map-Reduce để trả lời các câu hỏi mang tính tổng quan toàn bộ tài liệu — loại câu hỏi mà flat top-k chunk retrieval thường xử lý kém vì chỉ chọn một số đoạn cục bộ.
 
 ---
 
@@ -204,9 +204,9 @@ So sánh, naive RAG (standard chunked retrieval) có indexing cost gần như b�
 
 Ở query time, global mode tiêu thụ nhiều tokens hơn local mode và naive RAG vì phải process tất cả community summaries qua Map-Reduce. Community level coarser (ít communities hơn) giảm token usage nhưng cũng giảm detail.
 
-### Khi GraphRAG Kém Hơn
+### Phạm vi Kết luận
 
-Paper thừa nhận rõ: với câu hỏi local factual ("What year was X founded?"), **naive RAG thường tốt hơn hoặc ngang bằng GraphRAG**. GraphRAG không được thiết kế để thay thế chunk retrieval cho mọi loại query.
+Thực nghiệm của paper tập trung vào **global sensemaking questions** và chứng minh lợi ích về comprehensiveness/diversity trong phạm vi đó. Paper không cung cấp bằng chứng để kết luận GraphRAG thay thế chunk retrieval cho local factual queries; với loại câu hỏi này, cần benchmark riêng trước khi chọn kiến trúc.
 
 ---
 
@@ -223,7 +223,7 @@ Sai số trong extraction sẽ propagate sang community detection và cuối cù
 
 ### Chi phí Indexing Không Incremental
 
-Indexing cost (~26× source tokens) là cố định và phải chạy lại nếu corpus thay đổi. Với corpus 1M tokens dùng GPT-4, chi phí indexing có thể lên tới hàng chục đến hàng trăm USD. Paper không đề xuất incremental update strategy — thêm một tài liệu mới về lý thuyết cần rebuild toàn bộ graph hoặc ít nhất merge subgraph mới vào community structure cũ.
+Indexing cost (~26x source tokens trong thí nghiệm được báo cáo) là chi phí trả trước lớn. Paper không đánh giá một chiến lược incremental update, nên với corpus thay đổi thường xuyên, chi phí và chất lượng khi cập nhật graph/community cần được đo riêng thay vì giả định hệ thống cập nhật rẻ.
 
 ### LLM-as-Judge Bias
 
@@ -234,7 +234,7 @@ Evaluation hoàn toàn dựa vào GPT-4 Turbo làm judge. Đây là methodologic
 
 ### GraphRAG Kém cho Local Questions
 
-Local factual queries là điểm yếu rõ ràng. Với câu hỏi "Ai là CEO của công ty X?", top-k chunk retrieval nhanh hơn, rẻ hơn và chính xác hơn entity traversal của GraphRAG. Triển khai GraphRAG cho mọi loại query là lãng phí tài nguyên và có thể giảm chất lượng.
+Local factual queries nằm ngoài trọng tâm evaluation chính của paper. Với câu hỏi "Ai là CEO của công ty X?", top-k chunk retrieval là baseline rẻ hơn cần được so sánh trực tiếp; không nên route mọi query qua global GraphRAG chỉ dựa trên kết quả ở global questions.
 
 ### Reproducibility
 
@@ -248,6 +248,8 @@ Microsoft đã open-source code tại [github.com/microsoft/graphrag](https://gi
 ## 6. Vị trí trong Landscape
 
 ### So sánh với các phương pháp khác
+
+Bảng dưới đây là định hướng thiết kế suy ra từ cơ chế của từng phương pháp, không phải kết quả trên một benchmark chung:
 
 | Phương pháp | Global Questions | Local Questions | Indexing Cost | Query Latency |
 |-------------|:----------------:|:---------------:|:-------------:|:-------------:|
@@ -264,7 +266,7 @@ Cả hai đều hướng đến hierarchical indexing cho global questions, như
 - **RAPTOR** dùng recursive clustering + summarization của text chunks, không có explicit entity graph.
 - **GraphRAG** build explicit entity-relation graph, cho phép entity-centric traversal ở local mode.
 
-RAPTOR rẻ hơn về indexing; GraphRAG mạnh hơn khi cần entity-level reasoning hoặc quan hệ giữa entities.
+RAPTOR không cần explicit entity graph; GraphRAG tạo representation phù hợp hơn để thử nghiệm các truy vấn xoay quanh entities và quan hệ. Việc phương pháp nào tốt hơn cần được đo trên cùng dataset và budget.
 
 ### Khi nào GraphRAG đáng chi phí?
 
@@ -285,7 +287,7 @@ Community summaries encode thông tin về *cấu trúc* của corpus, không ch
 Khi community detection fails (communities nội bộ không connected), community summaries sẽ incoherent. Việc chọn Leiden không phải ngẫu nhiên — đây là quyết định engineering có động lực rõ ràng từ đặc điểm của knowledge graphs thực tế.
 
 **3. Chi phí indexing là trade-off chính, không phải bug.**
-~26× source tokens cho indexing là cái giá của pre-computation. Giống như building an inverted index để enable fast full-text search, graph indexing là upfront investment cho global QA capability. Quyết định "có nên dùng GraphRAG không" phụ thuộc vào query distribution — nếu >50% queries là global questions, investment có thể đáng; nếu hầu hết là local factual lookup, naive RAG hiệu quả hơn nhiều.
+~26x source tokens cho indexing trong thí nghiệm là cái giá của pre-computation. Giống như building an inverted index để enable fast full-text search, graph indexing là upfront investment cho global QA capability. Quyết định "có nên dùng GraphRAG không" phụ thuộc vào query distribution, chất lượng mục tiêu và cost budget; paper không xác lập một ngưỡng phần trăm query cố định.
 
 ---
 

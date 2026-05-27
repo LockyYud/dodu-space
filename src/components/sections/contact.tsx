@@ -13,7 +13,7 @@ export function ContactSection() {
   return (
     <AnimatedSection>
       <div className="rounded-lg border bg-card/75 p-5 shadow-sm">
-        <p className="tech-mono text-xs font-medium uppercase text-[var(--color-accent-text)]">
+        <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-accent-text)]">
           contact
         </p>
         <h2 className="mt-2 text-xl font-semibold tracking-tight">
@@ -22,7 +22,7 @@ export function ContactSection() {
             en="Want to discuss AI systems or RAG?"
           />
         </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
+        <p className="mt-2 max-w-2xl text-sm leading-7 text-foreground/75">
           <LocalizedText
             vi="Tôi ưu tiên các cuộc trò chuyện cụ thể về retrieval, backend cho LLM, đánh giá hệ thống và sản phẩm AI cần đi vào production."
             en="I prefer concrete conversations about retrieval, LLM backends, system evaluation, and AI products moving toward production."

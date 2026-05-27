@@ -107,19 +107,19 @@ export default function CraftPage() {
   return (
     <div className="flex flex-col gap-8">
       <header className="space-y-3">
-        <p className="tech-mono text-xs font-medium uppercase text-[var(--color-accent-text)]">
-          craft
+        <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-accent-text)]">
+          craft — visual experiments
         </p>
         <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
           <LocalizedText
-            vi="Thử nghiệm giao diện và interaction"
-            en="Interface and interaction experiments"
+            vi="Giao diện và công cụ kỹ thuật"
+            en="Engineering interfaces & tooling"
           />
         </h1>
-        <p className="max-w-2xl text-sm leading-7 text-muted-foreground">
+        <p className="max-w-2xl text-sm leading-7 text-foreground/75">
           <LocalizedText
-            vi="Một khu vực nhỏ để thử các visual code-native cho portfolio, system diagrams và developer tooling."
-            en="A small space for code-native visuals, system diagrams, and developer tooling experiments."
+            vi="Nơi thử nghiệm các visual code-native: system diagrams, terminal workflows và debug interfaces cho AI engineering. Không phải design — là công cụ để nghĩ."
+            en="Code-native visuals for AI engineering workflows: system diagrams, terminal panels, and debug interfaces. Not design showcases — thinking tools."
           />
         </p>
       </header>

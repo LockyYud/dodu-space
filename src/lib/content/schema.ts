@@ -24,7 +24,7 @@ export function parseBlogFrontmatter(
     tags: toStringArray(data.tags),
     summary: typeof data.summary === "string" ? data.summary : "",
     featured: typeof data.featured === "boolean" ? data.featured : false,
-    published: typeof data.published === "boolean" ? data.published : true,
+    published: typeof data.published === "boolean" ? data.published : false,
   };
 }
 

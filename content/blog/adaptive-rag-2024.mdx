@@ -9,7 +9,7 @@ published: true
 > **Paper**: Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity
 > **Tác giả**: Soyeong Jeong, Jinheon Baek, Sukmin Cho, Sung Ju Hwang, Jong C. Park et al.
 > **Venue**: NAACL 2024 — arXiv:2403.14403
-> **Loại**: `paper_reproduction`
+> **Loại**: `paper_summary`
 
 Adaptive-RAG huấn luyện một small classifier để tự động chọn giữa ba chiến lược retrieval — no-retrieval, single-step, và multi-step — dựa trên độ phức tạp của từng query, thay vì áp dụng một pipeline cố định cho mọi câu hỏi. Điểm then chốt là nhãn huấn luyện cho classifier được tạo tự động từ bias của dataset mà không cần annotation thủ công.
 
@@ -108,18 +108,18 @@ Thêm category thứ tư (ví dụ: graph-RAG) sẽ cần nhiều nhãn training
 
 ### Datasets và setup
 
-Paper đánh giá trên 5 dataset bao gồm cả single-hop và multi-hop:
+Paper đánh giá trên 6 dataset, chia đều giữa câu hỏi single-hop và multi-hop:
 
 | Dataset | Loại | Metric |
 |---|---|---|
-| PopQA | Single-hop, open-domain QA | Exact Match (EM) |
-| WebQ (WebQuestions) | Single-hop, knowledge graph | Exact Match (EM) |
-| TriviaQA | Single-hop, factoid | Exact Match (EM) |
-| MuSiQue | Multi-hop (2-4 hop) | Exact Match (EM) |
-| HotpotQA | Multi-hop (2 hop) | Exact Match (EM) |
-| 2WikiMultiHopQA | Multi-hop, cross-document | Exact Match (EM) |
+| SQuAD | Single-hop | EM, F1, Accuracy |
+| Natural Questions | Single-hop | EM, F1, Accuracy |
+| TriviaQA | Single-hop | EM, F1, Accuracy |
+| MuSiQue | Multi-hop | EM, F1, Accuracy |
+| HotpotQA | Multi-hop | EM, F1, Accuracy |
+| 2WikiMultiHopQA | Multi-hop | EM, F1, Accuracy |
 
-Generator: ChatGPT (gpt-3.5-turbo). Retriever: BM25 + Wikipedia corpus.
+Paper báo cáo nhiều generator; bảng dưới đây trích setting **FLAN-T5-XL (3B)** ở Table 2. Retriever là BM25; corpus dùng Wikipedia đã tiền xử lý cho single-hop và corpus theo thiết lập IRCoT cho multi-hop. Classifier của Adaptive-RAG là T5-Large.
 
 ### Baselines
 
@@ -131,36 +131,31 @@ Generator: ChatGPT (gpt-3.5-turbo). Retriever: BM25 + Wikipedia corpus.
 | FLARE | Forward-looking active retrieval, trigger khi confidence thấp |
 | IRCoT | Interleaved retrieval + chain-of-thought, multi-step |
 
-### Kết quả chính (Exact Match %)
+### Kết quả chính (F1 %, FLAN-T5-XL)
 
-| Method | PopQA | WebQ | TriviaQA | MuSiQue | HotpotQA | 2WikiMHQA |
+| Method | SQuAD | Natural Questions | TriviaQA | MuSiQue | HotpotQA | 2WikiMHQA |
 |---|---|---|---|---|---|---|
-| No-Retrieval | 21.7 | 18.3 | 57.4 | 8.4 | 29.5 | 33.8 |
-| Standard RAG | 50.6 | 40.6 | 57.6 | 8.3 | 35.6 | 34.7 |
-| FLARE | 48.2 | 39.6 | 55.5 | 8.5 | 33.6 | 34.2 |
-| IRCoT | 47.9 | 39.5 | 55.1 | 22.6 | 41.5 | 50.1 |
-| Self-RAG | 54.9 | 43.8 | 59.2 | 15.3 | 38.2 | 42.0 |
-| **Adaptive-RAG** | **56.1** | **46.4** | **60.2** | **23.5** | **43.5** | **51.2** |
+| No Retrieval | 10.50 | 19.00 | 31.80 | 10.70 | 22.71 | 32.04 |
+| Single-step Approach | 39.30 | 47.30 | 62.40 | 22.80 | 46.15 | 47.90 |
+| Adaptive Retrieval | 23.10 | 36.00 | 46.90 | 15.80 | 32.22 | 39.44 |
+| Self-RAG | 11.20 | 39.00 | 29.30 | 8.10 | 17.53 | 19.59 |
+| **Adaptive-RAG** | **38.30** | **47.30** | **60.70** | **31.80** | **53.82** | **49.75** |
+| Multi-step Approach | 35.60 | 47.80 | 62.40 | 31.90 | 56.54 | 58.85 |
+| Adaptive-RAG w/ Oracle | 45.60 | 57.10 | 70.20 | 38.50 | 64.00 | 62.30 |
 
-*Số liệu từ Table 1, Jeong et al. (2024), arXiv:2403.14403. Một số giá trị có thể sai lệch nhỏ do rounding.*
+*Số liệu trích từ Table 2, Jeong et al. (2024), arXiv:2403.14403.*
 
-**Nhận xét**: Adaptive-RAG đạt kết quả tốt nhất hoặc ngang nhất trên tất cả 6 dataset, đặc biệt trổi hơn trên single-hop (PopQA, WebQ) nhờ tránh overhead multi-step không cần thiết, và vẫn cạnh tranh trên multi-hop (MuSiQue, 2WikiMHQA) nhờ routing sang strategy C khi cần.
+**Nhận xét**: Adaptive-RAG tốt hơn các baseline adaptive được báo cáo trong bảng, đặc biệt trên các tập multi-hop. Tuy nhiên, phương pháp không vượt multi-step approach trên mọi tập; giá trị chính là trade-off giữa chất lượng và số bước retrieval/generation, không phải thắng tuyệt đối về F1.
 
-### Ablation Study
+### Hiệu quả theo số bước
 
-| Variant | PopQA | MuSiQue | Ghi chú |
+| Method | SQuAD | Natural Questions | TriviaQA | MuSiQue | HotpotQA | 2WikiMHQA |
 |---|---|---|---|
-| Always-A (No-Retrieval) | 21.7 | 8.4 | Thiếu knowledge |
-| Always-B (Single-Step) | 50.6 | 8.3 | Không đủ cho multi-hop |
-| Always-C (Multi-Step/IRCoT) | 47.9 | 22.6 | Overcomplicates single-hop |
-| Adaptive w/ oracle labels | ~58 | ~25 | Upper bound với nhãn hoàn hảo |
-| **Adaptive w/ auto labels** | **56.1** | **23.5** | Phương pháp đề xuất |
+| Single-step Approach | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| **Adaptive-RAG** | **1.37** | **1.00** | **1.23** | **3.22** | **3.55** | **2.63** |
+| Multi-step Approach | 4.52 | 5.04 | 5.28 | 3.60 | 5.53 | 4.17 |
 
-Kết quả ablation cho thấy: không có strategy đơn lẻ nào vượt được Adaptive trên cả hai loại dataset đồng thời. Gap giữa "oracle labels" và "auto labels" nhỏ (~2 điểm), chứng minh phương pháp tạo nhãn tự động khả thi.
-
-### Hiệu quả (Efficiency)
-
-So với Always-C (IRCoT), Adaptive-RAG giảm số lần retrieval trung bình khoảng **40-50%** trên tập dataset hỗn hợp, do nhiều single-hop query được route sang B hoặc A.
+Số bước trung bình trong Table 2 cho thấy Adaptive-RAG tránh được phần lớn chi phí của multi-step approach trên single-hop và dùng ít bước hơn trên cả ba tập multi-hop. Paper còn báo cáo thời gian tương đối; khi triển khai production vẫn cần đo lại latency theo retriever, generator và hạ tầng cụ thể.
 
 ---
 

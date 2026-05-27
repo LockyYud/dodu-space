@@ -42,13 +42,13 @@ export function ProjectCard({ project }: Readonly<{ project: Project }>) {
                   <Badge
                     key={tag}
                     variant="secondary"
-                    className="tech-mono bg-muted/50 text-[10px] text-muted-foreground"
+                    className="bg-muted/50 text-xs text-muted-foreground"
                   >
                     {tag}
                   </Badge>
                 ))}
               </div>
-              <div className="flex flex-wrap gap-2 tech-mono text-[10px] text-muted-foreground">
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span className="rounded-md border bg-background/60 px-2 py-1">
                   <LocalizedText vi="Case study" en="Case study" />
                 </span>

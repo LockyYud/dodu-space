@@ -34,7 +34,7 @@ export function SectionHeader({
     >
       <div className="min-w-0 space-y-2">
         {eyebrow ? (
-          <p className="tech-mono text-xs font-medium uppercase text-[var(--color-accent-text)]">
+          <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-accent-text)]">
             {eyebrow}
           </p>
         ) : null}
@@ -42,7 +42,7 @@ export function SectionHeader({
           {title}
         </Title>
         {description ? (
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+          <p className="max-w-2xl text-sm leading-6 text-foreground/70">
             {description}
           </p>
         ) : null}

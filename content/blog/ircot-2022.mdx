@@ -135,51 +135,21 @@ IRCoT dùng few-shot demonstrations được xây dựng thủ công cho mỗi d
 - **Retriever**: BM25 (TF-IDF-based), top-k = 2 mỗi bước
 - **LLM**: GPT-3 (`text-davinci-003`) với few-shot prompting
 
-### Kết quả chính: Answer F1 (%)
+Các so sánh trong paper phụ thuộc vào LLM, retriever, prompt demonstrations và setting in-distribution hoặc out-of-distribution; vì vậy chỉ nên so sánh các dòng thuộc cùng setting.
 
-| Method | HotpotQA | 2WikiMultihopQA | MuSiQue | IIRC |
-|--------|----------|-----------------|---------|------|
-| CoT-only (no retrieval) | 28.9 | 19.4 | 8.4 | 21.2 |
-| One-step Retrieve + Read | 38.5 | 29.4 | 12.5 | 27.3 |
-| ReAct | 35.1 | 27.4 | 11.1 | — |
-| **IRCoT (BM25)** | **49.3** | **61.1** | **26.0** | **46.5** |
+### Kết quả chính
 
-*Nguồn: Bảng 2, Trivedi et al. 2023. Các giá trị là Answer F1 trên test set.*
+Abstract của paper báo cáo IRCoT với GPT-3 cải thiện retrieval **tới 21 điểm** và downstream QA **tới 15 điểm** trên bốn dataset. Table 1 còn báo cáo hàng `IRCoT QA` trong comparison với các hệ thống công bố trước đó, nhưng tác giả lưu ý comparison đó không hoàn toàn head-to-head.
 
-IRCoT cải thiện so với one-step retrieval: **+10.8** trên HotpotQA, **+31.7** trên 2WikiMultihopQA, **+13.5** trên MuSiQue, **+19.2** trên IIRC.
-
-### Kết quả Retrieval Recall (Paragraph F1)
-
-IRCoT cũng cải thiện đáng kể retrieval recall — không chỉ answer quality:
-
-| Method | HotpotQA | 2WikiMultihopQA | MuSiQue |
-|--------|----------|-----------------|---------|
-| One-step BM25 | 46.8 | 31.6 | 19.4 |
-| **IRCoT BM25** | **60.7** | **75.3** | **39.0** |
+Paper đo cả retrieval recall và answer quality; kết quả nhất quán về hướng cải thiện, nhưng bài viết này không gộp số liệu từ các setting khác nhau thành một bảng gain duy nhất.
 
 ### Ablation study
 
-**Ablation 1: Dùng câu hỏi gốc thay vì câu CoT làm query**
-
-Thay `query_t ← sentence_t` bằng `query_t ← Q` (tức là retrieve nhiều lần nhưng luôn dùng câu hỏi gốc):
-
-| Dataset | IRCoT (CoT sentence query) | Ablation (Q as query) | Delta |
-|---------|---------------------------|----------------------|-------|
-| HotpotQA | 49.3 | 41.2 | −8.1 |
-| 2WikiMultihopQA | 61.1 | 38.7 | −22.4 |
-| MuSiQue | 26.0 | 17.3 | −8.7 |
-
-Kết quả cho thấy chính cơ chế dùng CoT sentence làm query — không chỉ đơn thuần là retrieve nhiều lần — tạo ra phần lớn cải thiện.
+**Dùng reasoning làm retrieval signal**: Phân tích của paper cho thấy interleaving giúp retrieve thông tin phục vụ bước reasoning hiện tại thay vì luôn tìm bằng câu hỏi ban đầu. Tác giả cũng annotation một mẫu generated chains và báo cáo factual errors giảm so với one-step retrieval.
 
 **Ablation 2: Số lượng retrieval steps**
 
-IRCoT thường sử dụng 2–4 retrieval steps trên HotpotQA (2-hop questions). Trên MuSiQue (3-4 hop), cần trung bình 3–5 steps. Paper cho thấy performance tăng dần theo số steps và plateau sau khoảng T = 4–6 đối với đa số câu hỏi.
-
-**Số retrieval steps trung bình thực tế:**
-- HotpotQA: ~2.1 steps
-- 2WikiMultihopQA: ~2.3 steps
-- MuSiQue: ~3.2 steps
-- IIRC: ~2.8 steps
+Số bước là một hyperparameter/guard quan trọng: thêm retrieval có thể tìm được bridge evidence nhưng làm tăng cost và đưa thêm noise vào context. Trong implementation, nên báo cáo chất lượng cùng số bước và latency thay vì áp dụng một con số mặc định như kết luận từ paper.
 
 ---
 

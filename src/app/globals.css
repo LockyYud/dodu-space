@@ -100,11 +100,11 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.78 0 0);
+  --muted-foreground: oklch(0.82 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --accent-text: oklch(0.7 0.18 262);
-  --grid: oklch(0.985 0 0 / 8%);
+  --grid: oklch(0.985 0 0 / 4%);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
@@ -132,10 +132,13 @@
     @apply bg-background text-foreground;
     overflow-x: hidden;
     font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     background-image:
       linear-gradient(to right, var(--grid) 1px, transparent 1px),
       linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
-    background-size: 32px 32px;
+    background-size: 40px 40px;
     background-position: center;
   }
   html {

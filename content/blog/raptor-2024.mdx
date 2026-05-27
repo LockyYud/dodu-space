@@ -156,42 +156,26 @@ Baseline gồm: BM25, DPR (Dense Passage Retrieval), standard top-k chunk retrie
 
 ### 4.2 Kết quả Chính
 
-**Trên QASPER** (metric: F1 answer):
+Để so sánh retrieval có kiểm soát, paper dùng cùng reader **UnifiedQA-3B** và so sánh retriever có/không có cây RAPTOR:
 
-| Method | F1 |
-|---|---|
-| BM25 | 25.1 |
-| DPR | 22.6 |
-| Flat chunk retrieval (top-k) | 36.6 |
-| RAPTOR — Tree Traversal | 36.8 |
-| RAPTOR — Collapsed Tree | **36.6** |
-| RAPTOR + GPT-4 (full pipeline) | **53.1** |
+| Retriever / Index | QuALITY Accuracy | QASPER Answer F1 |
+|---|---:|---:|
+| SBERT without RAPTOR | 54.9 | 36.23 |
+| **SBERT with RAPTOR** | **56.6** | **36.70** |
+| BM25 without RAPTOR | 49.9 | 26.47 |
+| **BM25 with RAPTOR** | **52.1** | **27.00** |
+| DPR without RAPTOR | 53.1 | 31.70 |
+| **DPR with RAPTOR** | **54.7** | **32.23** |
 
-**Trên QuALITY** (metric: accuracy):
+*Số liệu từ Table 2, dùng cùng UnifiedQA-3B reader.*
 
-| Method | Accuracy |
-|---|---|
-| Flat chunk retrieval | 66.3 |
-| RAPTOR — Collapsed Tree | **72.0** |
-| RAPTOR + GPT-4 | **82.6** |
-
-**Trên NarrativeQA** (metric: F1):
-
-| Method | F1 |
-|---|---|
-| Flat chunk retrieval | 13.5 |
-| RAPTOR — Collapsed Tree | **14.3** |
-| RAPTOR + GPT-4 | **21.0** |
-
-> **Lưu ý**: Các con số trên được trích từ paper (Bảng 1 và 2 trong arXiv:2401.18059). Kết quả RAPTOR + GPT-4 là kết hợp của RAPTOR retrieval và GPT-4 generation, không phải chỉ retrieval. Để so sánh fair giữa retrieval methods, so sánh các dòng cùng backbone LLM.
+Khi đổi reader, Table 3 báo cáo QASPER F1 của RAPTOR là `53.1` với GPT-3, `55.7` với GPT-4 và `36.6` với UnifiedQA; trong cả ba setting RAPTOR cao hơn BM25 và DPR tương ứng. Với QuALITY test set, cấu hình RAPTOR + GPT-4 đạt accuracy `82.6`, so với prior result `62.3` được paper dẫn.
 
 ### 4.3 Ablation Study
 
-**Collapsed tree vs tree traversal**: Trên QuALITY, collapsed tree đạt 72.0% trong khi tree traversal đạt 70.1%. Khoảng cách này nhỏ hơn trên QASPER (câu hỏi factoid hơn) nhưng rõ hơn trên NarrativeQA (câu hỏi toàn cục hơn).
+**Collapsed tree vs tree traversal**: Paper thử hai query strategy trên subset 20 stories của QASPER và chọn collapsed tree với budget 2,000 tokens vì đạt kết quả tốt nhất trong thử nghiệm chọn strategy đó. Kết quả này không nên diễn giải thành một ablation tổng quát cho mọi dataset.
 
-**Số tầng summarization**: Tăng từ 1 tầng lên 2 tầng cho cải thiện đáng kể (~3-4% trên QuALITY). Từ 2 tầng lên 3 tầng cải thiện ít hơn và đôi khi không có lợi — vì summary quá trừu tượng ở tầng 3 mất chi tiết cụ thể.
-
-**Mixed retrieval (leaf + summary)**: Việc retriever có thể chọn cả leaf nodes lẫn summary nodes trong collapsed tree là nguồn cải thiện chính. Nếu chỉ dùng summary-only retrieval, recall ở câu hỏi chi tiết giảm mạnh.
+**Mixed retrieval (leaf + summary)**: Collapsed tree cho phép retriever chọn nodes từ nhiều tầng. Table 8 minh họa trên một story của QuALITY rằng truy vấn cả ba tầng tốt hơn chỉ một tầng; đây là bằng chứng minh họa, không phải estimate tổng quát cho toàn benchmark.
 
 ---
 

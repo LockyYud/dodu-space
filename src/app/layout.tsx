@@ -66,7 +66,7 @@ export default async function RootLayout({
           <LanguageProvider>
             <TooltipProvider>
               <Header />
-              <main className="mx-auto min-h-[calc(100svh-3.5rem)] w-full max-w-4xl overflow-x-hidden px-4 py-10">
+              <main className="mx-auto min-h-[calc(100svh-3.5rem)] w-full max-w-5xl overflow-x-hidden px-4 py-10">
                 <PageTransition>{children}</PageTransition>
               </main>
               <Footer />

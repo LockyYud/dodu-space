@@ -134,40 +134,27 @@ Khi action là INCORRECT hoặc AMBIGUOUS, CRAG kích hoạt web search với **
 
 ### Datasets
 
-Paper đánh giá trên ba datasets với đặc điểm khác nhau:
+Paper đánh giá trên bốn dataset với đặc điểm khác nhau:
 
 - **PopQA**: open-domain question answering, câu hỏi về factual knowledge (entities, relations). Metric: accuracy.
 - **Biography**: long-form generation, yêu cầu sinh tiểu sử nhân vật. Metric: FactScore (fact-level precision).
 - **PubHealth**: health/medical claim verification từ nguồn tin tức. Metric: accuracy.
+- **Arc-Challenge**: multiple-choice science reasoning. Metric: accuracy.
 
 ### Kết quả So sánh
 
-| Model | PopQA (Acc ↑) | Biography (FactScore ↑) | PubHealth (Acc ↑) |
-|---|---|---|---|
-| Naive RAG (LLaMA-2-13B) | 50.5 | 53.4 | 70.6 |
-| Self-RAG (LLaMA-2-13B) | 54.9 | 59.5 | 72.4 |
-| **CRAG (LLaMA-2-13B)** | **56.4** | **62.3** | **73.0** |
-| Naive RAG (ChatGPT) | 50.4 | 65.3 | 72.4 |
-| **CRAG (ChatGPT)** | **58.7** | **71.3** | **74.4** |
+| Method / Generator | PopQA (Acc ↑) | Biography (FactScore ↑) | PubHealth (Acc ↑) | ARC (Acc ↑) |
+|---|---:|---:|---:|---:|
+| RAG / LLaMA2-hf-7b | 50.5 | 44.9 | 48.9 | 43.4 |
+| **CRAG / LLaMA2-hf-7b** | **54.9** | **47.7** | **59.5** | **53.7** |
+| RAG / SelfRAG-LLaMA2-7b | 52.8 | 59.2 | 39.0 | 53.2 |
+| **CRAG / SelfRAG-LLaMA2-7b** | **59.8** | **74.1** | **75.6** | **68.6** |
+| Self-RAG / SelfRAG-LLaMA2-7b | 54.9 | 81.2 | 72.4 | 67.3 |
+| Self-CRAG / SelfRAG-LLaMA2-7b | 61.8 | 86.2 | 74.8 | 67.2 |
 
-*Số liệu từ Table 2 của paper gốc. CRAG cải thiện nhất quán trên cả ba datasets và cả hai backbone LLMs.*
+*Số liệu trích từ Table 1 của bản arXiv:2401.15884v3. `CRAG` là corrective workflow ghép với standard RAG; `Self-CRAG` là workflow ghép với Self-RAG.*
 
-### Ablation Study
-
-Paper thực hiện ablation để đánh giá đóng góp của từng component:
-
-| Variant | PopQA | Biography | PubHealth |
-|---|---|---|---|
-| CRAG đầy đủ | 56.4 | 62.3 | 73.0 |
-| Không có evaluator (luôn dùng CORRECT) | 51.8 | 55.2 | 70.9 |
-| Không có web search (chỉ dùng corpus) | 54.1 | 60.1 | 72.1 |
-| Không có decompose-then-recompose | 53.7 | 58.8 | 71.5 |
-| Chỉ có hai action (bỏ AMBIGUOUS) | 55.2 | 61.0 | 72.3 |
-
-Kết quả ablation cho thấy:
-- **Retrieval evaluator** là component quan trọng nhất — không có nó, pipeline thoái hóa về Naive RAG.
-- **Decompose-then-recompose** đóng góp đáng kể vào Biography (FactScore), nơi noise trong documents có tác hại lớn nhất cho long-form generation.
-- **Action AMBIGUOUS** giúp xử lý borderline cases tốt hơn binary decision — bỏ đi làm giảm performance nhẹ.
+Kết quả quan trọng là CRAG cải thiện standard RAG trên cả bốn task trong hai setting generator được báo cáo. Self-CRAG cũng cải thiện rõ trên PopQA và Biography, nhưng không thắng Self-RAG trên ARC; vì vậy không nên mô tả correction là cải thiện tuyệt đối cho mọi task.
 
 ---
 

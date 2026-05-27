@@ -24,9 +24,9 @@ Dense retrieval — tiêu biểu là DPR của Karpukhin et al. (2020) — ánh 
 
 ### Bằng Chứng Thực Nghiệm Về Sự Bổ Sung
 
-Karpukhin et al. (2020) chỉ ra rằng DPR vượt BM25 đáng kể trên Natural Questions (top-20 accuracy: 79.4% so với 59.1%) và TriviaQA (top-20: 78.8% so với 66.9%). Tuy nhiên, cùng bài báo thừa nhận BM25 vẫn cạnh tranh hoặc thắng trên các tập dữ liệu có nhiều named entity như WebQuestions và CuratedTREC, nơi exact match mang lại lợi thế rõ ràng.
+Karpukhin et al. (2020) chỉ ra rằng DPR (single-dataset training) vượt BM25 đáng kể trên Natural Questions (top-20 accuracy: 78.4% so với 59.1%) và TriviaQA (79.4% so với 66.9%). Trong chính benchmark này, DPR cũng vượt BM25 trên WebQuestions và CuratedTREC; trường hợp BM25 thắng rõ là SQuAD, nơi lexical overlap cao do cách dữ liệu được tạo.
 
-Quan trọng hơn, Thakur et al. (2021) trên BEIR benchmark — bao gồm 18 tập dữ liệu đa dạng từ y tế đến luật pháp — cho thấy không retriever đơn lẻ nào thống trị toàn bộ: BM25 thắng trên TREC-COVID và Signal-1M, DPR thắng trên NQ và HotpotQA, còn hybrid thường đạt điểm cao nhất trung bình. Đây là lý do cơ bản để xây dựng hybrid pipeline.
+Quan trọng hơn, Thakur et al. (2021) trên BEIR benchmark — bao gồm 18 tập dữ liệu đa dạng từ y tế đến luật pháp — cho thấy không retriever đơn lẻ nào thống trị toàn bộ. Đây là lý do phải benchmark sparse, dense và hybrid trên corpus đích thay vì mặc định chọn một retriever.
 
 ---
 
@@ -152,11 +152,12 @@ Karpukhin et al. (2020) báo cáo top-20 passage retrieval accuracy:
 | Phương pháp | Natural Questions | TriviaQA | WebQuestions | CuratedTREC |
 | --- | --- | --- | --- | --- |
 | BM25 (Lucene) | 59.1% | 66.9% | 55.0% | 70.9% |
-| DPR (single) | 78.4% | 79.4% | 73.2% | 79.4% |
+| DPR (single) | 78.4% | 79.4% | 73.2% | 79.8% |
 | DPR (multi) | **79.4%** | **78.8%** | **75.0%** | **89.1%** |
-| BM25 + DPR hybrid | 76.6% | 78.0% | 73.9% | 88.2% |
+| BM25 + DPR hybrid (single) | 76.6% | 79.8% | 71.0% | 85.2% |
+| BM25 + DPR hybrid (multi) | 78.0% | 79.9% | 74.7% | 88.5% |
 
-Kết quả đáng chú ý: hybrid không phải lúc nào cũng thắng DPR đơn lẻ trên NQ — nhưng trên WebQuestions và CuratedTREC (nhiều named entity), BM25 góp phần đáng kể. Điều này nhấn mạnh rằng lợi ích của hybrid phụ thuộc nhiều vào đặc điểm corpus và query distribution.
+Kết quả đáng chú ý: trong Table 2 của DPR, hybrid chỉ cải thiện một số cặp dataset/training setting, chẳng hạn TriviaQA; nó không vượt DPR-multi trên WebQuestions hoặc CuratedTREC. Hybrid là baseline cần đo, không phải kết luận đã được đảm bảo bởi bảng này.
 
 ### 4.2 RRF vs Các Phương Pháp Fusion Khác
 
@@ -202,9 +203,8 @@ Thakur et al. (2021) đo nDCG@10 trung bình trên 18 tập dữ liệu BEIR:
 | DPR (trained on NQ) | 0.226 |
 | ANCE | 0.336 |
 | TAS-B | 0.397 |
-| Hybrid (BM25 + dense) | **~0.44–0.46** (phụ thuộc implementation) |
 
-Kết quả DPR thấp do overfitting vào NQ training distribution — một cảnh báo quan trọng: dense retriever train trên một domain có thể generalise kém sang domain khác. BM25, không cần training, generalise tốt hơn đáng ngạc nhiên trên zero-shot settings.
+Kết quả DPR thấp do domain shift từ NQ sang các tập BEIR — một cảnh báo quan trọng: dense retriever train trên một domain có thể generalise kém sang domain khác. Bảng BEIR này củng cố nhu cầu đo baseline; nó không tự chứng minh một cấu hình hybrid cụ thể sẽ thắng.
 
 ---
 

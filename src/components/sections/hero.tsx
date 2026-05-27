@@ -56,7 +56,7 @@ export function HeroSection() {
             <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl">
               {siteConfig.title}
             </h1>
-            <p className="max-w-2xl text-base leading-7 text-muted-foreground md:text-lg md:leading-8">
+            <p className="max-w-2xl text-base leading-7 text-foreground/80 md:text-lg md:leading-8">
               <LocalizedText
                 vi="Tôi thiết kế hệ thống AI ứng dụng: pipeline RAG, backend phục vụ LLM, đánh giá chất lượng retrieval và hạ tầng dữ liệu vector/graph để sản phẩm chạy ổn định hơn."
                 en="I design applied AI systems: RAG pipelines, LLM backend services, retrieval evaluation, and vector/graph data infrastructure for more reliable products."
@@ -113,10 +113,10 @@ export function HeroSection() {
                 key={item.label}
                 className="rounded-lg border bg-background/65 px-3 py-2"
               >
-                <p className="tech-mono text-[11px] text-[var(--color-accent-text)]">
+                <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-accent-text)]">
                   {item.label}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm leading-relaxed text-foreground/75">
                   <LocalizedText vi={item.value.vi} en={item.value.en} />
                 </p>
               </div>
@@ -127,7 +127,7 @@ export function HeroSection() {
         <div className="rounded-lg border bg-card/75 p-4 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between gap-3 border-b pb-3">
             <div>
-              <p className="tech-mono text-xs text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 <LocalizedText vi="current focus" en="current focus" />
               </p>
               <h2 className="mt-1 text-base font-semibold">
@@ -150,16 +150,14 @@ export function HeroSection() {
                   </span>
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{step.label}</p>
-                    <p className="tech-mono text-xs text-muted-foreground">
-                      {step.detail}
-                    </p>
+                    <p className="text-sm text-foreground/65">{step.detail}</p>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          <div className="mt-4 rounded-md bg-muted/50 px-3 py-2 tech-mono text-xs text-muted-foreground">
+          <div className="mt-4 rounded-md bg-muted/50 px-3 py-2 tech-mono text-xs text-foreground/75">
             <span className="text-foreground">status:</span>{" "}
             <LocalizedText
               vi="cải thiện retrieval, eval và observability cho hệ thống LLM."
