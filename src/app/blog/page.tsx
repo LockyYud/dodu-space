@@ -1,7 +1,5 @@
-import { BlogPageClient } from "@/components/blog/blog-page-client";
-import { getBlogPosts } from "@/lib/content/blog";
+import { permanentRedirect } from "next/navigation";
 
 export default async function BlogPage() {
-  const posts = await getBlogPosts();
-  return <BlogPageClient posts={posts} />;
+  permanentRedirect("/blogs");
 }

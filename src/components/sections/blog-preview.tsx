@@ -11,17 +11,17 @@ export async function BlogPreviewSection() {
   return (
     <AnimatedSection>
       <SectionHeader
-        eyebrow="engineer lab"
-        title={<LocalizedText vi="Bài viết mới" en="Latest notes" />}
+        eyebrow="blog"
+        title={<LocalizedText vi="Bài viết mới" en="Latest blogs" />}
         description={
           <LocalizedText
-            vi="Ghi chú nghiên cứu, implementation notes và các bài học khi xây hệ thống RAG/LLM."
-            en="Research notes, implementation notes, and lessons from building RAG/LLM systems."
+            vi="Bài viết nghiên cứu, chi tiết triển khai và các bài học khi xây hệ thống RAG/LLM."
+            en="Research posts, implementation details, and lessons from building RAG/LLM systems."
           />
         }
         action={{
           label: <LocalizedText vi="Xem tất cả" en="View all" />,
-          href: "/blog",
+          href: "/blogs",
         }}
       />
 

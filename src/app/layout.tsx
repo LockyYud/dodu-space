@@ -50,10 +50,10 @@ export default async function RootLayout({
       group: "projects" as const,
     })),
     ...posts.slice(0, 8).map((p) => ({
-      id: `note:${p.slug}`,
+      id: `blog:${p.slug}`,
       title: p.title,
-      href: `/blog/${p.slug}`,
-      group: "notes" as const,
+      href: `/blogs/${p.slug}`,
+      group: "blogs" as const,
     })),
   ];
 

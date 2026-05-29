@@ -10,258 +10,160 @@ published: true
 > **Nguồn gốc**: BM25 (Robertson & Zaragoza, 2009), DPR (Karpukhin et al., 2020), RRF (Cormack et al., 2009)
 > **Loại**: `production_pattern`
 
-Không có retriever đơn lẻ nào đủ tốt cho mọi truy vấn: BM25 nắm bắt exact keyword một cách đáng tin cậy nhưng bỏ lỡ paraphrase, trong khi dense retrieval xử lý tốt ngữ nghĩa nhưng dễ bị mờ bởi các ký hiệu kỹ thuật hay tên định danh hiếm. Pattern `bm25_hybrid_rerank` kết hợp hai tín hiệu bổ sung nhau qua rank fusion, sau đó dùng cross-encoder reranker để cải thiện precision — tạo ra một baseline đủ mạnh mà bất kỳ kỹ thuật RAG nâng cao nào cũng phải vượt qua mới có giá trị thực.
+## Thesis
 
----
+Hybrid retrieval + reranking là baseline đầu tiên tôi muốn có trong mọi RAG lab nghiêm túc. Không phải vì nó mới, mà vì nó trả lời đúng một thực tế khó chịu: **mỗi retriever chỉ giỏi một kiểu query**.
 
-## 1. Bối cảnh và Động lực
+Nếu một kỹ thuật RAG nâng cao không vượt được `BM25 + dense retrieval + RRF + reranker`, kỹ thuật đó chưa chứng minh được giá trị.
 
-### Sparse Retrieval và Dense Retrieval: Thế Mạnh Khác Nhau
+## Problem I Care About
 
-Trong lịch sử information retrieval, BM25 (Best Match 25) là sparse lexical model được Robertson & Zaragoza (2009) hệ thống hoá từ dòng nghiên cứu Probabilistic Relevance Framework trải dài hàng chục năm. BM25 không cần training, index nhanh bằng inverted index, và đặc biệt mạnh khi query chứa exact term: mã điều khoản pháp lý ("Điều 12a"), mã sản phẩm ("SKU-7842"), tên viết tắt ("ISO 27001"), hay ngày tháng cụ thể.
+RAG demo thường bắt đầu bằng vector search. Production RAG thì nhanh chóng gặp các query mà vector search xử lý kém:
 
-Dense retrieval — tiêu biểu là DPR của Karpukhin et al. (2020) — ánh xạ câu hỏi và đoạn văn vào cùng một không gian vector thông qua dual-encoder được train trên question-passage pairs. Khi người dùng hỏi "Làm thế nào để tăng tốc code?" nhưng tài liệu viết "Các kỹ thuật tối ưu hoá hiệu suất phần mềm", dense retrieval nắm bắt sự tương đồng ngữ nghĩa mà BM25 không thể làm được.
-
-### Bằng Chứng Thực Nghiệm Về Sự Bổ Sung
-
-Karpukhin et al. (2020) chỉ ra rằng DPR (single-dataset training) vượt BM25 đáng kể trên Natural Questions (top-20 accuracy: 78.4% so với 59.1%) và TriviaQA (79.4% so với 66.9%). Trong chính benchmark này, DPR cũng vượt BM25 trên WebQuestions và CuratedTREC; trường hợp BM25 thắng rõ là SQuAD, nơi lexical overlap cao do cách dữ liệu được tạo.
-
-Quan trọng hơn, Thakur et al. (2021) trên BEIR benchmark — bao gồm 18 tập dữ liệu đa dạng từ y tế đến luật pháp — cho thấy không retriever đơn lẻ nào thống trị toàn bộ. Đây là lý do phải benchmark sparse, dense và hybrid trên corpus đích thay vì mặc định chọn một retriever.
-
----
-
-## 2. Đóng góp Chính (của pattern này)
-
-Pattern `bm25_hybrid_rerank` tổng hợp ba insight quan trọng từ tài liệu học thuật:
-
-**Recall-precision separation**: Retriever (cả BM25 lẫn dense) được tối ưu cho recall cao — lấy về nhiều candidate có liên quan. Reranker sau đó được tối ưu cho precision — chọn ra những candidate thực sự hữu ích nhất. Tách hai mục tiêu này cho phép mỗi thành phần chuyên biệt hóa.
-
-**RRF cho score normalization**: BM25 trả về TF-IDF score dạng log probability, trong khi dense retriever trả về cosine similarity trong khoảng [−1, 1]. Hai không gian score này không thể cộng trực tiếp. Cormack et al. (2009) đề xuất Reciprocal Rank Fusion — chỉ dùng thứ hạng (rank), không dùng score gốc — giải quyết bài toán normalization một cách gọn gàng.
-
-**Staged pipeline**: Pipeline gồm nhiều tầng (retrieval → fusion → reranking) cho phép kiểm soát latency theo từng bước và dễ dàng A/B test từng thành phần độc lập.
-
----
-
-## 3. Phương pháp Chi tiết
-
-### 3.1 BM25: Công Thức và Tham Số
-
-BM25 score cho document `d` với query `q` gồm các term `t₁, t₂, ..., tₙ`:
-
-```
-BM25(d, q) = Σ IDF(tᵢ) · (f(tᵢ, d) · (k₁ + 1)) / (f(tᵢ, d) + k₁ · (1 - b + b · |d|/avgdl))
+```text
+"ERR_CONN_RESET trong service payment-api"
+"Điều 12.3 nói gì về termination?"
+"RFC 9110 cache validation"
+"invoice INV-2025-00421"
 ```
 
-Trong đó:
+Những query này cần exact matching. Nhưng BM25-only cũng fail khi user hỏi bằng ngôn ngữ tự nhiên:
 
-- `f(tᵢ, d)`: tần suất xuất hiện của term `tᵢ` trong document `d`
-- `|d|`: độ dài document (tính theo số từ)
-- `avgdl`: độ dài trung bình của các document trong corpus
-- `IDF(tᵢ) = log((N - n(tᵢ) + 0.5) / (n(tᵢ) + 0.5) + 1)` với `N` là tổng số document và `n(tᵢ)` là số document chứa term `tᵢ`
-
-Ba tham số cần chú ý:
-
-| Tham số | Vai trò | Giá trị mặc định |
-| --- | --- | --- |
-| `k₁` | Kiểm soát ảnh hưởng của term frequency — giá trị cao hơn ưu tiên document nhắc đến term nhiều lần | 1.2–2.0 |
-| `b` | Kiểm soát length normalization — `b=1` normalize hoàn toàn, `b=0` bỏ qua độ dài | 0.75 |
-| `k₃` | Term frequency saturation trong query (ít dùng) | 0–1000 |
-
-Khi `k₁ = 0`, BM25 suy biến thành IDF-only model. Khi `b = 0`, BM25 bỏ qua chuẩn hoá độ dài document. Giá trị `k₁ = 1.5` và `b = 0.75` hoạt động tốt trên hầu hết corpus văn bản tiếng Anh và tiếng Việt.
-
-### 3.2 Dense Retrieval: Dual-Encoder Architecture
-
-DPR (Karpukhin et al., 2020) sử dụng hai BERT encoder riêng biệt:
-
-```
-E_Q(q) : query → ℝ^d
-E_P(p) : passage → ℝ^d
-
-sim(q, p) = E_Q(q)ᵀ · E_P(p)
+```text
+"làm sao để model bớt tự tin khi context không đủ?"
 ```
 
-Query encoder và passage encoder được train bằng contrastive learning: maximize dot product giữa query và positive passage, minimize với negative passages. Sau khi train, toàn bộ passage corpus được encode offline và lưu vào FAISS index. Lúc inference, chỉ cần encode query rồi tìm nearest neighbors qua approximate nearest neighbor search.
+Document có thể dùng cụm "calibration", "selective generation", hoặc "abstention". Nếu không có lexical overlap, BM25 khó retrieve đúng.
 
-Điểm mạnh: capture ngữ nghĩa qua paraphrase. Điểm yếu: exact token có thể bị "hoà tan" trong vector space, đặc biệt với named entities ít xuất hiện trong training data.
+Một baseline tốt phải cover cả hai.
 
-### 3.3 Reciprocal Rank Fusion (RRF)
+## The Pattern
 
-Cormack et al. (2009) đề xuất RRF để kết hợp nhiều danh sách kết quả ranked mà không cần normalize score gốc:
+Pipeline tôi muốn bắt đầu:
 
-```
-RRF_score(d) = Σᵢ 1 / (k + rankᵢ(d))
-```
-
-Trong đó:
-
-- `rankᵢ(d)`: thứ hạng của document `d` trong danh sách thứ `i` (bắt đầu từ 1)
-- `k`: hằng số smoothing, mặc định `k = 60`
-- Nếu document `d` không xuất hiện trong danh sách thứ `i`, không cộng thêm gì
-
-Ví dụ: document `d` đứng hạng 3 trong BM25 và hạng 7 trong dense retrieval:
-
-```
-RRF_score(d) = 1/(60 + 3) + 1/(60 + 7) = 1/63 + 1/67 ≈ 0.0159 + 0.0149 = 0.0308
+```text
+User query
+  -> BM25 retrieve top_k_sparse
+  -> Dense retrieve top_k_dense
+  -> Merge candidates with RRF
+  -> Cross-encoder rerank
+  -> Context packing
+  -> Generator with citations
 ```
 
-Tại sao `k = 60`? Cormack et al. thử nghiệm nhiều giá trị và `k = 60` tạo ra một "dead zone" — document xếp hạng thấp (rank > 60) đóng góp rất ít, tránh nhiễu từ những kết quả kém chất lượng. Document xếp hạng cao được ưu tiên rõ ràng hơn.
+BM25 tăng recall cho exact match. Dense retrieval tăng recall cho semantic match. RRF hợp nhất ranked lists mà không cần normalize score. Reranker tối ưu precision trước khi đưa context vào LLM.
 
-Ưu điểm cốt lõi: RRF hoạt động tốt ngay cả khi các retriever có score scale rất khác nhau, không yêu cầu hyperparameter tuning ngoài `k`.
+## What Actually Matters
 
-### 3.4 Cross-Encoder Reranking
+Điểm mạnh của pattern này là nó tách retrieval thành hai phase:
 
-Sau khi RRF tạo ra một danh sách hợp nhất (thường top-20 đến top-50 candidate), cross-encoder reranker chấm điểm lại từng cặp `(query, passage)` cùng nhau:
+**Candidate generation** cần recall cao. Ở phase này, ta chấp nhận lấy dư candidates từ nhiều nguồn.
 
-```
-score(q, p) = CrossEncoder([CLS] q [SEP] p [SEP])
-```
+**Reranking** cần precision cao. Ở phase này, ta trả chi phí compute lớn hơn cho ít candidates hơn.
 
-Khác với dual-encoder (encode query và passage độc lập), cross-encoder xử lý query và passage cùng lúc qua full attention — cho phép mô hình nắm bắt interaction chi tiết giữa query token và passage token. Kết quả là chính xác hơn đáng kể, nhưng không thể pre-compute passage offline như dense retrieval, nên latency tăng theo tuyến tính với số candidate.
+Đây là tư duy search system cổ điển, nhưng cực kỳ phù hợp với RAG. Generator không nên nhận raw top-k từ retriever đầu tiên. Nó nên nhận một tập context đã qua ít nhất một bước cạnh tranh tín hiệu.
 
-### 3.5 Pipeline Tổng Thể
+## Implementation Sketch
 
-```
-Query
-  ├─→ BM25 retriever ──────────────────────┐
-  │    (top-K₁ candidates, lexical signal) │
-  │                                        ├─→ RRF Fusion (k=60) → top-N merged list
-  └─→ Dense retriever ─────────────────────┘
-       (top-K₂ candidates, semantic signal)
-                                                │
-                                                ▼
-                                        Cross-encoder reranker
-                                        (top-M final list, M << N)
-                                                │
-                                                ▼
-                                        Citation-aware context builder
-                                                │
-                                                ▼
-                                            Generator
+Version tối giản:
+
+```text
+1. Chunk documents với stable chunk_id.
+2. Index mỗi chunk vào BM25.
+3. Embed mỗi chunk và index vào vector DB.
+4. Với mỗi query:
+   - lấy top 30 BM25;
+   - lấy top 30 dense;
+   - hợp nhất bằng RRF;
+   - rerank top 40;
+   - chọn top 5-8 chunks cho context.
+5. Log full retrieval trace cho từng answer.
 ```
 
-Giá trị điển hình: `K₁ = K₂ = 20`, `N = 30` (sau dedup), `M = 5–10`.
+RRF score:
 
----
+```text
+score(d) = sum(1 / (k + rank_i(d)))
+```
 
-## 4. Thực nghiệm và Kết quả
+Trong thực tế tôi sẽ để `k = 60` trước, rồi chỉ tune nếu eval cho thấy cần.
 
-### 4.1 BM25 vs DPR: Natural Questions và TriviaQA
+## Production Tradeoffs
 
-Karpukhin et al. (2020) báo cáo top-20 passage retrieval accuracy:
+**Latency** tăng vì chạy nhiều retrievers và reranker. Cần parallelize BM25/dense, giới hạn candidate count, và cache query phổ biến.
 
-| Phương pháp | Natural Questions | TriviaQA | WebQuestions | CuratedTREC |
-| --- | --- | --- | --- | --- |
-| BM25 (Lucene) | 59.1% | 66.9% | 55.0% | 70.9% |
-| DPR (single) | 78.4% | 79.4% | 73.2% | 79.8% |
-| DPR (multi) | **79.4%** | **78.8%** | **75.0%** | **89.1%** |
-| BM25 + DPR hybrid (single) | 76.6% | 79.8% | 71.0% | 85.2% |
-| BM25 + DPR hybrid (multi) | 78.0% | 79.9% | 74.7% | 88.5% |
+**Reranker là bottleneck đắt nhất**. Cross-encoder đọc query-document pair nên không scale rẻ như bi-encoder. Cần quyết định top-N trước rerank bằng eval, không đoán.
 
-Kết quả đáng chú ý: trong Table 2 của DPR, hybrid chỉ cải thiện một số cặp dataset/training setting, chẳng hạn TriviaQA; nó không vượt DPR-multi trên WebQuestions hoặc CuratedTREC. Hybrid là baseline cần đo, không phải kết luận đã được đảm bảo bởi bảng này.
+**Score fusion dễ bị hiểu sai**. BM25 score và cosine similarity không cùng scale. Vì vậy weighted average trực tiếp thường là lựa chọn yếu nếu chưa normalize cẩn thận. RRF đơn giản và bền hơn.
 
-### 4.2 RRF vs Các Phương Pháp Fusion Khác
+**Chunking quyết định nhiều hơn bạn nghĩ**. Hybrid retrieval không cứu được chunk quá dài, chunk mất metadata, hoặc chunk cắt gãy semantic unit.
 
-Cormack et al. (2009) so sánh RRF với CombMNZ, CombSUM và các rank learning methods trên TREC benchmark:
+## When I Would Use It
 
-| Phương pháp | TREC MAP trung bình |
-| --- | --- |
-| Best single ranker | 0.347 |
-| CombMNZ | 0.352 |
-| Condorcet fusion | 0.361 |
-| RRF (k=60) | **0.367** |
-| RankBoost (supervised) | 0.356 |
+Tôi sẽ dùng pattern này gần như mặc định khi:
 
-RRF — không cần training, không cần score normalization — vượt cả supervised learning method trên tập test. Đây là lý do RRF trở thành lựa chọn mặc định trong hybrid retrieval pipeline thực tế.
+- corpus có cả technical terms và natural language;
+- câu trả lời cần citation;
+- chưa biết query distribution thật;
+- muốn baseline đủ mạnh trước khi thử GraphRAG, RAPTOR, CRAG, agentic RAG;
+- cần debug retrieval failures rõ ràng.
 
-### 4.3 Tác Động Của Cross-Encoder Reranking
+## When I Would Not Use It
 
-Nogueira & Cho (2019) — bài báo đề xuất dùng BERT làm passage reranker — báo cáo trên MS MARCO passage ranking:
+Tôi sẽ không bắt đầu bằng pattern đầy đủ nếu:
 
-| Phương pháp | MRR@10 |
-| --- | --- |
-| BM25 baseline | 0.167 |
-| BM25 + BERT reranker | **0.365** |
-| Cải thiện tương đối | +119% |
+- corpus rất nhỏ, top-k BM25 đã đủ tốt;
+- app là prototype ngắn hạn;
+- latency budget cực thấp;
+- không có eval set để chứng minh reranker đáng chi phí.
 
-Hofstätter et al. (2020) trên MS MARCO với TAS-B bi-encoder:
+Khi đó tôi sẽ dùng BM25 hoặc dense-only đơn giản hơn, nhưng vẫn log failures để biết khi nào cần nâng cấp.
 
-| Phương pháp | MRR@10 | Latency (ms/query) |
-| --- | --- | --- |
-| BM25 | 0.184 | 55 |
-| Bi-encoder (TAS-B) | 0.344 | 42 |
-| Hybrid + cross-encoder | **0.390** | 180 |
+## What I Distrust
 
-Cross-encoder cải thiện MRR@10 đáng kể so với bi-encoder đơn lẻ, nhưng latency tăng khoảng 4× — điều này giải thích tại sao cross-encoder chỉ áp dụng cho candidate pool nhỏ (top-20 đến top-50), không phải toàn corpus.
+Tôi không tin các claim "method X cải thiện RAG" nếu baseline chỉ là vector search top-k. Vector-only baseline quá yếu trong nhiều domain. Một method thắng vector-only chưa chắc thắng hybrid+rerank.
 
-### 4.4 BEIR: Kết Quả Tổng Quát Hoá
+Tôi cũng nghi ngờ các benchmark chỉ báo answer accuracy mà không báo retrieval recall, reranker precision, latency, và cost. RAG là system problem, không phải chỉ là generation problem.
 
-Thakur et al. (2021) đo nDCG@10 trung bình trên 18 tập dữ liệu BEIR:
+## Experiment I Would Run
 
-| Phương pháp | nDCG@10 (trung bình 18 datasets) |
-| --- | --- |
-| BM25 | 0.428 |
-| DPR (trained on NQ) | 0.226 |
-| ANCE | 0.336 |
-| TAS-B | 0.397 |
+Tôi sẽ chạy ablation:
 
-Kết quả DPR thấp do domain shift từ NQ sang các tập BEIR — một cảnh báo quan trọng: dense retriever train trên một domain có thể generalise kém sang domain khác. Bảng BEIR này củng cố nhu cầu đo baseline; nó không tự chứng minh một cấu hình hybrid cụ thể sẽ thắng.
+```text
+BM25
+Dense
+BM25 + dense union
+BM25 + dense + RRF
+BM25 + dense + RRF + reranker
+```
 
----
+Với mỗi cấu hình, đo:
 
-## 5. Phân tích Phê bình
+- Recall@k của evidence;
+- answer correctness;
+- citation faithfulness;
+- context token count;
+- latency p50/p95;
+- cost/query;
+- failure type.
 
-### Khi Hybrid Không Giúp Ích
+Nếu reranker chỉ tăng accuracy rất nhỏ nhưng latency tăng mạnh, có thể dùng reranker chỉ cho query khó hoặc top traffic quan trọng.
 
-Hybrid retrieval không phải lúc nào cũng tốt hơn. Một số trường hợp hybrid không cải thiện hoặc thậm chí giảm chất lượng:
+## Takeaway
 
-- **Corpus đồng nhất về từ vựng**: Nếu tất cả tài liệu dùng cùng thuật ngữ kỹ thuật chuẩn, BM25 đã đủ mạnh và dense retrieval thêm vào chủ yếu là noise.
-- **Query luôn là exact keyword**: Trong enterprise search với mã sản phẩm, số hiệu văn bản, BM25 thường thắng dense retrieval. Hybrid có thể làm loãng signal.
-- **Dense retriever không được train đúng domain**: Như BEIR cho thấy, DPR train trên NQ đạt nDCG@10 chỉ 0.226 — thấp hơn BM25. Hybrid với một dense retriever yếu có thể làm hỏng kết quả BM25.
+Hybrid retrieval + reranking không hào nhoáng, nhưng là baseline công bằng cho RAG production.
 
-### Độ Nhạy Của Score Fusion
+Điểm cốt lõi:
 
-Nếu dùng linear interpolation thay vì RRF — `score = α · BM25_norm + (1-α) · dense_score` — tham số `α` rất nhạy với đặc điểm corpus. Giá trị `α = 0.5` hợp lý cho NQ có thể thất bại hoàn toàn trên corpus pháp lý hay y tế. RRF tránh được vấn đề này bằng cách không dùng score gốc.
-
-### Reranker Recall Loss
-
-Cross-encoder chỉ thấy candidate pool đầu vào. Nếu RRF đã bỏ sót document liên quan (false negative ở tầng retrieval), reranker không thể cứu vớt. Đây là lý do candidate pool trước rerank phải đủ lớn — trade-off giữa recall của pool và latency của reranker.
-
-### Chi Phí Vận Hành
-
-Hybrid pipeline yêu cầu duy trì hai index song song: inverted index cho BM25 (BM25Okapi, Elasticsearch, Lucene) và vector index cho dense retrieval (FAISS, Qdrant, Weaviate). Đây là gánh nặng operational đáng kể: hai quá trình indexing, hai quá trình update khi corpus thay đổi, hai infrastructure cần monitor.
-
----
-
-## 6. Vị trí trong Landscape
-
-| Phương pháp | Điểm mạnh | Điểm yếu | Khi nào dùng |
-| --- | --- | --- | --- |
-| BM25-only | Nhanh, không cần training, generalise tốt | Không hiểu paraphrase, bỏ lỡ ngữ nghĩa | Corpus kỹ thuật nhiều exact keyword, zero-shot |
-| Dense-only | Hiểu ngữ nghĩa, paraphrase | Yếu với named entity hiếm, cần training data | Corpus ngôn ngữ tự nhiên, có fine-tuning data |
-| Hybrid (BM25 + Dense) | Bổ sung điểm yếu của nhau | Phức tạp hơn, hai index | Production baseline cho corpus đa dạng |
-| Hybrid + Cross-encoder | Precision cao nhất | Latency cao, cần GPU cho reranker | Khi precision quan trọng hơn latency |
-| ColBERT late-interaction | Tốc độ tốt hơn cross-encoder, chính xác hơn bi-encoder | Index lớn hơn (lưu token embeddings) | Khi cần cân bằng speed và accuracy |
-
-ColBERT (Khattab & Zaharia, 2020) là hướng thú vị: thay vì encode cả passage thành một vector (bi-encoder) hay tính attention đầy đủ lúc inference (cross-encoder), ColBERT encode từng token độc lập và tính MaxSim giữa query tokens và passage tokens — cho phép pre-compute passage representation trong khi vẫn giữ được token-level interaction. Tuy nhiên, ColBERT đòi hỏi index lớn hơn đáng kể so với bi-encoder.
-
----
-
-## 7. Takeaway
-
-**Hybrid retrieval cải thiện recall bằng cách tổng hợp hai tín hiệu bổ sung nhau**: BM25 bắt exact lexical match đáng tin cậy, dense retrieval bắt semantic similarity. Không phương pháp nào thống trị trên mọi loại corpus — BEIR benchmark là bằng chứng thực nghiệm rõ ràng nhất.
-
-**RRF là lựa chọn fusion mặc định tốt**: Không cần training, không cần tune score normalization, vượt nhiều supervised fusion method trong thực nghiệm của Cormack et al. (2009). Hằng số `k = 60` hoạt động tốt trên hầu hết corpus mà không cần điều chỉnh.
-
-**Reranking cải thiện precision đáng kể nhưng có chi phí**: Cross-encoder tăng MRR@10 lên hơn 2× so với BM25 đơn lẻ (Nogueira & Cho, 2019), nhưng latency tăng 3–5×. Pattern này chỉ hợp lý khi candidate pool đủ lớn (≥20 candidates) để reranker có đủ nguyên liệu, và khi ứng dụng có thể chấp nhận thêm vài trăm milliseconds.
-
----
+- BM25 bảo vệ exact match;
+- dense retrieval xử lý semantic mismatch;
+- RRF hợp nhất rank mà không cần score calibration;
+- reranker tăng precision trước generation;
+- mọi kỹ thuật RAG nâng cao nên được so với baseline này, không so với vector search đơn giản.
 
 ## Nguồn
 
-- Robertson, S., & Zaragoza, H. (2009). **The Probabilistic Relevance Framework: BM25 and Beyond**. *Foundations and Trends in Information Retrieval*, 3(4), 333–389.
-- Karpukhin, V., Oğuz, B., Min, S., Lewis, P., Wu, L., Edunov, S., Chen, D., & Yih, W.-T. (2020). **Dense Passage Retrieval for Open-Domain Question Answering**. *EMNLP 2020*. [https://arxiv.org/abs/2004.04906](https://arxiv.org/abs/2004.04906)
-- Cormack, G. V., Clarke, C. L. A., & Buettcher, S. (2009). **Reciprocal rank fusion outperforms condorcet and individual rank learning methods**. *SIGIR 2009*.
-- Nogueira, R., & Cho, K. (2019). **Passage Re-ranking with BERT**. *arXiv:1901.04085*. [https://arxiv.org/abs/1901.04085](https://arxiv.org/abs/1901.04085)
-- Thakur, N., Reimers, N., Rücklé, A., Srivastava, A., & Gurevych, I. (2021). **BEIR: A Heterogeneous Benchmark for Zero-shot Evaluation of Information Retrieval Models**. *NeurIPS 2021*. [https://arxiv.org/abs/2104.08663](https://arxiv.org/abs/2104.08663)
-- Hofstätter, S., Lin, S.-C., Yang, J.-H., Lin, J., & Hanbury, A. (2021). **Efficiently Teaching an Effective Dense Retriever with Balanced Topic Aware Sampling**. *SIGIR 2021*.
-- Khattab, O., & Zaharia, M. (2020). **ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT**. *SIGIR 2020*. [https://arxiv.org/abs/2004.12832](https://arxiv.org/abs/2004.12832)
+- Robertson & Zaragoza. "The Probabilistic Relevance Framework: BM25 and Beyond." 2009.
+- Karpukhin et al. "Dense Passage Retrieval for Open-Domain Question Answering." EMNLP 2020.
+- Cormack, Clarke, Buettcher. "Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods." SIGIR 2009.
+- Nogueira & Cho. "Passage Re-ranking with BERT." 2019.

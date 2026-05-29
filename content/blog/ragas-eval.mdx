@@ -9,176 +9,146 @@ published: true
 > **Paper**: RAGAS: Automated Evaluation of Retrieval Augmented Generation
 > **Tác giả**: Shahul Es, Jithin James, Luis Espinosa-Anke, Steven Schockaert
 > **Venue**: EACL 2024 — arXiv:2309.15217
-> **Loại**: `paper_inspired`
+> **Loại**: `engineering_reading_note`
 
-RAGAS đề xuất một framework evaluation reference-free cho RAG, trong đó mỗi thành phần của pipeline (retriever, generator) được đánh giá độc lập bằng LLM-as-judge, không cần human annotation hay labeled ground truth cho hầu hết các metric. Điểm cốt lõi là tách lỗi retrieval ra khỏi lỗi generation, giúp engineer biết chính xác cần cải thiện module nào.
+## Thesis
 
----
+RAGAS đáng học không phải vì metric nào cũng hoàn hảo. Nó đáng học vì nó ép ta nhìn RAG như một pipeline có nhiều điểm lỗi: retriever có thể sai, generator có thể bịa, answer có thể không trả lời đúng câu hỏi, context có thể nhiễu.
 
-## 1. Bối Cảnh và Động Lực
+Với production RAG, bài học chính là: **đừng chỉ chấm final answer; hãy chấm từng module của pipeline**.
 
-Đánh giá hệ thống RAG bằng tay tốn kém và không scalable. Một RAG pipeline điển hình kết hợp retriever và generator — một điểm số tổng hợp duy nhất không cho biết lỗi đến từ đâu: retriever lấy sai document, hay generator hallucinate trên context đúng.
+## Problem I Care About
 
-Các metric tự động truyền thống như ROUGE và BLEU đo độ trùng lặp n-gram với reference answer, nhưng không nắm bắt được hai thuộc tính quan trọng nhất của RAG:
-
-- **Faithfulness** (grounding): answer có được context hỗ trợ không, hay model đang hallucinate?
-- **Relevance**: answer có thực sự trả lời câu hỏi không, bất kể nó trùng từ ngữ với reference hay không?
-
-Câu hỏi nghiên cứu của paper: *Có thể đánh giá từng thành phần của RAG pipeline một cách tự động, mà không cần human label cho mọi trường hợp không?*
-
----
-
-## 2. Đóng Góp Chính
-
-Paper EACL 2024 đưa ra ba metric reference-free:
-
-1. **Faithfulness** — answer có được suy ra từ retrieved context hay không.
-2. **Answer relevance** — answer có trực tiếp giải quyết question hay không.
-3. **Context relevance** — context có tập trung vào thông tin cần thiết, thay vì chứa nhiều phần dư thừa hay không.
-
-Paper đồng thời công bố **WikiEval**, một bộ 50 examples có human pairwise judgements để kiểm tra mức agreement của các metric này.
-
----
-
-## 3. Phương Pháp Chi Tiết
-
-### 3.1 Faithfulness
-
-Faithfulness đo mức độ answer được context hỗ trợ (grounded), ngăn hallucination. Quy trình gồm hai bước:
-
-**Bước 1 — Decompose answer thành atomic claims.**
-LLM được dùng để tách answer `a` thành tập các câu khẳng định độc lập (atomic claims) `{c₁, c₂, ..., cₙ}`. Ví dụ: "Einstein sinh năm 1879 tại Ulm" được tách thành hai claims: "Einstein sinh năm 1879" và "Einstein sinh tại Ulm".
-
-**Bước 2 — Verify từng claim với context.**
-Với mỗi claim `cᵢ`, LLM (đóng vai NLI verifier) xác định liệu claim đó có được context `C` hỗ trợ không. Kết quả là binary: supported hoặc not supported.
-
-**Công thức:**
+Khi RAG trả lời sai, câu hỏi debug đầu tiên là:
 
 ```text
-\text{Faithfulness}(a, C) = \frac{|\{c_i : c_i \text{ is supported by } C\}|}{|S|}
+Sai vì không retrieve được evidence?
+Sai vì retrieve đúng nhưng context quá nhiễu?
+Sai vì generator không dùng evidence?
+Sai vì answer không trả lời đúng intent?
+Sai vì citation không support claim?
 ```
 
-trong đó `S = {c₁, ..., cₙ}` là tập tất cả atomic claims được decompose từ answer `a`, và `C` là retrieved context. Score nằm trong khoảng `[0, 1]`.
+Nếu chỉ có một score cuối cùng, team không biết nên sửa chunking, retriever, reranker, prompt, hay generator.
 
-Metric này **không cần ground truth answer** — chỉ cần answer được generate và context được retrieve.
+## The Paper's Core Idea
 
----
+RAGAS đề xuất các metric reference-free, dùng LLM-as-judge để đánh giá RAG mà không cần gold answer cho mọi sample.
 
-### 3.2 Answer Relevance
+Các metric cốt lõi:
 
-Answer relevance đo mức độ answer thực sự trả lời câu hỏi gốc, bất kể nó có factually đúng không. Ý tưởng: nếu answer tốt, có thể dùng nó để reverse-engineer ra câu hỏi gốc.
+- **Faithfulness**: answer có được support bởi context không?
+- **Answer relevance**: answer có trả lời đúng question không?
+- **Context relevance**: retrieved context có cần thiết để trả lời question không?
 
-**Thuật toán:**
-1. Cho LLM generate `N` câu hỏi `{q̂₁, q̂₂, ..., q̂ₙ}` từ answer `a` (không nhìn câu hỏi gốc `q`).
-2. Tính embedding similarity giữa mỗi câu hỏi được generate và câu hỏi gốc.
-3. Lấy trung bình.
+Ý tưởng tốt nhất là tách lỗi generation khỏi lỗi retrieval.
 
-**Công thức:**
+## What Actually Matters
+
+Điểm tôi muốn lấy từ RAGAS là cấu trúc eval, không phải tin mù vào từng score.
+
+Một RAG eval suite nên có ít nhất bốn lớp:
 
 ```text
-\text{AnswerRelevance}(a, q) = \frac{1}{N} \sum_{i=1}^{N} \cos(\mathbf{e}_{q̂_i}, \mathbf{e}_q)
+Retrieval:  evidence có được tìm thấy không?
+Context:    context có sạch và đủ không?
+Answer:     answer có đúng và liên quan không?
+Grounding:  claims có được context support không?
 ```
 
-trong đó `e_{q̂ᵢ}` là embedding vector của câu hỏi được generate thứ `i`, `e_q` là embedding của câu hỏi gốc, và cosine similarity đo độ tương đồng ngữ nghĩa. `N` thường được set là 3.
+RAGAS cho ta vocabulary để nói chuyện này rõ ràng hơn.
 
-Metric này **không cần ground truth answer** và penalize các answer vague, không đầy đủ, hoặc lạc đề.
+## Implementation Sketch
 
----
-
-### 3.3 Context Relevance
-
-Context relevance đo mức độ retrieved context tập trung vào thông tin cần để trả lời câu hỏi, thay vì chứa sentence dư thừa.
-
-LLM được yêu cầu trích nguyên văn các câu cần thiết từ context `C`. Nếu không tìm được evidence, model trả về `Insufficient Information`. Metric là tỷ lệ câu được chọn trên tổng số câu trong context:
+Tôi sẽ dùng RAGAS-like eval như sau:
 
 ```text
-\text{ContextRelevance}(q, C) =
-  \frac{\text{number of extracted sentences}}{\text{total number of sentences in } C}
+1. Tạo eval set nhỏ có human-reviewed questions.
+2. Với mỗi run, log:
+   - question;
+   - retrieved chunks;
+   - reranked chunks;
+   - final context;
+   - answer;
+   - citations;
+   - latency/cost.
+
+3. Chạy automated metrics:
+   - faithfulness;
+   - answer relevance;
+   - context relevance;
+   - citation support.
+
+4. Sample thủ công 10-20% để kiểm tra judge drift.
+
+5. Chỉ dùng score để so relative regressions, không coi là ground truth tuyệt đối.
 ```
 
-Đây là metric context-level, không phải average precision theo ranked chunks và không cần reference answer trong phương pháp được paper mô tả.
+Eval tự động nên là smoke test và regression test. Những quyết định lớn vẫn cần human review trên sample quan trọng.
 
----
+## Production Tradeoffs
 
-## 4. Thực Nghiệm và Kết Quả
+**LLM judge bias** là rủi ro rõ ràng. Judge có thể đánh giá cao answer nghe hợp lý nhưng sai, hoặc phạt answer đúng nhưng ngắn.
 
-### 4.1 Agreement với Human Annotation
+**Prompt sensitivity** cao. Thay prompt judge có thể đổi score. Cần version prompt và model judge như version code.
 
-WikiEval gồm 50 Wikipedia-based examples và pairwise human judgements ở ba chiều đo. Paper dùng `gpt-3.5-turbo-16k` cho prompts và báo cáo accuracy agreement:
+**Metric gaming** dễ xảy ra. Nếu optimize trực tiếp theo RAGAS score, model có thể học viết answer "trông faithful" hơn chứ không thật sự đúng hơn.
 
-| Phương pháp | Faithfulness | Answer Relevance | Context Relevance |
-|---|---:|---:|---:|
-| **RAGAS** | **0.95** | **0.78** | **0.70** |
-| GPT Score | 0.72 | 0.52 | 0.63 |
-| GPT Ranking | 0.54 | 0.40 | 0.52 |
+**Cost** không nhỏ. Eval bằng LLM-as-judge trên nhiều samples, nhiều metrics, nhiều configs có thể tốn đáng kể.
 
-*Số liệu từ Table 4, Es et al. (EACL 2024). Paper báo cáo accuracy trên pairwise comparisons, không báo cáo bảng Pearson/Spearman hay so sánh GPT-4 như phiên bản trước của bài viết này.*
+## When I Would Use It
 
-### 4.2 Reproducibility
+Tôi sẽ dùng RAGAS-like metrics khi:
 
-Paper lưu ý kết quả prompt-based evaluation có thể thay đổi giữa các runs hoặc khi API thay đổi. Tác giả đo độ nhất quán khi ép output theo JSON format và quan sát format có cấu trúc giúp kết quả ổn định hơn.
+- chưa có nhiều labeled data;
+- cần regression test nhanh cho RAG pipeline;
+- muốn phân biệt retrieval failure và generation failure;
+- đang so nhiều retriever/chunking/prompt configs;
+- cần dashboard chất lượng theo thời gian.
 
----
+## When I Would Not Trust It Alone
 
-## 5. Phân Tích Phê Bình
+Tôi sẽ không dùng RAGAS score một mình để:
 
-### 5.1 LLM Judge Bias
+- quyết định launch high-stakes domain;
+- claim model A tốt hơn model B với chênh lệch nhỏ;
+- thay thế human annotation;
+- optimize prompt bằng hill-climbing mù.
 
-LLM-as-judge có xu hướng thiên vị: thường đánh giá cao hơn các answer dài hơn, tự tin hơn, hoặc viết bằng phong cách gần với training data của judge model. Một answer hallucinate nhưng được viết lưu loát có thể nhận faithfulness score cao hơn một answer ngắn, đúng. Paper thừa nhận vấn đề này nhưng chưa có giải pháp triệt để.
+Trong domain y tế, pháp lý, tài chính, automated judge chỉ là lớp phụ trợ.
 
-### 5.2 Error Propagation trong Faithfulness
+## What I Distrust
 
-Faithfulness dùng LLM để decompose answer thành atomic claims (bước 1), rồi dùng LLM khác để verify từng claim (bước 2). Nếu bước decomposition sai (missed claim, merged claims), bước verification sẽ nhận input sai và propagate error. Metric cuối bị ảnh hưởng bởi chất lượng của cả hai bước LLM riêng biệt.
+Tôi nghi ngờ mọi metric reference-free nếu không có calibration với human labels. "Không cần ground truth" là tiện, nhưng cũng có nghĩa ta đang thay ground truth bằng một model khác.
 
-### 5.3 Phạm Vi Của Paper
+RAGAS có ích nhất khi được dùng để phát hiện regression và phân loại lỗi, không phải để tuyên bố chất lượng tuyệt đối.
 
-Paper EACL mô tả ba metric reference-free nêu trên. Các metric `context_precision` hoặc `context_recall` trong phiên bản thư viện RAGAS về sau cần được dẫn theo documentation/version tương ứng, không nên quy trực tiếp cho bảng thực nghiệm của paper này.
+## Experiment I Would Run
 
-### 5.4 Metric Gaming
+Tôi sẽ xây eval pipeline:
 
-Một RAG system có thể được optimize để đạt RAGAS scores cao mà không thực sự tốt hơn. Ví dụ: generate answer rất ngắn, chỉ copy nguyên văn từ context → faithfulness cao, nhưng answer không hữu ích. Hoặc retrieve nhiều chunks rất ngắn → context precision cao nhưng context không đủ sâu.
+```text
+1. 100 questions có human labels.
+2. Chạy 3-5 configs RAG.
+3. Chấm bằng RAGAS-like metrics.
+4. Human review subset.
+5. Tính correlation giữa automated score và human judgment.
+6. Tìm cases metric sai nghiêm trọng.
+```
 
-### 5.5 Prompt Version Sensitivity
+Nếu faithfulness score không correlate tốt với human citation support, tôi sẽ chỉnh judge prompt hoặc thay metric.
 
-Kết quả RAGAS phụ thuộc vào prompt của judge. Nếu prompt thay đổi giữa hai evaluation run (ví dụ do RAGAS library update), scores không còn comparable. Paper không thảo luận đủ về vấn đề reproducibility này, nhưng đây là rào cản thực tế quan trọng khi dùng RAGAS để track progress theo thời gian.
+## Takeaway
 
----
+RAGAS không phải câu trả lời cuối cùng cho RAG evaluation. Nhưng nó đặt đúng câu hỏi:
 
-## 6. Vị Trí trong Landscape
+- lỗi nằm ở retrieval hay generation?
+- context có đủ và sạch không?
+- answer có grounded không?
+- eval có chạy thường xuyên được không?
 
-| Framework | Metric chính | Cần ground truth? | LLM judge? | Testset gen? | Open source? |
-|---|---|---|---|---|---|
-| **RAGAS (paper EACL)** | Faithfulness, answer relevance, context relevance | Không | Có | WikiEval dùng để validate | Có |
-| **ARES** | Context relevance, answer faithfulness, answer relevance | Có (few-shot) | Có (fine-tuned) | Có | Có |
-| **TruLens** | RAG Triad (context relevance, groundedness, Q-A relevance) | Không | Có | Không | Có |
-| **Human Eval** | Tùy task | Có | Không | Không | N/A |
-
-**Khi nào dùng RAGAS**: Khi cần đánh giá nhanh một RAG pipeline mới, không có nhiều labeled data, và muốn breakdown theo component (retrieval vs generation).
-
-**Khi nào dùng ARES**: Khi cần judge model fine-tuned trên domain cụ thể, chấp nhận chi phí training.
-
-**Khi nào dùng TruLens**: Khi cần framework monitoring tích hợp vào production pipeline với observability tốt.
-
-**Khi nào dùng human eval**: Khi cần ground truth đáng tin cho benchmark cuối cùng, đặc biệt với high-stakes domain (medical, legal).
-
----
-
-## 7. Takeaway
-
-**1. Không có metric nào là "đủ" một mình.**
-Faithfulness cao mà answer relevance thấp nghĩa là answer grounded nhưng lạc đề. Context relevance thấp cho biết context có nhiều thông tin dư thừa. Cần nhìn cả ba metric cùng nhau để chẩn đoán đúng vấn đề.
-
-**2. Reference-free evaluation có giới hạn thực tế.**
-Ba metric trong paper không cần ground truth answer, đây là lợi thế khi không có labeled data. Tuy nhiên, tất cả metric đều phụ thuộc chất lượng của LLM judge; khi judge model hoặc prompt thay đổi, kết quả không còn so sánh trực tiếp với run cũ.
-
-**3. Cần ghi lại metadata của judge.**
-Judge model, prompt version, temperature và token usage phải được log cùng với scores. Nếu không, không thể phân biệt improvement thật sự với drift từ judge.
-
----
+Bài học production: automated eval nên là hệ thống cảnh báo và debug, không phải oracle.
 
 ## Nguồn
 
-- Es, S., James, J., Espinosa-Anke, L., & Schockaert, S. (2023). RAGAS: Automated Evaluation of Retrieval Augmented Generation. *Proceedings of EACL 2024*. arXiv:2309.15217. [https://arxiv.org/abs/2309.15217](https://arxiv.org/abs/2309.15217)
-- RAGAS documentation và source code: [https://github.com/explodinggradients/ragas](https://github.com/explodinggradients/ragas)
-- Saad-Falcon, J. et al. (2023). ARES: An Automated Evaluation Framework for Retrieval-Augmented Generation Systems. arXiv:2311.09476.
-- TruLens framework: [https://www.trulens.org/](https://www.trulens.org/)
+- Es et al. "RAGAS: Automated Evaluation of Retrieval Augmented Generation." EACL 2024. https://arxiv.org/abs/2309.15217

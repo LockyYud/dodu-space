@@ -9,211 +9,166 @@ published: true
 > **Paper**: Corrective Retrieval Augmented Generation
 > **Tác giả**: Shi-Qi Yan, Jia-Chen Gu, Yun Zhu, Zhen-Hua Ling
 > **Venue**: ICLR 2024 — arXiv:2401.15884
-> **Loại**: `paper_inspired`
+> **Loại**: `engineering_reading_note`
 
-RAG truyền thống giả định retrieved documents luôn đủ tốt để sinh câu trả lời — CRAG bác bỏ giả định đó bằng cách thêm một vòng tự kiểm tra: đánh giá chất lượng retrieval trước khi generation, và chủ động kích hoạt correction workflow khi corpus nội bộ không đủ tin cậy.
+## Thesis
 
----
+CRAG đáng học không phải vì nó thêm web search vào RAG. Phần quan trọng hơn là **quality gate giữa retrieval và generation**.
 
-## 1. Bối cảnh và Động lực
+RAG production cần biết khi nào context retrieved không đủ tin cậy. Nếu generator luôn bị ép trả lời từ top-k chunks, hệ thống sẽ hallucinate có tổ chức.
 
-Retrieval-Augmented Generation (RAG) đã trở thành baseline phổ biến để giảm hallucination trong LLM. Pipeline chuẩn gồm hai bước: retrieve top-k documents từ corpus, sau đó đưa context vào LLM để generate câu trả lời. Điểm yếu cốt lõi là bước retrieve không có cơ chế kiểm soát chất lượng — generator nhận context dù tốt hay xấu, và không được thông báo.
+## Problem I Care About
 
-Trong thực tế, top-k documents có thể rơi vào nhiều tình huống problematic:
+Naive RAG thường có shape:
 
-- **Irrelevant hoàn toàn**: query bị mismatch với vector space, trả về documents không chứa evidence cần thiết.
-- **Partially relevant**: documents có chủ đề liên quan nhưng không contain thông tin cụ thể để trả lời câu hỏi.
-- **Outdated**: corpus tĩnh không cập nhật thông tin mới, đặc biệt với time-sensitive queries.
-- **Noisy**: documents liên quan nhưng chứa nhiều distracting information, khiến LLM bị lạc hướng.
-
-Khi LLM nhận context kém, hai hành vi thường xảy ra: hoặc hallucinate câu trả lời tự tin, hoặc cite incorrectly những passages không thực sự support claim. Câu hỏi nghiên cứu của paper là: **làm thế nào để RAG pipeline nhận biết và tự sửa chữa khi retrieved context không đủ độ tin cậy?**
-
----
-
-## 2. Đóng góp Chính
-
-Paper đề xuất ba contribution cụ thể:
-
-1. **Retrieval Evaluator**: một lightweight model được fine-tune để đánh giá relevance giữa query và retrieved documents, xuất ra confidence score và phân loại vào ba action class.
-
-2. **Action-based Correction Mechanism**: thay vì một pipeline tuyến tính, CRAG định nghĩa ba action (CORRECT, INCORRECT, AMBIGUOUS) được trigger bởi confidence score từ evaluator, mỗi action dẫn đến một knowledge retrieval strategy khác nhau.
-
-3. **Decompose-then-Recompose Algorithm**: thuật toán xử lý documents đã retrieved (hoặc web search results) để tách các câu thành fine-grained knowledge strips, lọc irrelevant strips, rồi recompose thành context sạch cho generator.
-
----
-
-## 3. Phương pháp Chi tiết
-
-### Retrieval Evaluator
-
-Evaluator được xây dựng trên kiến trúc **T5-large** (770M parameters), fine-tune trên dữ liệu gồm các cặp (query, document, relevance label). Dữ liệu training được tạo bằng cách dùng GPT-4 để sinh câu hỏi từ các passages, tạo ra positive pairs (câu hỏi—passage gốc) và negative pairs (câu hỏi—passages không liên quan). Model được train như một binary relevance classifier với output là confidence score trong khoảng [0, 1].
-
-Với mỗi query, evaluator nhận đầu vào là cặp `(query, document)` và xuất ra một scalar confidence score. Khi có nhiều retrieved documents (top-k), score của mỗi document được tính độc lập và kết hợp để đưa ra quyết định action.
-
-### Ba Actions: CORRECT, INCORRECT, AMBIGUOUS
-
-CRAG định nghĩa ba action dựa trên ngưỡng confidence:
-
-| Action | Điều kiện | Hành động |
-|---|---|---|
-| **CORRECT** | Confidence score cao (≥ upper threshold) — ít nhất một document được đánh giá là relevant | Dùng retrieved documents trực tiếp, áp dụng decompose-then-recompose để lọc noise |
-| **INCORRECT** | Confidence score thấp (< lower threshold) — không có document nào đủ relevant | Bỏ toàn bộ retrieved documents, kích hoạt web search để lấy knowledge mới |
-| **AMBIGUOUS** | Confidence score ở giữa (lower ≤ score < upper threshold) — relevance không rõ ràng | Kết hợp cả retrieved documents lẫn web search results, recompose từ cả hai nguồn |
-
-Thresholds (upper và lower) được chọn qua validation set. Việc phân loại theo ba class thay vì binary giúp xử lý gracefully các trường hợp borderline — thay vì forced decision, CRAG có thể hedge bằng cách dùng cả hai nguồn khi không chắc.
-
-### Decompose-then-Recompose Algorithm
-
-Thuật toán này áp dụng cho documents trong action CORRECT và AMBIGUOUS để loại bỏ irrelevant information trước khi đưa vào generator:
-
-```
-Đầu vào: query q, danh sách documents D = {d1, d2, ..., dk}
-Đầu ra: refined context C
-
-1. DECOMPOSE:
-   Với mỗi document di trong D:
-     - Tách di thành các câu đơn lẻ: {s1, s2, ..., sm}
-     - Mỗi câu sj là một "knowledge strip"
-
-2. FILTER:
-   Với mỗi knowledge strip sj:
-     - Tính relevance score giữa q và sj (dùng retrieval evaluator)
-     - Giữ lại sj nếu score ≥ filter_threshold
-     - Loại bỏ sj nếu score < filter_threshold
-   → Tập strips còn lại: S_filtered
-
-3. RECOMPOSE:
-   - Nối các strips trong S_filtered thành context liền mạch C
-   - Bảo toàn thứ tự xuất hiện ban đầu
-   - Output C được đưa vào generator
-
-Đầu ra: context C (đã lọc noise, chỉ chứa relevant information)
+```text
+retrieve top-k -> put into prompt -> generate answer
 ```
 
-Ý tưởng cốt lõi: thay vì đưa toàn bộ document vào generator (bao gồm cả phần không liên quan), CRAG chỉ giữ lại những câu thực sự support query. Điều này giảm distraction và cải thiện faithfulness của generated answer.
+Pipeline này giả định top-k đủ tốt. Trong thực tế, top-k có thể:
 
-### Web Search Integration
+- irrelevant;
+- chỉ liên quan chủ đề nhưng thiếu answer;
+- outdated;
+- chứa nhiều noise;
+- mâu thuẫn nhau;
+- không đủ evidence để trả lời.
 
-Khi action là INCORRECT hoặc AMBIGUOUS, CRAG kích hoạt web search với **query rewriting**: query gốc được reformulate thành search-friendly form (ngắn hơn, keyword-centric hơn) trước khi gửi lên search engine. Web search results sau đó đi qua cùng decompose-then-recompose pipeline để lọc noise trước khi đưa vào generator.
+Nếu không có bước kiểm tra, generator vẫn sẽ trả lời. Đây là nguồn hallucination rất phổ biến.
 
-### Pseudocode của CRAG Loop
+## The Paper's Core Idea
 
-```
-Đầu vào: query q, corpus K, web search engine W
-Đầu ra: câu trả lời a
+CRAG thêm một retrieval evaluator. Evaluator chấm relevance giữa query và retrieved documents, rồi chọn một trong ba action:
 
-1. Retrieve: D = retrieve(q, K, top_k=k)
+- **CORRECT**: context đủ tốt, dùng retrieved docs sau khi refine;
+- **INCORRECT**: context kém, bỏ retrieved docs và dùng web search;
+- **AMBIGUOUS**: context không rõ, kết hợp retrieved docs và web search.
 
-2. Evaluate: 
-   scores = [evaluator(q, di) for di in D]
-   action = classify_action(scores, upper_threshold, lower_threshold)
+Paper cũng dùng decompose-then-recompose: tách documents thành knowledge strips, lọc phần liên quan, rồi ghép lại context sạch hơn.
 
-3. Knowledge Preparation:
-   if action == CORRECT:
-     context = decompose_recompose(q, D)
-   
-   elif action == INCORRECT:
-     q_web = rewrite_query(q)
-     D_web = web_search(q_web, W)
-     context = decompose_recompose(q, D_web)
-   
-   elif action == AMBIGUOUS:
-     q_web = rewrite_query(q)
-     D_web = web_search(q_web, W)
-     D_combined = D + D_web
-     context = decompose_recompose(q, D_combined)
+## What Actually Matters
 
-4. Generate: a = LLM(q, context)
+Tôi không nghĩ phần "web search" là thứ nên copy nguyên vào mọi hệ thống. Bài học quan trọng hơn:
 
-5. Return a
+```text
+retrieval result phải được đánh giá trước khi generator dùng nó
 ```
 
----
+Quality gate có thể dẫn tới nhiều action khác nhau:
 
-## 4. Thực nghiệm và Kết quả
+- proceed;
+- retrieve thêm;
+- rewrite query;
+- dùng source khác;
+- hỏi clarification;
+- từ chối vì thiếu evidence;
+- escalate sang human;
+- trả lời với uncertainty rõ ràng.
 
-### Datasets
+CRAG là một ví dụ cụ thể của tư duy này.
 
-Paper đánh giá trên bốn dataset với đặc điểm khác nhau:
+## Implementation Sketch
 
-- **PopQA**: open-domain question answering, câu hỏi về factual knowledge (entities, relations). Metric: accuracy.
-- **Biography**: long-form generation, yêu cầu sinh tiểu sử nhân vật. Metric: FactScore (fact-level precision).
-- **PubHealth**: health/medical claim verification từ nguồn tin tức. Metric: accuracy.
-- **Arc-Challenge**: multiple-choice science reasoning. Metric: accuracy.
+Version production tối giản tôi sẽ build trước:
 
-### Kết quả So sánh
+```text
+1. Hybrid retrieve top-20.
+2. Rerank top-20.
+3. Compute evidence quality:
+   - max relevance score;
+   - mean top-3 score;
+   - source diversity;
+   - contradiction flags;
+   - citation coverage.
 
-| Method / Generator | PopQA (Acc ↑) | Biography (FactScore ↑) | PubHealth (Acc ↑) | ARC (Acc ↑) |
-|---|---:|---:|---:|---:|
-| RAG / LLaMA2-hf-7b | 50.5 | 44.9 | 48.9 | 43.4 |
-| **CRAG / LLaMA2-hf-7b** | **54.9** | **47.7** | **59.5** | **53.7** |
-| RAG / SelfRAG-LLaMA2-7b | 52.8 | 59.2 | 39.0 | 53.2 |
-| **CRAG / SelfRAG-LLaMA2-7b** | **59.8** | **74.1** | **75.6** | **68.6** |
-| Self-RAG / SelfRAG-LLaMA2-7b | 54.9 | 81.2 | 72.4 | 67.3 |
-| Self-CRAG / SelfRAG-LLaMA2-7b | 61.8 | 86.2 | 74.8 | 67.2 |
+4. Route:
+   - high confidence: answer normally;
+   - medium confidence: retrieve more or rewrite query;
+   - low confidence: say not enough evidence or fallback to approved source.
 
-*Số liệu trích từ Table 1 của bản arXiv:2401.15884v3. `CRAG` là corrective workflow ghép với standard RAG; `Self-CRAG` là workflow ghép với Self-RAG.*
+5. Log decision and scores.
+```
 
-Kết quả quan trọng là CRAG cải thiện standard RAG trên cả bốn task trong hai setting generator được báo cáo. Self-CRAG cũng cải thiện rõ trên PopQA và Biography, nhưng không thắng Self-RAG trên ARC; vì vậy không nên mô tả correction là cải thiện tuyệt đối cho mọi task.
+Tôi sẽ chỉ thêm web search nếu domain cho phép web là source đáng tin. Với enterprise docs, fallback tốt hơn có thể là internal search, ticket system, database, hoặc refusal.
 
----
+## Production Tradeoffs
 
-## 5. Phân tích Phê bình
+**Evaluator sai thì pipeline sai**. False positive làm generator nhận context kém. False negative làm hệ thống fallback không cần thiết hoặc từ chối câu có thể trả lời.
 
-### Giả định về Web Search
+**Threshold tuning khó**. Ngưỡng confidence phải được tune theo domain và cost of error. Không nên lấy threshold từ paper.
 
-CRAG giả định rằng khi evaluator phân loại INCORRECT, web search sẽ luôn trả về documents tốt hơn corpus nội bộ. Giả định này không đúng trong nhiều tình huống thực tế: với domain-specific knowledge (y tế chuyên sâu, internal company docs, proprietary data), web search có thể trả về kết quả sai hoặc kém quality hơn. Pipeline cần fallback khi web search cũng không reliable.
+**Web search không phải universal fallback**. Với nội dung nội bộ, web có thể sai hơn corpus chính.
 
-### Chi phí Tính toán
+**Latency tăng**. Evaluator, extra retrieval, context filtering, web calls đều thêm delay.
 
-Mỗi query có thể trigger thêm web search call và decompose-recompose loop — latency tăng đáng kể so với Naive RAG. Trong production, khi evaluator phán quyết INCORRECT hoặc AMBIGUOUS cho phần lớn queries, throughput giảm mạnh. Paper không báo cáo latency breakdown hay cost comparison chi tiết.
+## When I Would Use It
 
-### Độ Chính Xác của Evaluator
+Tôi sẽ dùng CRAG-like gating khi:
 
-T5-large evaluator không phải lúc nào cũng đúng. False positive (đánh giá CORRECT nhưng document thực ra irrelevant) dẫn đến generator nhận context kém mà không có correction. False negative (đánh giá INCORRECT nhưng document thực ra relevant) gây unnecessary web search và có thể thay thế good context bằng bad web results. Paper chưa báo cáo evaluator-level precision/recall trên held-out test set.
+- hallucination cost cao;
+- corpus có thể thiếu hoặc outdated;
+- user chấp nhận câu "không đủ evidence";
+- có nhiều sources để fallback;
+- cần citation đáng tin.
 
-### Giới hạn của Decompose-then-Recompose
+Đây là pattern tốt cho legal/internal knowledge/enterprise QA hơn là chatbot demo.
 
-Chất lượng của bước này phụ thuộc vào khả năng sentence segmentation và relevance scoring ở granularity câu đơn. Với câu trả lời yêu cầu hiểu context multi-sentence (e.g., coreference resolution, implicit reasoning across sentences), việc filter từng câu độc lập có thể loại bỏ câu quan trọng có scoring thấp vì thiếu context xung quanh.
+## When I Would Not Use It
 
-### Tính Tái Lập trong Benchmark
+Tôi sẽ chưa dùng CRAG đầy đủ khi:
 
-Khi web search được dùng trong INCORRECT/AMBIGUOUS cases, kết quả benchmark phụ thuộc vào nội dung web tại thời điểm chạy experiment — không deterministic và khó reproduce. Đây là một limitation quan trọng khi so sánh với các methods chỉ dùng static corpus.
+- chưa có eval set để tune evaluator;
+- latency cần rất thấp;
+- corpus đã nhỏ và curated;
+- fallback source không đáng tin;
+- app chấp nhận answer approximate.
 
----
+Khi đó, chỉ cần reranker + refusal rule đơn giản có thể đủ.
 
-## 6. Vị trí trong Landscape
+## What I Distrust
 
-| Method | Có Retrieval Evaluator | Adaptive Action | Web Search | Decompose Context | Complexity |
-|---|---|---|---|---|---|
-| **Naive RAG** | Không | Không | Không | Không | Thấp |
-| **Self-RAG** | Có (inline tokens) | Có (4 tokens) | Không | Không | Trung bình |
-| **Adaptive-RAG** | Có (query classifier) | Có (3 levels) | Không | Không | Trung bình |
-| **CRAG** | Có (T5-large) | Có (3 actions) | Có | Có | Cao |
-| **IRCoT** | Không | Không (multi-step) | Không | Không | Cao |
+Tôi không tin giả định "retrieval sai thì web search tốt hơn". Điều này chỉ đúng với một số open-domain questions. Với domain nội bộ, web search có thể đưa hallucination vào bằng đường chính thức.
 
-**Khi nào dùng từng method:**
+Tôi cũng muốn thấy evaluator-level precision/recall rõ hơn. Nếu evaluator là module quyết định routing, chất lượng của nó phải được đo riêng, không chỉ đo final QA.
 
-- **Naive RAG**: corpus chất lượng cao, queries well-defined, latency constraint nghiêm ngặt.
-- **Self-RAG**: muốn adaptive retrieval với overhead tối thiểu, không cần web search.
-- **Adaptive-RAG**: query complexity phân bố rõ ràng (simple/multi-hop/complex), không có web access.
-- **CRAG**: corpus có thể outdated hoặc incomplete, chấp nhận latency cao hơn, cần robust answer quality, có web search access.
+## Experiment I Would Run
 
----
+Tôi sẽ so:
 
-## 7. Takeaway
+```text
+naive RAG
+RAG + reranker
+RAG + evaluator gate + refusal
+RAG + evaluator gate + query rewrite
+CRAG-like fallback to external source
+```
 
-1. **Retrieval quality là bottleneck bị bỏ qua**: hầu hết RAG research tập trung vào better retrievers hoặc better generators, nhưng CRAG chỉ ra rằng một lightweight evaluator giữa hai bước đã cải thiện đáng kể — không cần thay đổi retriever hay LLM.
+Metrics:
 
-2. **Granular action space quan trọng hơn binary decision**: phân loại AMBIGUOUS thay vì chỉ CORRECT/INCORRECT cho phép pipeline hedge uncertainty bằng cách kết hợp nhiều nguồn, tránh hard mistakes từ borderline cases.
+- answer correctness;
+- citation faithfulness;
+- refusal correctness;
+- false accept rate;
+- false reject rate;
+- latency p95;
+- fallback rate;
+- cost/query.
 
-3. **Context refinement (decompose-then-recompose) bổ sung orthogonal với retrieval correction**: ngay cả khi retrieval đã CORRECT, lọc noise ở cấp độ câu vẫn cải thiện faithfulness — đặc biệt rõ ràng trong long-form generation tasks như Biography.
+Với high-stakes domain, false accept quan trọng hơn raw accuracy.
 
----
+## Takeaway
+
+CRAG nhắc rằng RAG cần biết khi nào không nên trả lời.
+
+Điểm tôi sẽ mang vào production:
+
+- thêm quality gate trước generation;
+- đo evaluator như một module riêng;
+- fallback phải domain-aware;
+- refusal là action hợp lệ;
+- context refinement có thể quan trọng ngang retrieval.
 
 ## Nguồn
 
-- Paper gốc: [https://arxiv.org/abs/2401.15884](https://arxiv.org/abs/2401.15884)
-- Shi-Qi Yan, Jia-Chen Gu, Yun Zhu, Zhen-Hua Ling. "Corrective Retrieval Augmented Generation." ICLR 2024.
-- Self-RAG (so sánh): Asai et al., arXiv:2310.11511
-- Adaptive-RAG (so sánh): Jeong et al., arXiv:2403.14403
+- Yan et al. "Corrective Retrieval Augmented Generation." ICLR 2024. https://arxiv.org/abs/2401.15884
+- Asai et al. "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection." 2023.

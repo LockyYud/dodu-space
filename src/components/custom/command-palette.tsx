@@ -22,7 +22,7 @@ export type CommandPaletteItem = Readonly<{
   title: string;
   titleEn?: string;
   href: string;
-  group: "pages" | "projects" | "notes";
+  group: "pages" | "projects" | "blogs";
 }>;
 
 type CommandPaletteProps = Readonly<{
@@ -40,17 +40,17 @@ export function CommandPalette({ items }: CommandPaletteProps) {
     placeholder:
       language === "vi"
         ? "Tìm trang, dự án, bài viết..."
-        : "Search pages, projects, notes...",
+        : "Search pages, projects, blogs...",
     pages: language === "vi" ? "Trang" : "Pages",
     projects: language === "vi" ? "Dự án" : "Projects",
-    notes: language === "vi" ? "Bài viết" : "Notes",
+    blogs: language === "vi" ? "Bài viết" : "Blogs",
   };
 
   const grouped = useMemo(() => {
     const groups: Record<CommandPaletteItem["group"], CommandPaletteItem[]> = {
       pages: [],
       projects: [],
-      notes: [],
+      blogs: [],
     };
     for (const item of items) groups[item.group].push(item);
     return groups;
@@ -115,8 +115,8 @@ export function CommandPalette({ items }: CommandPaletteProps) {
 
           <CommandSeparator />
 
-          <CommandGroup heading={labels.notes}>
-            {grouped.notes.map((item) => (
+          <CommandGroup heading={labels.blogs}>
+            {grouped.blogs.map((item) => (
               <CommandItem key={item.id} onSelect={() => run(item.href)}>
                 <FileTextIcon />
                 <span className="flex-1">{item.title}</span>

@@ -9,219 +9,159 @@ published: true
 > **Paper**: Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity
 > **Tác giả**: Soyeong Jeong, Jinheon Baek, Sukmin Cho, Sung Ju Hwang, Jong C. Park et al.
 > **Venue**: NAACL 2024 — arXiv:2403.14403
-> **Loại**: `paper_summary`
+> **Loại**: `engineering_reading_note`
 
-Adaptive-RAG huấn luyện một small classifier để tự động chọn giữa ba chiến lược retrieval — no-retrieval, single-step, và multi-step — dựa trên độ phức tạp của từng query, thay vì áp dụng một pipeline cố định cho mọi câu hỏi. Điểm then chốt là nhãn huấn luyện cho classifier được tạo tự động từ bias của dataset mà không cần annotation thủ công.
+## Thesis
 
----
+Adaptive-RAG đáng học vì nó chống lại một thói quen xấu trong RAG: **dùng cùng một pipeline cho mọi query**.
 
-## 1. Bối cảnh và Động lực
+Không phải câu hỏi nào cũng cần retrieval. Không phải câu hỏi nào cũng cần multi-hop. Không phải câu hỏi nào cũng đáng trả latency cao. Routing theo độ phức tạp là một cách đưa cost-quality tradeoff vào pipeline.
 
-### Giới hạn của các phương pháp trước
+## Problem I Care About
 
-Các hệ thống RAG hiện tại thường theo một trong hai hướng cực đoan:
-
-- **No-retrieval** (ví dụ: standard LLM prompting): nhanh và rẻ, nhưng thất bại trên các câu hỏi knowledge-intensive đòi hỏi thông tin ngoài tầm của parametric memory.
-- **Single-step RAG** (retrieve-then-read): phù hợp với câu hỏi đơn hop, nhưng lãng phí compute trên câu hỏi đơn giản và không đủ cho câu hỏi multi-hop.
-- **Multi-step RAG** (ví dụ: IRCoT, Self-Ask): mạnh với câu hỏi phức tạp, nhưng gây overhead lớn — nhiều lần retrieval, nhiều lần gọi LLM — cho câu hỏi chỉ cần một hop hoặc không cần retrieval.
-
-Vấn đề sâu hơn: không có phương pháp nào trước đó tự động phân loại một query vào đúng "mức" cần thiết. Một số hệ thống dùng confidence-based triggering (ví dụ: FLARE), nhưng đó là reactive — chỉ quyết định sau khi đã bắt đầu generate — thay vì proactive trước khi chạy pipeline.
-
-### Khoảng trống nghiên cứu
-
-Câu hỏi nghiên cứu cụ thể: *Có thể học một classifier nhỏ, rẻ để định tuyến query sang đúng chiến lược RAG mà không cần human annotation không, và classifier đó có cải thiện cả accuracy lẫn efficiency không?*
-
----
-
-## 2. Đóng góp Chính
-
-- **Khung phân loại ba cấp**: Định nghĩa rõ ràng ba chiến lược — (A) no-retrieval, (B) single-step retrieval, (C) multi-step retrieval — và đặt bài toán chọn chiến lược thành bài toán phân loại.
-- **Tạo nhãn tự động từ bias dataset**: Thay vì annotate thủ công, paper dùng kết quả thực nghiệm của các model/strategy trên các dataset đã có bias phức tạp khác nhau để tạo nhãn training cho classifier.
-- **Small classifier T5-based**: Huấn luyện một classifier nhẹ (T5-large hoặc nhỏ hơn) trên các nhãn tự động tạo ra, đủ nhỏ để overhead prediction không đáng kể so với cost của pipeline được chọn.
-- **Kết hợp adaptive selection với bất kỳ retriever/generator nào**: Thiết kế modular — classifier chỉ quyết định strategy, không ràng buộc với model cụ thể trong từng strategy.
-
----
-
-## 3. Phương pháp Chi tiết
-
-### Ba chiến lược
-
-| Chiến lược | Mô tả | Khi nào phù hợp |
-|---|---|---|
-| **(A) No-Retrieval** | LLM trả lời trực tiếp từ parametric knowledge | Câu hỏi đơn giản, LLM đã biết |
-| **(B) Single-Step Retrieval** | Retrieve một lần → generate | Câu hỏi đơn hop, cần 1 document |
-| **(C) Multi-Step Retrieval** | Iterative retrieve + reason (IRCoT-style) | Câu hỏi multi-hop, cần tổng hợp nhiều tài liệu |
-
-### Classifier: Kiến trúc và Input
-
-Classifier là một mô hình **T5** (hoặc nhỏ hơn) được fine-tune cho bài toán phân loại ba lớp \{A, B, C\}. Input là câu hỏi q dưới dạng chuỗi văn bản, không cần feature engineering thủ công:
+Một RAG system thường xử lý các query rất khác nhau:
 
 ```text
-f_\theta: q \mapsto \{A, B, C\}
+"BM25 là gì?"
+"Theo policy nội bộ, điều kiện refund cho enterprise contract là gì?"
+"So sánh hai incident gần nhất và rút ra root cause chung."
+"Tóm tắt toàn bộ feedback của khách hàng về onboarding."
 ```
 
-trong đó `f_\theta` là classifier với tham số `\theta`, được tối ưu bằng cross-entropy loss:
+Nếu mọi query đều đi qua cùng pipeline, ta có hai rủi ro:
+
+- query đơn giản bị over-processing, tăng latency/cost;
+- query phức tạp bị under-processing, thiếu evidence.
+
+Adaptive-RAG đặt câu hỏi đúng: pipeline nên thay đổi theo query.
+
+## The Paper's Core Idea
+
+Paper huấn luyện classifier để chọn một trong ba chiến lược:
+
+- no retrieval;
+- single-step retrieval;
+- multi-step retrieval.
+
+Nhãn training được tạo tự động bằng cách xem chiến lược nào trả lời tốt nhất cho từng query trong dataset. Tại inference, classifier dự đoán độ phức tạp của query và route sang strategy tương ứng.
+
+## What Actually Matters
+
+Bài học thực dụng là không nhất thiết phải copy đúng ba class của paper. Điều quan trọng là có **router explicit** thay vì một pipeline cứng.
+
+Trong production RAG, router có thể chọn:
+
+- no retrieval;
+- keyword lookup;
+- hybrid retrieval;
+- query rewriting;
+- multi-query retrieval;
+- iterative retrieval;
+- graph/global retrieval;
+- refusal/clarification.
+
+Router không cần hoàn hảo ngay. Chỉ cần nó giảm overkill cho query đơn giản và tăng effort cho query khó.
+
+## Implementation Sketch
+
+Version đầu tiên tôi sẽ build bằng rules + small classifier:
 
 ```text
-\mathcal{L} = -\sum_{i} \log P_\theta(y_i \mid q_i)
+1. Extract query features:
+   - length;
+   - number of entities;
+   - exact identifiers;
+   - comparison words;
+   - temporal words;
+   - "summarize/analyze/compare" intent;
+   - conversation dependency.
+
+2. Route:
+   - exact lookup -> BM25-heavy hybrid;
+   - simple factual -> single retrieval;
+   - ambiguous -> clarification or rewrite;
+   - multi-hop -> iterative retrieval;
+   - broad summary -> GraphRAG/RAPTOR-like path;
+   - insufficient evidence risk -> CRAG-like gate.
+
+3. Log route, confidence, fallback, final quality.
 ```
 
-### Tạo nhãn huấn luyện tự động
+Sau đó mới train classifier từ production traces.
 
-Đây là phần độc đáo nhất của paper. Thay vì annotation thủ công:
+## Production Tradeoffs
 
-1. **Khai thác dataset bias**: Các dataset khác nhau có bias phức tạp khác nhau — PopQA và WebQ thường là single-hop; MuSiQue, HotpotQA, 2WikiMultiHopQA là multi-hop; một số câu hỏi trivial không cần retrieval.
-2. **Chạy cả ba chiến lược** trên mỗi câu hỏi training, ghi lại strategy nào cho kết quả đúng.
-3. **Gán nhãn theo outcome**: Nếu strategy A đúng → nhãn A; nếu A sai nhưng B đúng → nhãn B; nếu cả A và B sai → nhãn C.
-4. **Xử lý conflict**: Khi nhiều strategy đều đúng, ưu tiên chiến lược đơn giản nhất (A > B > C) để bias classifier về phía hiệu quả.
+**Routing errors are expensive**. Nếu router đánh query khó thành simple, answer thiếu evidence. Nếu đánh query đơn giản thành complex, latency/cost tăng.
 
-### Luồng quyết định tại inference
+**Labels khó định nghĩa**. "Complexity" không chỉ là số hop. Có query ngắn nhưng khó, query dài nhưng chỉ cần exact lookup.
+
+**Dataset bias** có thể leak vào classifier. Nếu labels được tạo từ benchmark, router có thể học pattern của dataset thay vì complexity thật.
+
+**Observability bắt buộc**. Phải log route decision và outcome, nếu không không thể cải thiện router.
+
+## When I Would Use It
+
+Tôi sẽ dùng adaptive routing khi:
+
+- traffic đa dạng;
+- có nhiều retrieval strategies;
+- latency/cost là constraint thật;
+- query complexity phân bố rộng;
+- đã có eval hoặc logs để biết strategy nào thắng ở case nào.
+
+## When I Would Not Use It
+
+Tôi sẽ không thêm router phức tạp khi:
+
+- app chỉ có một loại query;
+- baseline hybrid+rerank chưa ổn;
+- chưa có metrics theo route;
+- team chưa debug được retrieval failures cơ bản.
+
+Router trên nền pipeline yếu chỉ làm lỗi khó hiểu hơn.
+
+## What I Distrust
+
+Tôi không tin router học từ benchmark sẽ transfer sạch sang traffic thật. User query thật thường messy hơn: typo, thiếu context, dùng tiếng lóng, trộn nhiều intent.
+
+Tôi cũng không muốn biến "no retrieval" thành default quá mạnh. Với factual domain QA, không retrieval có thể tiết kiệm latency nhưng tăng hallucination nếu model trả lời từ parametric memory.
+
+## Experiment I Would Run
+
+Tôi sẽ so:
 
 ```text
-Input: query q
-  │
-  ▼
-classifier f_θ(q) → {A, B, C}
-  │
-  ├─ A (No-Retrieval) ──► LLM(q) → answer
-  │
-  ├─ B (Single-Step) ───► Retrieve(q) → LLM(q, docs) → answer
-  │
-  └─ C (Multi-Step) ────► Loop:
-                            docs_t = Retrieve(q, context_t)
-                            context_{t+1} = LLM_reason(q, docs_t)
-                            until termination → answer
+fixed single retrieval
+fixed strongest pipeline
+rule-based router
+classifier router
+classifier router + fallback on low confidence
 ```
 
-### Vì sao chỉ ba category?
+Metrics:
 
-Ba category này tương ứng với ba mức tốn kém compute tăng dần, đồng thời bao phủ phần lớn phân phối độ phức tạp thực tế:
-- A: O(1) LLM calls, 0 retrieval
-- B: O(1) LLM calls, 1 retrieval
-- C: O(k) LLM calls, O(k) retrievals, k ≥ 2
+- answer correctness;
+- route accuracy;
+- cost/query;
+- latency p95;
+- false simple rate;
+- false complex rate;
+- fallback rate.
 
-Thêm category thứ tư (ví dụ: graph-RAG) sẽ cần nhiều nhãn training hơn và tăng complexity của classification mà lợi ích biên giảm dần.
+Điểm cần tối ưu không chỉ là accuracy, mà là quality per dollar và quality per second.
 
----
+## Takeaway
 
-## 4. Thực nghiệm và Kết quả
+Adaptive-RAG là lời nhắc rằng RAG nên là một policy, không phải một pipeline duy nhất.
 
-### Datasets và setup
+Điểm cần mang về:
 
-Paper đánh giá trên 6 dataset, chia đều giữa câu hỏi single-hop và multi-hop:
-
-| Dataset | Loại | Metric |
-|---|---|---|
-| SQuAD | Single-hop | EM, F1, Accuracy |
-| Natural Questions | Single-hop | EM, F1, Accuracy |
-| TriviaQA | Single-hop | EM, F1, Accuracy |
-| MuSiQue | Multi-hop | EM, F1, Accuracy |
-| HotpotQA | Multi-hop | EM, F1, Accuracy |
-| 2WikiMultiHopQA | Multi-hop | EM, F1, Accuracy |
-
-Paper báo cáo nhiều generator; bảng dưới đây trích setting **FLAN-T5-XL (3B)** ở Table 2. Retriever là BM25; corpus dùng Wikipedia đã tiền xử lý cho single-hop và corpus theo thiết lập IRCoT cho multi-hop. Classifier của Adaptive-RAG là T5-Large.
-
-### Baselines
-
-| Baseline | Mô tả |
-|---|---|
-| No-Retrieval | LLM trả lời trực tiếp, không retrieve |
-| Standard RAG | Single-step retrieve-then-read |
-| Self-RAG | Adaptive retrieval dựa trên reflection token |
-| FLARE | Forward-looking active retrieval, trigger khi confidence thấp |
-| IRCoT | Interleaved retrieval + chain-of-thought, multi-step |
-
-### Kết quả chính (F1 %, FLAN-T5-XL)
-
-| Method | SQuAD | Natural Questions | TriviaQA | MuSiQue | HotpotQA | 2WikiMHQA |
-|---|---|---|---|---|---|---|
-| No Retrieval | 10.50 | 19.00 | 31.80 | 10.70 | 22.71 | 32.04 |
-| Single-step Approach | 39.30 | 47.30 | 62.40 | 22.80 | 46.15 | 47.90 |
-| Adaptive Retrieval | 23.10 | 36.00 | 46.90 | 15.80 | 32.22 | 39.44 |
-| Self-RAG | 11.20 | 39.00 | 29.30 | 8.10 | 17.53 | 19.59 |
-| **Adaptive-RAG** | **38.30** | **47.30** | **60.70** | **31.80** | **53.82** | **49.75** |
-| Multi-step Approach | 35.60 | 47.80 | 62.40 | 31.90 | 56.54 | 58.85 |
-| Adaptive-RAG w/ Oracle | 45.60 | 57.10 | 70.20 | 38.50 | 64.00 | 62.30 |
-
-*Số liệu trích từ Table 2, Jeong et al. (2024), arXiv:2403.14403.*
-
-**Nhận xét**: Adaptive-RAG tốt hơn các baseline adaptive được báo cáo trong bảng, đặc biệt trên các tập multi-hop. Tuy nhiên, phương pháp không vượt multi-step approach trên mọi tập; giá trị chính là trade-off giữa chất lượng và số bước retrieval/generation, không phải thắng tuyệt đối về F1.
-
-### Hiệu quả theo số bước
-
-| Method | SQuAD | Natural Questions | TriviaQA | MuSiQue | HotpotQA | 2WikiMHQA |
-|---|---|---|---|
-| Single-step Approach | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
-| **Adaptive-RAG** | **1.37** | **1.00** | **1.23** | **3.22** | **3.55** | **2.63** |
-| Multi-step Approach | 4.52 | 5.04 | 5.28 | 3.60 | 5.53 | 4.17 |
-
-Số bước trung bình trong Table 2 cho thấy Adaptive-RAG tránh được phần lớn chi phí của multi-step approach trên single-hop và dùng ít bước hơn trên cả ba tập multi-hop. Paper còn báo cáo thời gian tương đối; khi triển khai production vẫn cần đo lại latency theo retriever, generator và hạ tầng cụ thể.
-
----
-
-## 5. Phân tích Phê bình
-
-### Giả định ẩn chưa được kiểm tra
-
-**1. Complexity của query map gọn vào strategy.**
-Classifier giả định độ phức tạp của câu hỏi đủ để xác định strategy tối ưu. Nhưng difficulty còn phụ thuộc vào corpus: cùng một query "What caused the 2008 financial crisis?" có thể cần multi-step nếu corpus thưa, nhưng single-step nếu corpus có bài tổng hợp sẵn. Classifier không thấy corpus khi prediction.
-
-**2. Dataset bias làm proxy cho complexity.**
-Nhãn tự động dựa trên bias dataset (PopQA = simple, MuSiQue = complex). Nếu trong production query distribution khác với distribution của các dataset training, classifier có thể bị miscalibrated — ví dụ: câu hỏi single-hop về domain niche (y học, pháp luật) bị classify là multi-hop vì surface form phức tạp.
-
-**3. Strategy C là IRCoT — không phải mọi multi-step system.**
-Paper dùng IRCoT làm đại diện cho strategy C. Kết quả phụ thuộc nhiều vào chất lượng của IRCoT implementation, không generalize dễ sang các multi-step system khác (ví dụ: ReAct, Self-RAG).
-
-### Hạn chế paper thừa nhận
-
-- Classifier cần re-train khi thay đổi retriever hoặc generator vì nhãn training phụ thuộc vào outcome của model cụ thể.
-- Evaluation chỉ trên closed-set QA (Exact Match). Chưa đánh giá trên open-ended generation hoặc tasks ngoài QA.
-- Corpus cố định (Wikipedia snapshot). Chưa test với corpus thay đổi theo thời gian.
-
-### Hạn chế paper không đề cập
-
-**Reproducibility của label creation**: Quy trình tạo nhãn yêu cầu chạy cả ba strategy trên toàn bộ training set — tốn kém compute và phụ thuộc vào kết quả của một LLM cụ thể tại một thời điểm. Nếu ChatGPT thay đổi behavior (model update), nhãn sẽ thay đổi và classifier cần re-train.
-
-**Latency của classifier**: Paper báo cáo accuracy nhưng không report latency của bước classification. Trong production, nếu classifier là T5-large và inference trên CPU, overhead này không tầm thường.
-
-**Distribution shift**: Khi corpus thay đổi (domain mới, documents mới), difficulty thực sự của query thay đổi, nhưng classifier không có cách biết — không có feedback loop từ retrieval outcome trở lại classifier.
-
----
-
-## 6. Vị trí trong Landscape
-
-### So sánh với các phương pháp adaptive/iterative khác
-
-| Method | Trigger cơ chế | Granularity | Proactive/Reactive | Overhead |
-|---|---|---|---|---|
-| **Adaptive-RAG** | Learned classifier trên query | Query-level (3 class) | Proactive | Classifier inference |
-| **Self-RAG** | Reflection tokens (special tokens) | Token-level | Reactive | Extra tokens per step |
-| **FLARE** | Generation confidence | Sentence-level | Reactive | Confidence check |
-| **IRCoT** | Fixed multi-step | Query-level (always multi) | N/A (always on) | O(k) calls |
-| **ReAct** | Tool-use reasoning | Step-level | Reactive | Reasoning overhead |
-
-### Khi nào nên dùng từng phương pháp?
-
-- **Adaptive-RAG**: Dataset query có distribution phức tạp đa dạng (mix single/multi-hop), muốn optimize cả accuracy lẫn compute cost, có thể build training data từ existing datasets.
-- **Self-RAG**: Muốn fine-tune generator để tự quyết định retrieve hay không, không muốn thêm separate classifier component.
-- **FLARE**: Không có training data, muốn threshold đơn giản trên confidence.
-- **IRCoT**: Toàn bộ dataset là multi-hop phức tạp, không quan tâm overhead.
-
----
-
-## 7. Takeaway
-
-1. **Routing là optimization, không phải magic**: Adaptive-RAG thắng không phải vì có strategy mới, mà vì tránh sử dụng strategy sai. Phần lớn gain đến từ không over-engineer các câu hỏi đơn giản.
-
-2. **Tạo nhãn từ model outcome là double-edged sword**: Phương pháp tạo nhãn tự động thông minh và scalable, nhưng tạo ra strong coupling giữa classifier và model/strategy cụ thể. Khi stack thay đổi, classifier có thể trở nên stale mà không có cảnh báo rõ ràng.
-
-3. **Ba category là pragmatic, không phải principled**: Lựa chọn \{no-retrieval, single-step, multi-step\} hợp lý cho Wikipedia QA benchmark, nhưng trong production với RAG phức tạp hơn (agentic search, tool-use, hybrid graph-dense retrieval), boundary giữa các category mờ đi và classifier có thể cần redesign.
-
----
+- query đơn giản và query phức tạp cần treatment khác nhau;
+- router nên bắt đầu đơn giản và observable;
+- route confidence quan trọng;
+- fallback cần thiết khi router không chắc;
+- adaptive routing chỉ đáng làm sau khi baseline retrieval đủ mạnh.
 
 ## Nguồn
 
-- Jeong, S., Baek, J., Cho, S., Hwang, S. J., & Park, J. C. (2024). *Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity*. NAACL 2024. https://arxiv.org/abs/2403.14403
-- Trivedi et al. (2022). *Interleaving Retrieval with Chain-of-Thought Reasoning for Knowledge-Intensive Multi-Step Questions* (IRCoT). https://arxiv.org/abs/2212.10509
-- Asai et al. (2023). *Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection*. https://arxiv.org/abs/2310.11511
-- Jiang et al. (2023). *Active Retrieval Augmented Generation* (FLARE). https://arxiv.org/abs/2305.06983
+- Jeong et al. "Adaptive-RAG: Learning to Adapt Retrieval-Augmented Large Language Models through Question Complexity." NAACL 2024. https://arxiv.org/abs/2403.14403

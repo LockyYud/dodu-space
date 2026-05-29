@@ -8,7 +8,7 @@ export async function GET(_req: NextRequest) {
 
   const items = posts
     .map((post) => {
-      const url = `${siteConfig.url}/blog/${post.slug}`;
+      const url = `${siteConfig.url}/blogs/${post.slug}`;
       return `<item>
 <title>${escapeXml(post.title)}</title>
 <link>${url}</link>

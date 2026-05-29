@@ -23,8 +23,8 @@ export function Footer() {
           <p className="font-semibold">Đỗ Minh Duy</p>
           <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
             <LocalizedText
-              vi="Personal portfolio về AI systems, RAG, backend và ghi chú kỹ thuật."
-              en="Personal portfolio for AI systems, RAG, backend engineering, and technical notes."
+              vi="Personal portfolio về AI systems, RAG, backend và bài viết kỹ thuật."
+              en="Personal portfolio for AI systems, RAG, backend engineering, and technical posts."
             />
           </p>
           <p className="mt-4 text-xs text-muted-foreground">

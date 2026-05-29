@@ -32,9 +32,11 @@ import { cn } from "@/lib/utils";
 export function Header() {
   const pathname = usePathname();
   const { language } = useLanguage();
+  const isActive = (href: string) =>
+    href === "/" ? pathname === href : pathname.startsWith(href);
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/70 backdrop-blur supports-backdrop-filter:bg-background/60">
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/80 shadow-[0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-md supports-backdrop-filter:bg-background/70">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
         <Link href="/" className="font-semibold tracking-tight">
           {siteConfig.title}
@@ -48,8 +50,10 @@ export function Header() {
                   <NavigationMenuLink
                     href={item.href}
                     className={cn(
-                      "text-muted-foreground transition-colors hover:text-foreground",
-                      pathname === item.href && "font-medium text-foreground",
+                      "relative text-muted-foreground transition-colors hover:text-foreground",
+                      isActive(item.href) && "font-medium text-foreground",
+                      isActive(item.href) &&
+                        "after:absolute after:inset-x-2 after:-bottom-1 after:h-px after:rounded-full after:bg-[var(--color-accent-text)]",
                     )}
                   >
                     {language === "vi" ? item.title : item.titleEn}
@@ -101,7 +105,7 @@ export function Header() {
                         href={item.href}
                         className={cn(
                           "rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                          pathname === item.href && "bg-muted text-foreground",
+                          isActive(item.href) && "bg-muted text-foreground",
                         )}
                       />
                     }

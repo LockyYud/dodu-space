@@ -77,14 +77,14 @@ export function HeroSection() {
               <ArrowRight className="size-4" />
             </Link>
             <Link
-              href="/blog"
+              href="/blogs"
               className={buttonVariants({
                 variant: "outline",
                 className:
                   "border-foreground/15 bg-background/70 hover:border-[var(--color-accent-text)]",
               })}
             >
-              <LocalizedText vi="Đọc bài viết" en="Read notes" />
+              <LocalizedText vi="Đọc bài viết" en="Read blogs" />
             </Link>
             {hasEmail ? (
               <a

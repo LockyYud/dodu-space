@@ -3,6 +3,7 @@ import path from "node:path";
 
 import matter from "gray-matter";
 
+import { extractToc } from "@/lib/content/blog-format";
 import { compileMdx, contentPaths } from "@/lib/content/mdx";
 import { parseBlogFrontmatter } from "@/lib/content/schema";
 
@@ -83,6 +84,7 @@ export async function getBlogPostBySlug(slug: string) {
     frontmatter: {
       ...frontmatter,
       readingMinutes: estimateReadingMinutes(content),
+      toc: extractToc(content),
     },
     source: content,
   });
