@@ -1,0 +1,52 @@
+---
+title: "Positional Encoding Và Positional Embedding"
+date: 2026-05-29
+tags: ["LLM From Scratch", "Position Embedding", "Transformer"]
+summary: "Vì sao attention cần thông tin thứ tự token và cách thêm position vào hidden state."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 6
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Attention có biết token đứng ở vị trí nào không?
+
+## Trực Giác
+
+TODO: Nếu không có position, attention nhìn chuỗi như một tập token.
+
+## Tensor Contract
+
+TODO:
+
+- Token embedding: `(B, T, D)`
+- Position embedding: `(T, D)` hoặc `(1, T, D)`
+- Hidden state sau cộng position: `(B, T, D)`
+
+## Công Thức Tối Thiểu
+
+TODO: Trình bày sinusoidal positional encoding vừa đủ để code.
+
+## Implementation
+
+TODO: Code positional encoding tối giản.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Quên cộng position.
+- Chuỗi dài hơn `max_seq_len`.
+- Nhầm learned absolute position với sinusoidal.
+
+## Sanity Check
+
+TODO: Hai position khác nhau có vector khác nhau.
+
+## Kết Nối
+
+TODO: Position là bước cần trước khi đưa token vào Transformer block.

@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, BookOpen } from "lucide-react";
 import Link from "next/link";
 
 import { GradientCard } from "@/components/custom/gradient-card";
@@ -36,6 +36,17 @@ export function BlogCard({ post }: Readonly<{ post: BlogPost }>) {
                   {minutes} <LocalizedText vi="phút" en="min" />
                 </span>
               </div>
+              {post.threadTitle ? (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <BookOpen className="size-3" />
+                  <span>{post.threadTitle}</span>
+                  {post.part ? (
+                    <span className="tech-mono text-[10px]">
+                      · Part {post.part}
+                    </span>
+                  ) : null}
+                </p>
+              ) : null}
               <CardTitle className="text-[1.05rem] leading-snug [overflow-wrap:anywhere] group-hover:text-[var(--color-accent-text)]">
                 {title.title}
               </CardTitle>

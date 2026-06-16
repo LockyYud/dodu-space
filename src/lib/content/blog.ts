@@ -14,6 +14,10 @@ export type BlogFrontmatter = {
   summary?: string;
   featured?: boolean;
   published?: boolean;
+  thread?: string;
+  threadTitle?: string;
+  phase?: string;
+  part?: number;
 };
 
 export type BlogPost = BlogFrontmatter & {
@@ -22,7 +26,35 @@ export type BlogPost = BlogFrontmatter & {
 };
 
 function toSlug(filename: string) {
-  return filename.replace(/\.mdx$/, "");
+  return path.basename(filename).replace(/\.mdx$/, "");
+}
+
+async function listBlogFilePaths(dir: string): Promise<string[]> {
+  const entries = await fs
+    .readdir(dir, { withFileTypes: true })
+    .catch(() => []);
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const entryPath = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        return listBlogFilePaths(entryPath);
+      }
+
+      if (entry.isFile() && entry.name.endsWith(".mdx")) {
+        return [entryPath];
+      }
+
+      return [];
+    }),
+  );
+
+  return files.flat();
+}
+
+async function getBlogFilePathBySlug(slug: string) {
+  const filePaths = await listBlogFilePaths(contentPaths.blog);
+  return filePaths.find((filePath) => toSlug(filePath) === slug);
 }
 
 function estimateReadingMinutes(source: string) {
@@ -38,16 +70,11 @@ function estimateReadingMinutes(source: string) {
 }
 
 export async function getBlogPosts(): Promise<BlogPost[]> {
-  const entries = await fs
-    .readdir(contentPaths.blog, { withFileTypes: true })
-    .catch(() => []);
-  const slugs = entries
-    .filter((e) => e.isFile() && e.name.endsWith(".mdx"))
-    .map((e) => toSlug(e.name));
+  const filePaths = await listBlogFilePaths(contentPaths.blog);
 
   const posts = await Promise.all(
-    slugs.map(async (slug) => {
-      const filePath = path.join(contentPaths.blog, `${slug}.mdx`);
+    filePaths.map(async (filePath) => {
+      const slug = toSlug(filePath);
       const raw = await fs.readFile(filePath, "utf8");
       const { content, data } = matter(raw);
       const fm = parseBlogFrontmatter(slug, data as Record<string, unknown>);
@@ -67,7 +94,11 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
 }
 
 export async function getBlogPostBySlug(slug: string) {
-  const filePath = path.join(contentPaths.blog, `${slug}.mdx`);
+  const filePath = await getBlogFilePathBySlug(slug);
+  if (!filePath) {
+    throw new Error("Blog post not found.");
+  }
+
   const raw = await fs.readFile(filePath, "utf8");
   const { content, data } = matter(raw);
 

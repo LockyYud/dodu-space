@@ -1,0 +1,54 @@
+---
+title: "Attention Từ Dot Product Tới Scaled Dot-Product"
+date: 2026-05-29
+tags: ["LLM From Scratch", "Attention", "Transformer"]
+summary: "Query, key, value, scaled dot-product attention và những lỗi shape thường gặp."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 3
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Attention lấy thông tin từ các token khác như thế nào?
+
+## Trực Giác
+
+TODO: Giải thích query, key, value bằng ví dụ truy vấn thông tin.
+
+## Tensor Contract
+
+TODO:
+
+- Q: `(B, Tq, D)`
+- K: `(B, Tk, D)`
+- V: `(B, Tk, Dv)`
+- Attention weights: `(B, Tq, Tk)`
+- Output: `(B, Tq, Dv)`
+
+## Công Thức Tối Thiểu
+
+TODO: Viết công thức `softmax(QK^T / sqrt(d_k))V`.
+
+## Implementation
+
+TODO: Code attention tối giản, chưa multi-head.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Softmax nhầm chiều.
+- Mask cộng sai kiểu.
+- Shape sai cho matmul.
+
+## Sanity Check
+
+TODO: Attention weights có tổng bằng 1 theo chiều key khi không dropout.
+
+## Kết Nối
+
+TODO: Attention là module trộn thông tin giữa token trong Transformer.

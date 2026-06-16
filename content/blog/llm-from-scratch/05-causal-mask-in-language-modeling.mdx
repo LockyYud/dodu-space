@@ -1,0 +1,56 @@
+---
+title: "Causal Mask Trong Language Model"
+date: 2026-05-29
+tags: ["LLM From Scratch", "Causal Mask", "Language Modeling"]
+summary: "Mask tương lai, padding mask và sanity check để language model không nhìn đáp án."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 5
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Làm sao để token hiện tại không nhìn thấy token tương lai?
+
+## Trực Giác
+
+TODO: Token tại position `t` chỉ được attend tới các token `<= t`.
+
+## Ví Dụ Mask
+
+TODO: Vẽ causal mask cho một chuỗi ngắn.
+
+## Tensor Contract
+
+TODO:
+
+- Attention scores: `(B, H, T, T)`
+- Causal mask: broadcast được tới `(B, H, T, T)`
+- Padding mask: broadcast theo chiều key.
+
+## Công Thức Tối Thiểu
+
+TODO: Mask future trước softmax bằng giá trị rất âm.
+
+## Implementation
+
+TODO: Code tạo triangular causal mask.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Mask query thay vì key.
+- Off-by-one khiến model nhìn thấy target.
+- Nhầm quy ước `True` là keep hay block.
+
+## Sanity Check
+
+TODO: Vị trí future và pad có probability gần 0 sau softmax.
+
+## Kết Nối
+
+TODO: Causal mask cho phép train song song nhưng vẫn giữ bài toán autoregressive.

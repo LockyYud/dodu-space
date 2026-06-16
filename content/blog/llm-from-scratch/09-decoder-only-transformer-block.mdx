@@ -1,0 +1,51 @@
+---
+title: "Decoder-Only Transformer Block"
+date: 2026-05-29
+tags: ["LLM From Scratch", "Decoder-Only", "Transformer"]
+summary: "Lắp causal self-attention, FFN, residual và LayerNorm thành một GPT-style block."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 9
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Một GPT-style Transformer block gồm những module nào?
+
+## Trực Giác
+
+TODO: Decoder-only block dùng causal self-attention để sinh token autoregressive.
+
+## Tensor Contract
+
+TODO:
+
+- Hidden state vào block: `(B, T, D)`
+- Hidden state ra block: `(B, T, D)`
+- Logits sau output projection: `(B, T, V)`
+
+## Công Thức Tối Thiểu
+
+TODO: Ghi flow attention -> residual/norm -> FFN -> residual/norm.
+
+## Implementation
+
+TODO: Code block tối giản từ các module trước.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Dùng attention không causal trong language model.
+- Shape hidden state thay đổi ngoài ý muốn.
+
+## Sanity Check
+
+TODO: Block giữ nguyên shape `(B, T, D)`.
+
+## Kết Nối
+
+TODO: Stack nhiều block và output projection tạo thành decoder-only LM.

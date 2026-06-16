@@ -1,0 +1,52 @@
+---
+title: "Autoregressive Decoding Và Sampling"
+date: 2026-05-29
+tags: ["LLM From Scratch", "Decoding", "Sampling"]
+summary: "Greedy decoding, temperature, top-k, top-p và lỗi thường gặp khi generate."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 11
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Sau khi train, model sinh token từng bước như thế nào?
+
+## Trực Giác
+
+TODO: Inference lấy prompt, dự đoán token kế tiếp, append rồi lặp lại.
+
+## Tensor Contract
+
+TODO:
+
+- Prompt ids: `(B, T)`
+- Next-token logits: `(B, V)`
+- Sampled next token: `(B, 1)`
+
+## Công Thức Tối Thiểu
+
+TODO: Temperature scaling, top-k và top-p ở mức đủ để code.
+
+## Implementation
+
+TODO: Code greedy decoding, temperature sampling, top-k và top-p.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Lấy logits sai position.
+- Không `model.eval()`.
+- Quên tắt dropout.
+
+## Sanity Check
+
+TODO: Generate trên đoạn text đã overfit.
+
+## Kết Nối
+
+TODO: Decoding là cầu nối giữa loss training và output người dùng nhìn thấy.

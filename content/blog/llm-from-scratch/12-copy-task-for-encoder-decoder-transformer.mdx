@@ -1,0 +1,53 @@
+---
+title: "Case Study Phụ: Copy Task Cho Encoder-Decoder Transformer"
+date: 2026-05-29
+tags: ["LLM From Scratch", "Encoder-Decoder", "Copy Task"]
+summary: "Copy task như bài kiểm thử seq2seq cho mask, teacher forcing, decoding và loss."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 12
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Copy task kiểm tra lỗi gì trong encoder-decoder Transformer?
+
+## Trực Giác
+
+TODO: Model nhận `src` và học sinh lại cùng chuỗi ở phía decoder.
+
+## Tensor Contract
+
+TODO:
+
+- `src`: `(B, S)`
+- `tgt_input`: `(B, T)`
+- `tgt_output`: `(B, T)`
+- Logits: `(B, T, V)`
+
+## Công Thức Tối Thiểu
+
+TODO: Teacher forcing và shift target trong encoder-decoder.
+
+## Implementation
+
+TODO: Code collator hoặc batch ví dụ cho copy task.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Nhầm copy task với language modeling.
+- Mask decoder sai.
+- Shift `tgt_input` và `tgt_output` sai một bước.
+
+## Sanity Check
+
+TODO: In một batch từ collator và xác nhận token dịch đúng một bước.
+
+## Kết Nối
+
+TODO: So sánh copy task với language modeling: seq2seq mapping vs next-token prediction.

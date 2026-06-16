@@ -6,6 +6,11 @@ function toStringArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === "string");
 }
 
+function toOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return undefined;
+}
+
 export function parseBlogFrontmatter(
   slug: string,
   data: Record<string, unknown>,
@@ -25,6 +30,11 @@ export function parseBlogFrontmatter(
     summary: typeof data.summary === "string" ? data.summary : "",
     featured: typeof data.featured === "boolean" ? data.featured : false,
     published: typeof data.published === "boolean" ? data.published : false,
+    thread: typeof data.thread === "string" ? data.thread : undefined,
+    threadTitle:
+      typeof data.threadTitle === "string" ? data.threadTitle : undefined,
+    phase: typeof data.phase === "string" ? data.phase : undefined,
+    part: toOptionalNumber(data.part),
   };
 }
 

@@ -1,0 +1,55 @@
+---
+title: "Từ N-Gram Tới Neural Language Model"
+date: 2026-05-29
+tags: ["LLM From Scratch", "N-Gram", "Embedding"]
+summary: "Từ dự đoán token bằng context ngắn tới embedding và neural language model."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 2
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Vì sao n-gram không đủ, và neural language model thay đổi điều gì?
+
+## Trực Giác
+
+TODO: Dự đoán token tiếp theo từ vài token gần nhất.
+
+## Ví Dụ Token
+
+TODO: Minh họa bigram/trigram trên một câu ngắn.
+
+## Tensor Contract
+
+TODO:
+
+- Token ids: `(B, T)`
+- Embeddings: `(B, T, D)`
+
+## Công Thức Tối Thiểu
+
+TODO: Mô tả lookup embedding: token id thành vector học được.
+
+## Implementation
+
+TODO: Code `nn.Embedding(vocab_size, d_model)` và forward tối giản.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Tưởng embedding là one-hot cố định.
+- Quên giới hạn context của n-gram.
+- Không thấy sparsity khi vocab lớn.
+
+## Sanity Check
+
+TODO: Cùng một token id luôn map tới cùng một embedding trước khi cộng position.
+
+## Kết Nối
+
+TODO: Dẫn vào Transformer như cách đọc context dài và linh hoạt hơn.

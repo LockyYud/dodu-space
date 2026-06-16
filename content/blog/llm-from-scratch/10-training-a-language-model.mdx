@@ -1,0 +1,53 @@
+---
+title: "Training Language Model"
+date: 2026-05-29
+tags: ["LLM From Scratch", "Training", "Language Modeling"]
+summary: "Input-target shift, cross entropy, ignore_index và cách overfit một đoạn text nhỏ."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 10
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Train language model next-token prediction như thế nào?
+
+## Trực Giác
+
+TODO: Causal mask cho phép train song song trên toàn bộ context.
+
+## Tensor Contract
+
+TODO:
+
+- Logits: `(B, T, V)`
+- Targets: `(B, T)`
+- Flatten logits: `(B * T, V)`
+- Flatten targets: `(B * T)`
+
+## Công Thức Tối Thiểu
+
+TODO: Cross entropy trên token tiếp theo, dùng `ignore_index=pad_id`.
+
+## Implementation
+
+TODO: Code training step tối giản.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Shift input/target sai.
+- Loss thấp nhưng generation sai vì train/inference mismatch.
+- Không ignore padding token.
+
+## Sanity Check
+
+TODO: Overfit một đoạn text rất nhỏ.
+
+## Kết Nối
+
+TODO: Training loop biến Transformer block thành model có thể generate.

@@ -1,0 +1,52 @@
+---
+title: "Residual, Dropout Và LayerNorm"
+date: 2026-05-29
+tags: ["LLM From Scratch", "LayerNorm", "Transformer"]
+summary: "Residual connection, dropout, LayerNorm và khác biệt pre-norm/post-norm."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 8
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Vì sao Transformer block cần residual và normalization?
+
+## Trực Giác
+
+TODO: Residual giữ đường truyền gradient, LayerNorm ổn định hidden state.
+
+## Tensor Contract
+
+TODO:
+
+- Input: `(B, T, D)`
+- Module output: `(B, T, D)`
+- LayerNorm normalize trên chiều `D`.
+
+## Công Thức Tối Thiểu
+
+TODO: Post-norm: `LayerNorm(x + Dropout(module(x)))`.
+
+## Implementation
+
+TODO: Code một sub-layer đơn giản.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Normalize nhầm chiều.
+- Nhầm LayerNorm với BatchNorm.
+- Đặt dropout ở vị trí làm thay đổi ý đồ residual.
+
+## Sanity Check
+
+TODO: LayerNorm không đổi shape và không trộn batch/time.
+
+## Kết Nối
+
+TODO: Nhắc post-norm trong Transformer gốc và pre-norm trong LLM hiện đại.

@@ -30,18 +30,27 @@
 - [ ] Sanity check: cách biết implementation đúng.
 - [ ] Kết nối: module này ảnh hưởng gì tới model lớn hơn.
 
-## Phase 1: Nền Tảng Transformer
+## Phase 1: Language Modeling Và Nền Tảng Transformer
 
-### 1. Copy Task Là Gì Và Vì Sao Hữu Ích?
+### 1. Language Modeling Là Gì?
 
-- [ ] Giải thích copy task như một bài kiểm thử hệ thống cho Transformer.
-- [ ] Trình bày `src`, `tgt_input`, `tgt_output`.
-- [ ] Làm rõ teacher forcing và shift target.
-- [ ] Nêu vì sao task đơn giản vẫn bắt được lỗi mask, decoding và loss.
-- [ ] Thêm ví dụ batch có padding.
-- [ ] Sanity check: in một batch từ collator và xác nhận token dịch đúng một bước.
+- [ ] Giải thích language modeling là bài toán dự đoán token tiếp theo.
+- [ ] Trình bày chuỗi input và target bị lệch một token.
+- [ ] Làm rõ `p(x_t | x_<t)` là trung tâm của GPT-style models.
+- [ ] Phân biệt language modeling với classification và seq2seq.
+- [ ] Giải thích vì sao LLM bắt đầu từ next-token prediction trước khi instruction tuning.
+- [ ] Thêm ví dụ text ngắn được cắt thành token ids.
+- [ ] Sanity check: logits tại position `t` phải dự đoán token ở position `t+1`.
 
-### 2. Attention Từ Dot Product Tới Scaled Dot-Product
+### 2. Từ N-Gram Tới Neural Language Model
+
+- [ ] Giải thích trực giác n-gram: dự đoán token tiếp theo từ vài token trước đó.
+- [ ] Nêu giới hạn của n-gram: context ngắn, sparsity, không học biểu diễn ngữ nghĩa.
+- [ ] Giải thích embedding biến token id thành vector học được.
+- [ ] Dẫn vào Transformer như một cách đọc context dài và linh hoạt hơn.
+- [ ] Sanity check: cùng một token id luôn map tới cùng một embedding trước khi cộng position.
+
+### 3. Attention Từ Dot Product Tới Scaled Dot-Product
 
 - [ ] Giải thích query, key, value bằng ví dụ truy vấn thông tin.
 - [ ] Viết công thức `QK^T / sqrt(d_k)`.
@@ -51,7 +60,7 @@
 - [ ] Sanity check: attention weights có tổng bằng 1 theo chiều key khi không dropout.
 - [ ] Lỗi dễ gặp: softmax nhầm chiều, mask cộng sai kiểu, dùng shape sai cho matmul.
 
-### 3. Multi-Head Attention Và Tensor Shape
+### 4. Multi-Head Attention Và Tensor Shape
 
 - [ ] Bắt đầu từ input `(B, T, D)`.
 - [ ] Giải thích ràng buộc `D % H == 0`.
@@ -61,18 +70,18 @@
 - [ ] Sanity check: output shape giữ nguyên `(B, T, D)`.
 - [ ] Lỗi dễ gặp: quên `contiguous()`, transpose sai trục, mask không broadcast.
 
-### 4. Mask Trong Transformer
+### 5. Causal Mask Trong Language Model
 
 - [ ] Giải thích quy ước `mask=True` nghĩa là vị trí bị cấm attend.
-- [ ] Padding mask: shape `(B, 1, 1, T)`.
-- [ ] Causal mask: shape broadcast được tới `(B, H, T, T)`.
-- [ ] Target mask: causal OR target padding.
-- [ ] Cross-attention mask: dùng source padding mask, không dùng causal mask.
-- [ ] Vẽ ví dụ mask cho một sample ngắn có padding.
+- [ ] Giải thích vì sao token tại position `t` không được nhìn token tương lai.
+- [ ] Causal mask có shape broadcast được tới `(B, H, T, T)`.
+- [ ] Padding mask vẫn cần khi batch có sequence ngắn dài khác nhau.
+- [ ] Target mask trong LM thường là causal OR padding mask.
+- [ ] Vẽ ví dụ mask cho một chuỗi ngắn.
 - [ ] Sanity check: vị trí future và pad có probability gần 0 sau softmax.
-- [ ] Lỗi dễ gặp: mask query thay vì key, dùng `tgt_mask` cho cross-attention.
+- [ ] Lỗi dễ gặp: mask query thay vì key, off-by-one khiến model nhìn thấy target.
 
-### 5. Positional Encoding Và Positional Embedding
+### 6. Positional Encoding Và Positional Embedding
 
 - [ ] Giải thích vì sao attention không tự biết thứ tự token.
 - [ ] Trình bày sinusoidal positional encoding.
@@ -82,7 +91,7 @@
 - [ ] Sanity check: hai position khác nhau có vector khác nhau.
 - [ ] Lỗi dễ gặp: quên cộng position, chuỗi dài hơn `max_seq_len`.
 
-### 6. Feed-Forward Layer Trong Transformer
+### 7. Feed-Forward Layer Trong Transformer
 
 - [ ] Giải thích FFN xử lý từng position độc lập.
 - [ ] Trình bày công thức `Linear(D, Dff) -> activation -> Linear(Dff, D)`.
@@ -91,7 +100,7 @@
 - [ ] Sanity check: input/output đều có shape `(B, T, D)`.
 - [ ] Lỗi dễ gặp: tưởng FFN trộn token theo chiều thời gian.
 
-### 7. Residual, Dropout Và LayerNorm
+### 8. Residual, Dropout Và LayerNorm
 
 - [ ] Giải thích residual connection giúp giữ đường truyền gradient.
 - [ ] Giải thích LayerNorm normalize trên chiều `D`, riêng cho từng token.
@@ -102,45 +111,48 @@
 - [ ] Sanity check: LayerNorm không đổi shape và không trộn batch/time.
 - [ ] Lỗi dễ gặp: normalize nhầm chiều, đặt dropout sau residual sai ý đồ.
 
-### 8. Encoder Layer Và Decoder Layer
+### 9. Decoder-Only Transformer Block
 
-- [ ] Lắp encoder layer: self-attention + FFN.
-- [ ] Lắp decoder layer: masked self-attention + cross-attention + FFN.
-- [ ] Làm rõ decoder có hai nguồn thông tin: target prefix và encoder memory.
-- [ ] Trình bày shape của `memory`, `decoder_hidden`, `logits`.
-- [ ] Sanity check: encoder/decoder forward chạy với batch có padding.
-- [ ] Lỗi dễ gặp: dùng causal mask cho encoder hoặc source trong cross-attention.
+- [ ] Lắp một block gồm causal self-attention, FFN, residual và LayerNorm.
+- [ ] Giải thích vì sao GPT-style model chỉ cần decoder-only block.
+- [ ] Trình bày shape của hidden state `(B, T, D)` qua từng sub-layer.
+- [ ] Chuyển hidden state thành logits `(B, T, V)` bằng output projection.
+- [ ] Sanity check: block giữ nguyên shape `(B, T, D)`.
+- [ ] Lỗi dễ gặp: dùng attention không causal trong language model.
 
-### 9. Training Transformer Với Teacher Forcing
+### 10. Training Language Model
 
-- [ ] Giải thích vì sao train có thể chạy song song trên toàn bộ target.
-- [ ] Trình bày `tgt_input` và `tgt_output` lệch một bước.
+- [ ] Giải thích train chạy song song trên toàn bộ context nhờ causal mask.
+- [ ] Trình bày input và target lệch một token.
 - [ ] Cross entropy flatten `(B, T, V) -> (B*T, V)`.
 - [ ] Dùng `ignore_index=pad_id`.
-- [ ] Theo dõi token accuracy và sequence accuracy.
-- [ ] Sanity check: overfit một dataset rất nhỏ.
+- [ ] Theo dõi train loss, validation loss và perplexity.
+- [ ] Sanity check: overfit một đoạn text rất nhỏ.
 - [ ] Lỗi dễ gặp: loss thấp nhưng generation sai vì train/inference mismatch.
 
-### 10. Autoregressive Decoding
+### 11. Autoregressive Decoding Và Sampling
 
-- [ ] Giải thích inference không có target prefix thật.
-- [ ] Greedy decoding từng bước từ `<s>`.
-- [ ] Dừng khi gặp `</s>` hoặc chạm `max_len`.
-- [ ] Xử lý batch có sample kết thúc sớm bằng `finished`.
-- [ ] Sanity check: generate trên mẫu đã overfit.
+- [ ] Giải thích inference sinh từng token từ prompt.
+- [ ] Greedy decoding.
+- [ ] Temperature sampling.
+- [ ] Top-k sampling.
+- [ ] Top-p nucleus sampling.
+- [ ] So sánh output của cùng prompt với nhiều chiến lược decoding.
+- [ ] Sanity check: generate trên đoạn text đã overfit.
 - [ ] Lỗi dễ gặp: lấy logits sai position, không `model.eval()`, quên tắt dropout.
+
+### 12. Case Study Phụ: Copy Task Cho Encoder-Decoder Transformer
+
+- [ ] Đặt copy task như bài kiểm thử seq2seq, không phải mở đầu cho LLM.
+- [ ] Giải thích `src`, `tgt_input`, `tgt_output`.
+- [ ] Làm rõ teacher forcing và shift target trong encoder-decoder.
+- [ ] Nêu vì sao task đơn giản bắt được lỗi mask, decoding và loss.
+- [ ] So sánh copy task với language modeling: seq2seq mapping vs next-token prediction.
+- [ ] Sanity check: in một batch từ collator và xác nhận token dịch đúng một bước.
 
 ## Phase 2: GPT-2 Style Language Model From Scratch
 
-### 11. Từ Encoder-Decoder Sang Decoder-Only Transformer
-
-- [ ] Giải thích GPT-style model bỏ encoder và cross-attention.
-- [ ] Input và target là cùng một chuỗi lệch một token.
-- [ ] Causal self-attention là cơ chế chính.
-- [ ] So sánh seq2seq copy task với next-token prediction.
-- [ ] Sanity check: logits tại position `t` dự đoán token `t+1`.
-
-### 12. Tokenization Và BPE
+### 13. Tokenization Và BPE
 
 - [ ] Giải thích vì sao không dùng word-level tokenization.
 - [ ] Trình bày byte-level BPE ở mức trực giác.
@@ -149,7 +161,7 @@
 - [ ] Sanity check: encode rồi decode trả lại text ban đầu hoặc gần như ban đầu.
 - [ ] Lỗi dễ gặp: nhầm vocab size model với số token trong dataset.
 
-### 13. GPT-2 Block
+### 14. GPT-2 Block
 
 - [ ] Lắp causal self-attention.
 - [ ] Lắp MLP với GELU.
@@ -158,7 +170,7 @@
 - [ ] Dùng weight tying giữa token embedding và output projection.
 - [ ] Sanity check: forward trả logits `(B, T, V)`.
 
-### 14. Training Tiny GPT
+### 15. Training Tiny GPT
 
 - [ ] Chuẩn bị dataset text nhỏ.
 - [ ] Tạo batch block size cố định.
@@ -167,16 +179,6 @@
 - [ ] Generate text định kỳ trong quá trình train.
 - [ ] Sanity check: model overfit được một đoạn text ngắn.
 - [ ] Lỗi dễ gặp: data leakage giữa train/val, block size quá ngắn.
-
-### 15. Sampling: Greedy, Temperature, Top-k, Top-p
-
-- [ ] Giải thích greedy decoding.
-- [ ] Giải thích temperature thay đổi độ sắc của phân phối.
-- [ ] Top-k sampling.
-- [ ] Top-p nucleus sampling.
-- [ ] So sánh output của cùng prompt với nhiều chiến lược decoding.
-- [ ] Sanity check: temperature thấp lặp hơn, temperature cao đa dạng hơn.
-- [ ] Lỗi dễ gặp: apply top-k/top-p sai trước softmax hoặc sau softmax không nhất quán.
 
 ### 16. Load Và Đối Chiếu Với GPT-2
 
@@ -426,8 +428,8 @@
 
 ## Tiêu Chí Hoàn Thành Mỗi Phase
 
-- [ ] Phase 1 hoàn thành khi có thể implement Transformer encoder-decoder và debug copy task.
-- [ ] Phase 2 hoàn thành khi có thể train và generate bằng tiny GPT.
+- [ ] Phase 1 hoàn thành khi có thể giải thích và implement một decoder-only language model tối giản.
+- [ ] Phase 2 hoàn thành khi có thể train, generate và đối chiếu tiny GPT với GPT-2 style design.
 - [ ] Phase 3 hoàn thành khi có thể biến GPT-2 block thành LLaMA-style block bằng các code diff nhỏ.
 - [ ] Phase 4 hoàn thành khi có thể đọc model card/paper/config của một open-source LLM và chỉ ra cải tiến chính.
 - [ ] Phase 5 hoàn thành khi hiểu được khác biệt giữa pretraining, SFT, preference optimization và evaluation.
@@ -435,10 +437,10 @@
 
 ## Thứ Tự Ưu Tiên Gần Nhất
 
-- [ ] Viết lại bài Transformer copy task thành bài tổng hợp rõ hơn.
+- [ ] Viết bài mở đầu: language modeling là gì và vì sao LLM bắt đầu từ next-token prediction.
 - [ ] Tách bài attention riêng.
-- [ ] Tách bài mask riêng.
-- [ ] Tách bài teacher forcing và decoding riêng.
+- [ ] Tách bài causal mask riêng.
+- [ ] Tách bài training language model và autoregressive decoding riêng.
 - [ ] Implement tiny GPT-2.
-- [ ] Viết bài so sánh encoder-decoder Transformer với decoder-only GPT.
+- [ ] Đưa copy task xuống thành case study phụ về encoder-decoder Transformer.
 - [ ] Sau đó mới chuyển sang RoPE, RMSNorm, SwiGLU và KV cache.

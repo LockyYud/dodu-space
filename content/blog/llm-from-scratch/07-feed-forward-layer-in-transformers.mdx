@@ -1,0 +1,51 @@
+---
+title: "Feed-Forward Layer Trong Transformer"
+date: 2026-05-29
+tags: ["LLM From Scratch", "FFN", "Transformer"]
+summary: "FFN xử lý từng position độc lập và tăng năng lực biểu diễn của hidden state."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 7
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: FFN làm gì nếu attention đã trộn thông tin giữa token?
+
+## Trực Giác
+
+TODO: Attention trộn token, FFN biến đổi biểu diễn tại từng token.
+
+## Tensor Contract
+
+TODO:
+
+- Input: `(B, T, D)`
+- Hidden: `(B, T, Dff)`
+- Output: `(B, T, D)`
+
+## Công Thức Tối Thiểu
+
+TODO: `Linear(D, Dff) -> activation -> Linear(Dff, D)`.
+
+## Implementation
+
+TODO: Code FFN với ReLU hoặc GELU.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Tưởng FFN trộn token theo chiều thời gian.
+- Chọn activation nhưng quên giữ output shape.
+
+## Sanity Check
+
+TODO: Input/output đều có shape `(B, T, D)`.
+
+## Kết Nối
+
+TODO: FFN là nửa còn lại của Transformer block sau attention.

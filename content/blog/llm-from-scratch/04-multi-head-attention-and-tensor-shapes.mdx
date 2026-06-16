@@ -1,0 +1,53 @@
+---
+title: "Multi-Head Attention Và Tensor Shape"
+date: 2026-05-29
+tags: ["LLM From Scratch", "Multi-Head Attention", "Tensor Shape"]
+summary: "Cách split và merge heads từ hidden state `(B, T, D)` trong Transformer."
+featured: false
+published: false
+thread: "llm-from-scratch"
+threadTitle: "LLM From Scratch"
+phase: "Phase 1: Language Modeling Và Nền Tảng Transformer"
+part: 4
+---
+
+## Câu Hỏi Trung Tâm
+
+TODO: Multi-head attention thay đổi tensor shape ra sao?
+
+## Trực Giác
+
+TODO: Nhiều head đọc context theo nhiều không gian con khác nhau.
+
+## Tensor Contract
+
+TODO:
+
+- Input: `(B, T, D)`
+- Split heads: `(B, H, T, Dh)`
+- Merge heads: `(B, T, D)`
+- Ràng buộc: `D % H == 0`
+
+## Công Thức Tối Thiểu
+
+TODO: `Dh = D / H`.
+
+## Implementation
+
+TODO: Code `split_heads` và `merge_heads`.
+
+## Lỗi Dễ Gặp
+
+TODO:
+
+- Quên `contiguous()`.
+- Transpose sai trục.
+- Mask không broadcast được.
+
+## Sanity Check
+
+TODO: Output shape giữ nguyên `(B, T, D)`.
+
+## Kết Nối
+
+TODO: Multi-head attention là self-attention chuẩn trong Transformer block.
