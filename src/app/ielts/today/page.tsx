@@ -41,15 +41,16 @@ export default async function TodayPage() {
   const lesson = queue.current;
   const a = lesson.activity;
   const articles = needsArticles(a) ? await getReadingArticles(4) : [];
-  const href = actionHrefFor(a);
-  const startsInline = href === "#today-workbench";
-  const recommendation = adaptiveRecommendation({
-    bands,
-    cards,
-    dueCount: due,
-    sessions,
-  });
-  const gaps = latestSkillGaps(bands);
+  const externalAction = actionFor(a);
+  const [recommendation, gaps] = await Promise.all([
+    adaptiveRecommendation({
+      bands,
+      cards,
+      dueCount: due,
+      sessions,
+    }),
+    latestSkillGaps(bands),
+  ]);
 
   return (
     <section className="space-y-6">
@@ -99,7 +100,7 @@ export default async function TodayPage() {
             </ul>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <Link href={recommendation.href}>
+            <Link href={recommendation.href} prefetch={false}>
               <Button>{recommendation.actionLabel} →</Button>
             </Link>
             {gaps.map((g) => (
@@ -150,11 +151,13 @@ export default async function TodayPage() {
           )}
 
           <div className="flex flex-wrap gap-2 pt-1">
-            <Link href={href}>
-              <Button>{startsInline ? "Làm tại đây ↓" : "Bắt đầu →"}</Button>
-            </Link>
+            {externalAction && (
+              <Link href={externalAction.href} prefetch={false}>
+                <Button>{externalAction.label} →</Button>
+              </Link>
+            )}
             {due > 0 && a.skill !== "rest" && (
-              <Link href="/ielts/review">
+              <Link href="/ielts/review" prefetch={false}>
                 <Button variant="outline">Ôn {due} lỗi</Button>
               </Link>
             )}
@@ -200,7 +203,7 @@ function needsArticles(activity: Activity): boolean {
   return activity.steps.some((s) => /bài báo|article|đọc 1 bài/i.test(s.text));
 }
 
-function actionHrefFor(activity: Activity): string {
+function actionFor(activity: Activity): { href: string; label: string } | null {
   const text = `${activity.label} ${activity.focus} ${activity.steps
     .map((s) => s.text)
     .join(" ")}`;
@@ -208,13 +211,17 @@ function actionHrefFor(activity: Activity): string {
     activity.skill === "writing" &&
     /AI chấm|Chấm bài|đúng 40|Task 1|Task 2/i.test(text);
 
-  if (needsDedicatedWriting) return "/ielts/writing";
+  if (needsDedicatedWriting)
+    return { href: "/ielts/writing", label: "Mở Writing" };
   if (activity.skill === "reading" || activity.skill === "listening") {
-    return "/ielts/track";
+    return { href: "/ielts/track", label: "Mở Track" };
   }
-  if (activity.skill === "speaking") return "/ielts/speaking";
-  if (activity.skill === "rest") return "/ielts/review";
-  return "#today-workbench";
+  if (activity.skill === "speaking") {
+    return { href: "/ielts/speaking", label: "Mở Speaking" };
+  }
+  if (activity.skill === "rest")
+    return { href: "/ielts/review", label: "Mở SRS" };
+  return null;
 }
 
 function LessonRow({

@@ -4,10 +4,11 @@ import { toISODate } from "./srs";
 /**
  * The learner's roadmap encoded as a concrete daily schedule (see
  * docs/ielts/ROADMAP.md). Drives /ielts/today and the phase indicator.
- * Start date is configurable via IELTS_PLAN_START (default = 2026-07-19).
+ * Progress through it is queue-based (see `lessonQueueStatus`) — a lesson
+ * only advances when the learner marks it done, regardless of calendar
+ * time, so pausing/resuming never skips or misattributes a lesson.
  * Each day is a focused ~60' plan with explicit steps.
  */
-export const PLAN_START = () => process.env.IELTS_PLAN_START ?? "2026-07-19";
 
 export interface Activity {
   skill: Skill | "rest";
@@ -335,22 +336,6 @@ const PHASE2: WeekPlan = {
 
 const DOW_LABELS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
-export interface PlanStatus {
-  daysIn: number;
-  week: number; // 1-based
-  phase: 0 | 1 | 2;
-  phaseLabel: string;
-  today: Activity;
-  dow: number;
-  /** The whole current-phase week: Mon→Sun, with day label + activity. */
-  weekPlan: {
-    dow: number;
-    dowLabel: string;
-    activity: Activity;
-    isToday: boolean;
-  }[];
-}
-
 export interface LessonQueueStatus {
   current: Lesson;
   completedCount: number;
@@ -374,42 +359,6 @@ export function phaseLabelOf(phase: 0 | 1 | 2): string {
     : phase === 1
       ? "Phase 1 — Xây nền"
       : "Phase 2 — Luyện đề";
-}
-
-export function planStatus(now = new Date()): PlanStatus {
-  const start = parseISO(PLAN_START());
-  const startMid = new Date(
-    start.getFullYear(),
-    start.getMonth(),
-    start.getDate(),
-  );
-  const nowMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const daysIn = Math.max(
-    0,
-    Math.round((nowMid.getTime() - startMid.getTime()) / 86_400_000),
-  );
-  const week = Math.floor(daysIn / 7) + 1;
-  const phase = phaseOf(week);
-  const plan = plansFor(phase);
-  const dow = nowMid.getDay();
-
-  const order = [1, 2, 3, 4, 5, 6, 0]; // Mon → Sun
-  const weekPlan = order.map((d) => ({
-    dow: d,
-    dowLabel: DOW_LABELS[d],
-    activity: plan[d],
-    isToday: d === dow,
-  }));
-
-  return {
-    daysIn,
-    week,
-    phase,
-    phaseLabel: phaseLabelOf(phase),
-    today: plan[dow],
-    dow,
-    weekPlan,
-  };
 }
 
 export function lessonSequence(): Lesson[] {
@@ -455,11 +404,6 @@ export function lessonQueueStatus(completedIds: string[]): LessonQueueStatus {
     upcoming: lessons.slice(currentIndex + 1, currentIndex + 4),
     completedIds: completed,
   };
-}
-
-function parseISO(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
 /** Consecutive days (ending today or yesterday) that have >=1 study date. */

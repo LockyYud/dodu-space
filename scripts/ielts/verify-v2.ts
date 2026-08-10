@@ -1,19 +1,10 @@
 import assert from "node:assert/strict";
 import { db, schema } from "../../src/lib/ielts/db";
-import { computeStreak, planStatus } from "../../src/lib/ielts/plan";
+import { computeStreak } from "../../src/lib/ielts/plan";
 import { toISODate } from "../../src/lib/ielts/srs";
 
 async function main() {
   // --- pure logic ---
-  const p = planStatus(new Date(2026, 6, 19)); // start day, Sunday
-  assert.equal(p.week, 1);
-  assert.equal(p.phase, 0);
-  const p8 = planStatus(new Date(2026, 8, 1)); // ~week 7 → phase 1
-  assert.ok(p8.week >= 3 && p8.phase === 1);
-  console.log(
-    `✓ planStatus: start=week${p.week}/phase${p.phase}, sep1=week${p8.week}/phase${p8.phase}`,
-  );
-
   const today = toISODate();
   const y = (n: number) => {
     const d = new Date();

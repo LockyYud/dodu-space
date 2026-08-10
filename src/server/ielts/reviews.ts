@@ -2,6 +2,7 @@
 
 import { asc, desc, eq, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
 import type { ErrorCard, ReviewGrade } from "@/lib/ielts/schema";
 import { dueDateAfter, schedule, toISODate } from "@/lib/ielts/srs";
@@ -27,47 +28,53 @@ export async function submitReview(
   cardId: number,
   grade: ReviewGrade,
 ): Promise<ReviewResult> {
-  const [card] = await db
-    .select()
-    .from(schema.errorCard)
-    .where(eq(schema.errorCard.id, cardId));
-  if (!card) throw new Error(`error_card ${cardId} not found`);
+  await requireIeltsUser();
 
-  const next = schedule(
-    {
-      easeFactor: card.easeFactor,
-      intervalDays: card.intervalDays,
-      repetitions: card.repetitions,
-      lapses: card.lapses,
-    },
-    grade,
-  );
-  const dueDate = dueDateAfter(next.intervalDays);
-  const today = toISODate();
+  const { newInterval, dueDate } = await db.transaction(async (tx) => {
+    const [card] = await tx
+      .select()
+      .from(schema.errorCard)
+      .where(eq(schema.errorCard.id, cardId));
+    if (!card) throw new Error(`error_card ${cardId} not found`);
 
-  await db
-    .update(schema.errorCard)
-    .set({
-      easeFactor: next.easeFactor,
-      intervalDays: next.intervalDays,
-      repetitions: next.repetitions,
-      lapses: next.lapses,
-      dueDate,
-      lastReviewed: today,
-    })
-    .where(eq(schema.errorCard.id, cardId));
+    const next = schedule(
+      {
+        easeFactor: card.easeFactor,
+        intervalDays: card.intervalDays,
+        repetitions: card.repetitions,
+        lapses: card.lapses,
+      },
+      grade,
+    );
+    const dueDate = dueDateAfter(next.intervalDays);
+    const today = toISODate();
 
-  await db.insert(schema.reviewLog).values({
-    cardId,
-    grade,
-    prevInterval: card.intervalDays,
-    newInterval: next.intervalDays,
+    await tx
+      .update(schema.errorCard)
+      .set({
+        easeFactor: next.easeFactor,
+        intervalDays: next.intervalDays,
+        repetitions: next.repetitions,
+        lapses: next.lapses,
+        dueDate,
+        lastReviewed: today,
+      })
+      .where(eq(schema.errorCard.id, cardId));
+
+    await tx.insert(schema.reviewLog).values({
+      cardId,
+      grade,
+      prevInterval: card.intervalDays,
+      newInterval: next.intervalDays,
+    });
+
+    return { newInterval: next.intervalDays, dueDate };
   });
 
   revalidatePath("/ielts/review");
   revalidatePath("/ielts");
 
-  return { cardId, newInterval: next.intervalDays, dueDate };
+  return { cardId, newInterval, dueDate };
 }
 
 /** Count of cards due today (for badges / dashboard). */

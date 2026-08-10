@@ -16,11 +16,21 @@ const GRADES: { grade: ReviewGrade; label: string; variant: string }[] = [
   { grade: "easy", label: "Easy", variant: "default" },
 ];
 
+// How many other cards to put between an "Again" card and its retry, and
+// how many times a single card may be requeued within one session before
+// it's left to resurface via the normal due-today queue instead (avoids an
+// infinite loop on a card the learner keeps failing).
+const REQUEUE_OFFSET = 3;
+const MAX_REQUEUE_PER_CARD = 2;
+
 export function ReviewSession({ initialCards }: { initialCards: ErrorCard[] }) {
-  const [cards] = useState(initialCards);
+  const [cards, setCards] = useState(initialCards);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [done, setDone] = useState(0);
+  const [requeueCounts, setRequeueCounts] = useState<Record<number, number>>(
+    {},
+  );
   const [pending, startTransition] = useTransition();
 
   const card = cards[index];
@@ -51,10 +61,36 @@ export function ReviewSession({ initialCards }: { initialCards: ErrorCard[] }) {
   function grade(g: ReviewGrade) {
     if (!card) return;
     const id = card.id;
+    const gradedAt = index;
     startTransition(async () => {
       await submitReview(id, g);
       setDone((d) => d + 1);
       setRevealed(false);
+
+      if (g === "again") {
+        const timesRequeued = requeueCounts[id] ?? 0;
+        if (timesRequeued < MAX_REQUEUE_PER_CARD) {
+          setRequeueCounts((c) => ({ ...c, [id]: timesRequeued + 1 }));
+          setCards((prev) => {
+            const target = prev[gradedAt];
+            if (!target || target.id !== id) return prev;
+            const rest = [
+              ...prev.slice(0, gradedAt),
+              ...prev.slice(gradedAt + 1),
+            ];
+            const insertAt = Math.min(gradedAt + REQUEUE_OFFSET, rest.length);
+            return [
+              ...rest.slice(0, insertAt),
+              target,
+              ...rest.slice(insertAt),
+            ];
+          });
+          // The card at `gradedAt` was removed and reinserted further
+          // ahead, so the next card to review has shifted into this same
+          // index — don't advance.
+          return;
+        }
+      }
       setIndex((i) => i + 1);
     });
   }
@@ -108,21 +144,30 @@ export function ReviewSession({ initialCards }: { initialCards: ErrorCard[] }) {
       </Card>
 
       {revealed && (
-        <div className="grid grid-cols-4 gap-2">
-          {GRADES.map((g) => (
-            <Button
-              key={g.grade}
-              variant={
-                g.variant as "default" | "outline" | "secondary" | "destructive"
-              }
-              disabled={pending}
-              onClick={() => grade(g.grade)}
-              className={cn("w-full")}
-            >
-              {g.label}
-            </Button>
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-4 gap-2">
+            {GRADES.map((g) => (
+              <Button
+                key={g.grade}
+                variant={
+                  g.variant as
+                    | "default"
+                    | "outline"
+                    | "secondary"
+                    | "destructive"
+                }
+                disabled={pending}
+                onClick={() => grade(g.grade)}
+                className={cn("w-full")}
+              >
+                {g.label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-center text-xs text-muted-foreground">
+            Bấm Again: câu này sẽ hỏi lại sau vài card trong chính phiên này.
+          </p>
+        </>
       )}
     </div>
   );

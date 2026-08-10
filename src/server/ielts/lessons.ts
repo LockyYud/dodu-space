@@ -2,8 +2,9 @@
 
 import { eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
-import { lessonSequence } from "@/lib/ielts/plan";
+import { lessonQueueStatus, lessonSequence } from "@/lib/ielts/plan";
 import type { Skill } from "@/lib/ielts/schema";
 import { toISODate } from "@/lib/ielts/srs";
 
@@ -20,7 +21,24 @@ export async function listCompletedLessonIds(): Promise<string[]> {
     .filter((id): id is string => Boolean(id));
 }
 
+/**
+ * The lesson the queue is actually waiting on right now — derived from
+ * completed lessons, never from the calendar. This is the source of truth
+ * for the `phase`/`week`/`lessonId` metadata stamped on new study_session
+ * rows (see docs/ielts/REVIEW-PERSONALIZATION.md §2).
+ */
+export async function currentLessonMeta(): Promise<{
+  lessonId: string;
+  phase: number;
+  week: number;
+}> {
+  const completedIds = await listCompletedLessonIds();
+  const { current } = lessonQueueStatus(completedIds);
+  return { lessonId: current.id, phase: current.phase, week: current.week };
+}
+
 export async function completeLesson(lessonId: string): Promise<void> {
+  await requireIeltsUser();
   const lesson = lessonSequence().find((item) => item.id === lessonId);
   if (!lesson) throw new Error(`Không tìm thấy bài ${lessonId}.`);
 
@@ -35,6 +53,7 @@ export async function completeLesson(lessonId: string): Promise<void> {
     await db.insert(schema.studySession).values({
       date: toISODate(),
       skill: skillForLesson(lesson.activity.skill),
+      lessonId: lesson.id,
       phase: lesson.phase,
       week: lesson.week,
       durationMin: lesson.activity.minutes,

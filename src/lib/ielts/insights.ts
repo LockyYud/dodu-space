@@ -39,19 +39,23 @@ const SKILL_HREF: Record<Skill | "review", string> = {
   review: "/ielts/review",
 };
 
-export function latestSkillGaps(bands: BandHistory[]): SkillGap[] {
+export async function latestSkillGaps(
+  bands: BandHistory[],
+): Promise<SkillGap[]> {
   const latestBySkill = latestBandsBySkill(bands);
-  return (["listening", "reading", "writing", "speaking"] as BandSkill[]).map(
-    (skill) => {
-      const latest = latestBySkill[skill] ?? null;
-      const target = targetBandFor(skill) ?? 0;
-      return {
-        skill,
-        latest,
-        target,
-        gap: latest == null ? null : Math.max(0, target - latest),
-      };
-    },
+  return Promise.all(
+    (["listening", "reading", "writing", "speaking"] as BandSkill[]).map(
+      async (skill) => {
+        const latest = latestBySkill[skill] ?? null;
+        const target = (await targetBandFor(skill)) ?? 0;
+        return {
+          skill,
+          latest,
+          target,
+          gap: latest == null ? null : Math.max(0, target - latest),
+        };
+      },
+    ),
   );
 }
 
@@ -67,16 +71,16 @@ export function topErrorThemes(cards: ErrorCard[], limit = 3): string[] {
     .map(([key, count]) => `${key.replace(":", " / ")} (${count})`);
 }
 
-export function adaptiveRecommendation(input: {
+export async function adaptiveRecommendation(input: {
   bands: BandHistory[];
   cards: ErrorCard[];
   dueCount: number;
   sessions: StudySession[];
-}): AdaptiveRecommendation {
-  const profile = learnerProfile();
+}): Promise<AdaptiveRecommendation> {
+  const profile = await learnerProfile();
   const stubborn = input.cards.filter((c) => isStubborn(c.lapses));
   const dueStubborn = stubborn.filter((c) => c.dueDate <= todayISO());
-  const gaps = latestSkillGaps(input.bands);
+  const gaps = await latestSkillGaps(input.bands);
   const largestGap = gaps
     .filter((g) => g.gap != null)
     .sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0))[0];

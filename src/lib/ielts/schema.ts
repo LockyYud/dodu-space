@@ -35,7 +35,8 @@ export const studySession = sqliteTable("study_session", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   date: text("date").notNull(), // YYYY-MM-DD
   skill: text("skill").$type<Skill>().notNull(),
-  phase: integer("phase"), // 0 = warm-up, 1, 2
+  lessonId: text("lesson_id"), // e.g. "w3-d1" — id in the roadmap lesson queue
+  phase: integer("phase"), // 0 = warm-up, 1, 2 — derived from the lesson queue, not the calendar
   week: integer("week"),
   durationMin: integer("duration_min"),
   sourceUrl: text("source_url"),
@@ -123,9 +124,31 @@ export const speakingSession = sqliteTable("speaking_session", {
   bandEstimate: real("band_estimate"),
 });
 
+/**
+ * Single-row runtime-editable learner profile (see /ielts/settings).
+ * `.env` values are only the seed/default used while this table is empty.
+ */
+export const learnerProfile = sqliteTable("learner_profile", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  examGoal: text("exam_goal").notNull(),
+  startPoint: text("start_point").notNull(),
+  dailyMinutes: integer("daily_minutes").notNull(),
+  targetOverall: real("target_overall").notNull(),
+  targetListening: real("target_listening").notNull(),
+  targetReading: real("target_reading").notNull(),
+  targetWriting: real("target_writing").notNull(),
+  targetSpeaking: real("target_speaking").notNull(),
+  strategy: text("strategy").notNull(),
+  constraints: text("constraints").notNull(), // JSON string[]
+  priorities: text("priorities").notNull(), // JSON string[]
+  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+});
+
 export type StudySession = typeof studySession.$inferSelect;
 export type WritingSubmission = typeof writingSubmission.$inferSelect;
 export type ErrorCard = typeof errorCard.$inferSelect;
 export type ReviewLog = typeof reviewLog.$inferSelect;
 export type BandHistory = typeof bandHistory.$inferSelect;
 export type SpeakingSession = typeof speakingSession.$inferSelect;
+export type LearnerProfileRow = typeof learnerProfile.$inferSelect;

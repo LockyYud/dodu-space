@@ -10,7 +10,7 @@ import type { ReadingArticle } from "@/lib/ielts/reading";
 import type { Skill } from "@/lib/ielts/schema";
 import { cn } from "@/lib/utils";
 import { completeLesson } from "@/server/ielts/lessons";
-import { saveTodayNote } from "@/server/ielts/today";
+import { captureLessonCards } from "@/server/ielts/today";
 
 export function TodayWorkbench({
   lesson,
@@ -21,9 +21,9 @@ export function TodayWorkbench({
 }) {
   const activity = lesson.activity;
   const router = useRouter();
-  const [notes, setNotes] = useState<Record<number, string>>({});
   const [sources, setSources] = useState<Record<number, ReadingArticle>>({});
-  const [saved, setSaved] = useState<Record<number, boolean>>({});
+  const [captureText, setCaptureText] = useState("");
+  const [captured, setCaptured] = useState<number | null>(null);
   const [lessonDone, setLessonDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -33,25 +33,29 @@ export function TodayWorkbench({
     [activity.skill],
   );
 
-  function save(index: number, minutes: number) {
-    const note = notes[index]?.trim();
-    if (!note) {
-      setError("Ghi vài dòng trước khi lưu note.");
+  const selectedSource = Object.values(sources)[0];
+
+  function capture() {
+    const raw = captureText.trim();
+    if (!raw) {
+      setError("Dán câu sai, từ mới, collocation hoặc bẫy bạn gặp trước đã.");
       return;
     }
     setError(null);
     startTransition(async () => {
       try {
-        await saveTodayNote({
+        const res = await captureLessonCards({
           lessonId: lesson.id,
           skill: noteSkill,
-          durationMin: minutes,
-          sourceUrl: sources[index]?.url,
-          notes: withSource(note, sources[index]),
+          sourceTitle: selectedSource?.title,
+          sourceUrl: selectedSource?.url,
+          raw,
         });
-        setSaved((prev) => ({ ...prev, [index]: true }));
+        setCaptured(res.cardsAdded);
+        setCaptureText("");
+        router.refresh();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Lưu note thất bại.");
+        setError(e instanceof Error ? e.message : "Không thể tạo card.");
       }
     });
   }
@@ -171,35 +175,56 @@ export function TodayWorkbench({
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Textarea
-                  value={notes[i] ?? ""}
-                  onChange={(e) =>
-                    setNotes((prev) => ({ ...prev, [i]: e.target.value }))
-                  }
-                  placeholder={placeholderFor(step.text, articleStep)}
-                  className="min-h-28 text-sm"
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={pending}
-                    onClick={() => save(i, step.min)}
-                  >
-                    {saved[i] ? "Đã lưu note" : "Lưu note"}
-                  </Button>
-                  {selected && (
-                    <span className="truncate text-xs text-muted-foreground">
-                      Source: {selected.title}
-                    </span>
-                  )}
-                </div>
-              </div>
+              {articleStep && selected && (
+                <p className="text-xs text-muted-foreground">
+                  Source đã chọn: {selected.title}
+                </p>
+              )}
             </li>
           );
         })}
       </ol>
+
+      <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Auto-capture lỗi/từ mới</p>
+            <p className="text-xs text-muted-foreground">
+              Dán thô những gì bạn sai hoặc chưa biết. App sẽ biến chúng thành
+              SRS card kiểu Anki, không cần viết note dài.
+            </p>
+          </div>
+          <Badge variant="outline" className="text-[10px]">
+            Anki-style
+          </Badge>
+        </div>
+        <Textarea
+          value={captureText}
+          onChange={(e) => setCaptureText(e.target.value)}
+          placeholder={[
+            "Ví dụ:",
+            "do more efforts -> make more efforts",
+            "tick bite = vết cắn của ve; allergic reaction = phản ứng dị ứng",
+            "T/F/NG: chọn True nhưng sai vì thiếu điều kiện 'only'",
+          ].join("\n")}
+          className="min-h-28 text-sm"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={capture} disabled={pending}>
+            Tạo card SRS
+          </Button>
+          {captured != null && (
+            <span className="text-sm text-emerald-600 dark:text-emerald-400">
+              Đã thêm {captured} card vào SRS
+            </span>
+          )}
+          {selectedSource && (
+            <span className="truncate text-xs text-muted-foreground">
+              Source: {selectedSource.title}
+            </span>
+          )}
+        </div>
+      </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -218,30 +243,4 @@ export function TodayWorkbench({
 
 function isArticleStep(text: string): boolean {
   return /bài báo|article|đọc 1 bài/i.test(text);
-}
-
-function placeholderFor(text: string, articleStep: boolean): string {
-  if (articleStep) {
-    return [
-      "Summary 2-3 câu:",
-      "Vocab/collocation:",
-      "1 câu paraphrase lại ý chính:",
-      "Câu hỏi/chỗ chưa hiểu:",
-    ].join("\n");
-  }
-  if (/viết|essay|dàn ý/i.test(text)) {
-    return [
-      "Ý chính:",
-      "Câu/cụm muốn sửa:",
-      "Viết lại phiên bản tốt hơn:",
-    ].join("\n");
-  }
-  return ["Takeaway:", "Từ/cụm cần nhớ:", "Lỗi hoặc bẫy gặp phải:"].join("\n");
-}
-
-function withSource(note: string, source?: ReadingArticle): string {
-  if (!source) return note;
-  return [`Article: ${source.title}`, `URL: ${source.url}`, "", note].join(
-    "\n",
-  );
 }

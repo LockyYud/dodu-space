@@ -2,14 +2,17 @@
 
 import { desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
-import { computeStreak, planStatus } from "@/lib/ielts/plan";
+import { computeStreak } from "@/lib/ielts/plan";
 import type { Skill, StudySession } from "@/lib/ielts/schema";
 import { toISODate } from "@/lib/ielts/srs";
+import { currentLessonMeta } from "./lessons";
 
 export interface LogSessionInput {
   skill: Skill;
   date?: string;
+  lessonId?: string;
   phase?: number;
   week?: number;
   durationMin?: number;
@@ -20,15 +23,20 @@ export interface LogSessionInput {
 }
 
 export async function logSession(input: LogSessionInput): Promise<number> {
+  await requireIeltsUser();
   const date = input.date ?? toISODate();
-  const p = planStatus(new Date(`${date}T00:00:00`));
+  const needsQueueLookup =
+    input.lessonId == null || input.phase == null || input.week == null;
+  const queueLesson = needsQueueLookup ? await currentLessonMeta() : null;
+
   const [row] = await db
     .insert(schema.studySession)
     .values({
       date,
       skill: input.skill,
-      phase: input.phase ?? p.phase,
-      week: input.week ?? p.week,
+      lessonId: input.lessonId ?? queueLesson?.lessonId,
+      phase: input.phase ?? queueLesson?.phase,
+      week: input.week ?? queueLesson?.week,
       durationMin: input.durationMin ?? null,
       sourceUrl: input.sourceUrl ?? null,
       rawScore: input.rawScore ?? null,

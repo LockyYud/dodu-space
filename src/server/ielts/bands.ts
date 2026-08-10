@@ -2,6 +2,7 @@
 
 import { desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
 import type { BandHistory } from "@/lib/ielts/schema";
 import { toISODate } from "@/lib/ielts/srs";
@@ -27,6 +28,7 @@ function overallOf(v: AddBandInput): number | null {
 }
 
 export async function addBand(input: AddBandInput): Promise<number> {
+  await requireIeltsUser();
   const [row] = await db
     .insert(schema.bandHistory)
     .values({

@@ -1,6 +1,21 @@
 import { desc } from "drizzle-orm";
+import {
+  AlertCircle,
+  ArrowRight,
+  BarChart3,
+  BookOpen,
+  CheckCircle2,
+  Clock,
+  Flame,
+  Mic,
+  PenLine,
+  Target,
+  Upload,
+} from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { db, schema } from "@/lib/ielts/db";
 import { adaptiveRecommendation } from "@/lib/ielts/insights";
@@ -12,7 +27,6 @@ import { listCompletedLessonIds } from "@/server/ielts/lessons";
 import { getDueCards } from "@/server/ielts/reviews";
 import { getStreak, listSessions } from "@/server/ielts/sessions";
 
-// Reads the DB per request — never prerender at build time.
 export const dynamic = "force-dynamic";
 
 export default async function IeltsDashboard() {
@@ -36,102 +50,214 @@ export default async function IeltsDashboard() {
   const band = latestBand[0];
   const queue = lessonQueueStatus(completedLessons);
   const currentLesson = queue.current;
-  const profile = learnerProfile();
-  const recommendation = adaptiveRecommendation({
-    bands,
-    cards: allCards,
-    dueCount: due.length,
-    sessions,
-  });
+  const profile = await learnerProfile();
+  const [recommendation, profileSummary] = await Promise.all([
+    adaptiveRecommendation({
+      bands,
+      cards: allCards,
+      dueCount: due.length,
+      sessions,
+    }),
+    targetSummary(profile),
+  ]);
 
   return (
-    <section className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-2">
+    <section className="space-y-8">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">
             IELTS Tracker
           </h1>
           <p className="text-sm text-muted-foreground">
-            {targetSummary(profile)} · {currentLesson.phaseLabel} · Bài{" "}
+            {profileSummary} · {currentLesson.phaseLabel} · Bài{" "}
             {currentLesson.index}/{queue.totalCount}
           </p>
         </div>
-        <Badge variant="secondary" className="text-xs">
-          🔥 Streak {streak} ngày
-        </Badge>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="secondary" className="gap-1 text-xs">
+            <Flame className="size-3" />
+            Streak {streak} ngày
+          </Badge>
+          <Badge variant="outline" className="text-xs">
+            {queue.percent}% lộ trình
+          </Badge>
+        </div>
       </header>
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.9fr)]">
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="space-y-5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-2">
+                <Badge variant="secondary" className="gap-1 text-[11px]">
+                  <Target className="size-3" />
+                  Việc cần làm tiếp theo
+                </Badge>
+                <div className="space-y-1">
+                  <h2 className="text-xl font-semibold tracking-tight">
+                    Bài {currentLesson.index}: {currentLesson.activity.label}
+                  </h2>
+                  <p className="max-w-2xl text-sm text-muted-foreground">
+                    {currentLesson.activity.focus}
+                  </p>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-[11px]">
+                ~{currentLesson.activity.minutes} phút
+              </Badge>
+            </div>
+
+            <div className="space-y-2">
+              <div className="h-2 overflow-hidden rounded-full bg-background/70">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${queue.percent}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  {queue.completedCount}/{queue.totalCount} bài đã hoàn thành
+                </span>
+                <span>{queue.percent}%</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Link href="/ielts/today" prefetch={false}>
+                <Button size="lg" className="gap-2">
+                  Tiếp tục bài học
+                  <ArrowRight className="size-4" />
+                </Button>
+              </Link>
+              {due.length > 0 && (
+                <Link href="/ielts/review" prefetch={false}>
+                  <Button variant="outline" size="lg" className="gap-2">
+                    Ôn {due.length} lỗi sau bài học
+                    <CheckCircle2 className="size-4" />
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="size-4 text-primary" />
+              <h2 className="font-medium">Coach nhắc nhẹ</h2>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{recommendation.title}</p>
+              <p className="text-sm text-muted-foreground">
+                {recommendation.reason}
+              </p>
+            </div>
+            <Link href={recommendation.href} prefetch={false}>
+              <Button variant="outline" className="w-full gap-2">
+                Xem phần liên quan
+                <ArrowRight className="size-4" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Lỗi đến hạn" value={due.length} href="/ielts/review" />
-        <Stat label="Tổng lỗi" value={allCards.length} href="/ielts/errors" />
-        <Stat label="Lỗi cứng đầu" value={stubborn} href="/ielts/errors" />
         <Stat
+          icon={<Clock className="size-4" />}
+          label="Bài hiện tại"
+          value={currentLesson.index}
+          href="/ielts/today"
+        />
+        <Stat
+          icon={<CheckCircle2 className="size-4" />}
+          label="Lỗi đến hạn"
+          value={due.length}
+          href="/ielts/review"
+        />
+        <Stat
+          icon={<AlertCircle className="size-4" />}
+          label="Lỗi cứng đầu"
+          value={stubborn}
+          href="/ielts/errors"
+        />
+        <Stat
+          icon={<BarChart3 className="size-4" />}
           label="Band gần nhất"
           value={band?.overall != null ? band.overall.toFixed(1) : "—"}
           href="/ielts/progress"
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <ActionCard
-          href={recommendation.href}
-          title={`Coach: ${recommendation.title}`}
-          desc={recommendation.reason}
-        />
-        <ActionCard
-          href="/ielts/today"
-          title="Hôm nay"
-          desc={`Bài ${currentLesson.index}: ${currentLesson.activity.label}.`}
-        />
-        <ActionCard
-          href="/ielts/writing"
-          title="Chấm Writing"
-          desc="Nộp bài → AI chấm 4 tiêu chí → trích lỗi."
-        />
-        <ActionCard
-          href="/ielts/track"
-          title="Reading/Listening"
-          desc="Screenshot kết quả → AI đọc điểm + lỗi."
-        />
-        <ActionCard
-          href="/ielts/review"
-          title="Ôn tập SRS"
-          desc={`${due.length} lỗi đang chờ ôn hôm nay.`}
-        />
-        <ActionCard
-          href="/ielts/speaking"
-          title="Speaking"
-          desc="Ghi buổi gia sư + lỗi vào SRS."
-        />
-        <ActionCard
-          href="/ielts/progress"
-          title="Tiến độ"
-          desc="Biểu đồ band, streak, nhật ký buổi học."
-        />
-      </div>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="text-base font-medium">Công cụ khi cần</h2>
+          <p className="text-xs text-muted-foreground">
+            Dùng sau khi hoàn thành bài học hoặc có dữ liệu mới.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ToolCard
+            href="/ielts/writing"
+            icon={<PenLine className="size-4" />}
+            title="Chấm Writing"
+            desc="Khi bài hôm nay yêu cầu Task 1/2 hoặc bạn muốn chấm thêm."
+          />
+          <ToolCard
+            href="/ielts/track"
+            icon={<Upload className="size-4" />}
+            title="Log Reading/Listening"
+            desc="Khi vừa làm đề ngoài và cần lưu điểm, screenshot, lỗi."
+          />
+          <ToolCard
+            href="/ielts/speaking"
+            icon={<Mic className="size-4" />}
+            title="Ghi Speaking"
+            desc="Sau buổi gia sư, lưu note và lỗi được sửa."
+          />
+          <ToolCard
+            href="/ielts/progress"
+            icon={<BookOpen className="size-4" />}
+            title="Xem tiến độ"
+            desc="Khi muốn nhìn band, streak và nhật ký học."
+          />
+        </div>
+      </section>
     </section>
   );
 }
 
 function Stat({
+  icon,
   label,
   value,
   href,
 }: {
+  icon: ReactNode;
   label: string;
   value: number | string;
   href?: string;
 }) {
   const inner = (
     <Card>
-      <CardContent className="py-4 text-center">
-        <div className="text-2xl font-semibold tabular-nums">{value}</div>
-        <div className="mt-0.5 text-[11px] text-muted-foreground">{label}</div>
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <div className="text-xl font-semibold tabular-nums">{value}</div>
+          <div className="text-[11px] text-muted-foreground">{label}</div>
+        </div>
       </CardContent>
     </Card>
   );
   return href ? (
-    <Link href={href} className="block transition-opacity hover:opacity-80">
+    <Link
+      href={href}
+      prefetch={false}
+      className="block transition-opacity hover:opacity-80"
+    >
       {inner}
     </Link>
   ) : (
@@ -139,20 +265,25 @@ function Stat({
   );
 }
 
-function ActionCard({
+function ToolCard({
   href,
+  icon,
   title,
   desc,
 }: {
   href: string;
+  icon: ReactNode;
   title: string;
   desc: string;
 }) {
   return (
-    <Link href={href} className="block">
+    <Link href={href} prefetch={false} className="block">
       <Card className="h-full transition-colors hover:bg-muted/40">
-        <CardContent className="space-y-1 py-4">
-          <p className="font-medium">{title}</p>
+        <CardContent className="space-y-2 p-4">
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">{icon}</span>
+            <p className="font-medium">{title}</p>
+          </div>
           <p className="text-sm text-muted-foreground">{desc}</p>
         </CardContent>
       </Card>
