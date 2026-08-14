@@ -6,9 +6,10 @@ import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
 import type { SpeakingSession } from "@/lib/ielts/schema";
 import { toISODate } from "@/lib/ielts/srs";
-import { currentLessonMeta } from "./lessons";
+import { completeLesson, currentLessonMeta } from "./lessons";
 
 export interface AddSpeakingInput {
+  lessonId?: string;
   date?: string;
   durationMin?: number;
   tutorNotes?: string;
@@ -17,10 +18,34 @@ export interface AddSpeakingInput {
   cards?: { front: string; back: string; explanation?: string }[];
 }
 
-export async function addSpeaking(input: AddSpeakingInput): Promise<number> {
+export async function addSpeaking(
+  input: AddSpeakingInput,
+): Promise<{ sessionId: number; lessonCompleted: boolean }> {
   await requireIeltsUser();
+  const tutorNotes = input.tutorNotes?.trim();
+  if (
+    input.durationMin == null ||
+    !Number.isFinite(input.durationMin) ||
+    input.durationMin <= 0
+  ) {
+    throw new Error("Hãy nhập thời lượng buổi Speaking lớn hơn 0 phút.");
+  }
+  if (!tutorNotes || tutorNotes.length < 20) {
+    throw new Error(
+      "Hãy ghi ít nhất một nhận xét cụ thể của buổi Speaking (20 ký tự).",
+    );
+  }
+  if (
+    input.bandEstimate != null &&
+    (!Number.isFinite(input.bandEstimate) ||
+      input.bandEstimate < 0 ||
+      input.bandEstimate > 9)
+  ) {
+    throw new Error("Band phải nằm trong khoảng 0–9.");
+  }
   const today = input.date ?? toISODate();
   const lesson = await currentLessonMeta();
+  const shouldCompleteLesson = input.lessonId === lesson.lessonId;
   const cards = (input.cards ?? []).filter((c) => c.front && c.back);
 
   const speakingSessionId = await db.transaction(async (tx) => {
@@ -29,7 +54,7 @@ export async function addSpeaking(input: AddSpeakingInput): Promise<number> {
       .values({
         date: today,
         durationMin: input.durationMin ?? null,
-        tutorNotes: input.tutorNotes ?? null,
+        tutorNotes,
         bandEstimate: input.bandEstimate ?? null,
       })
       .returning({ id: schema.speakingSession.id });
@@ -41,9 +66,9 @@ export async function addSpeaking(input: AddSpeakingInput): Promise<number> {
       lessonId: lesson.lessonId,
       phase: lesson.phase,
       week: lesson.week,
-      durationMin: input.durationMin ?? null,
+      durationMin: input.durationMin,
       bandEstimate: input.bandEstimate ?? null,
-      notes: input.tutorNotes ?? null,
+      notes: tutorNotes,
       status: "done",
     });
 
@@ -65,11 +90,18 @@ export async function addSpeaking(input: AddSpeakingInput): Promise<number> {
     return row.id;
   });
 
+  if (shouldCompleteLesson && input.lessonId) {
+    await completeLesson(input.lessonId);
+  }
+
   revalidatePath("/ielts");
   revalidatePath("/ielts/speaking");
   revalidatePath("/ielts/progress");
   revalidatePath("/ielts/review");
-  return speakingSessionId;
+  return {
+    sessionId: speakingSessionId,
+    lessonCompleted: shouldCompleteLesson,
+  };
 }
 
 export async function listSpeaking(): Promise<SpeakingSession[]> {

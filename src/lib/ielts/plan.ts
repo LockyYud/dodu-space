@@ -12,6 +12,8 @@ import { toISODate } from "./srs";
 
 export interface Activity {
   skill: Skill | "rest";
+  /** The in-app tool opened by the lesson, when one exists. */
+  tool?: "writing" | "track" | "speaking" | "review";
   label: string;
   minutes: number;
   focus: string; // one-line goal of the day
@@ -157,6 +159,7 @@ const PHASE0: WeekPlan = {
 const PHASE1: WeekPlan = {
   1: {
     skill: "writing",
+    tool: "writing",
     label: "Writing Task 2 (chấm AI)",
     minutes: 60,
     focus: "Viết đúng giờ → AI chấm → nạp lỗi vào SRS.",
@@ -170,6 +173,7 @@ const PHASE1: WeekPlan = {
   },
   2: {
     skill: "listening",
+    tool: "track",
     label: "Listening + dictation",
     minutes: 60,
     focus: "Bịt lỗ nghe bằng chép chính tả câu sai.",
@@ -185,6 +189,7 @@ const PHASE1: WeekPlan = {
   },
   3: {
     skill: "writing",
+    tool: "writing",
     label: "Task 1 + viết lại Task 2",
     minutes: 60,
     focus: "Vòng lặp vàng: viết → được chấm → VIẾT LẠI.",
@@ -196,6 +201,7 @@ const PHASE1: WeekPlan = {
   },
   4: {
     skill: "reading",
+    tool: "track",
     label: "Reading có bấm giờ",
     minutes: 60,
     focus: "Luyện tốc độ + hiểu 'vì sao sai'.",
@@ -211,6 +217,7 @@ const PHASE1: WeekPlan = {
   },
   5: {
     skill: "writing",
+    tool: "writing",
     label: "Writing Task 2 (chủ đề mới)",
     minutes: 60,
     focus: "Đa dạng chủ đề, nạp thêm lỗi.",
@@ -221,6 +228,7 @@ const PHASE1: WeekPlan = {
   },
   6: {
     skill: "listening",
+    tool: "track",
     label: "Chuyển kỹ năng L → R",
     minutes: 60,
     focus: "Luyện phản xạ đổi kỹ năng liên tục.",
@@ -252,6 +260,7 @@ const PHASE1: WeekPlan = {
 const PHASE2: WeekPlan = {
   1: {
     skill: "writing",
+    tool: "writing",
     label: "Task 2 full đúng giờ",
     minutes: 60,
     focus: "Chuẩn phòng thi.",
@@ -262,6 +271,7 @@ const PHASE2: WeekPlan = {
   },
   2: {
     skill: "listening",
+    tool: "track",
     label: "Listening full test",
     minutes: 60,
     focus: "Sức bền 4 section liên tục.",
@@ -273,6 +283,7 @@ const PHASE2: WeekPlan = {
   },
   3: {
     skill: "writing",
+    tool: "writing",
     label: "Viết lại + Task 1",
     minutes: 60,
     focus: "Tối ưu bài yếu.",
@@ -283,6 +294,7 @@ const PHASE2: WeekPlan = {
   },
   4: {
     skill: "reading",
+    tool: "track",
     label: "Reading full test",
     minutes: 60,
     focus: "3 passages / 60' như thi thật.",
@@ -294,6 +306,7 @@ const PHASE2: WeekPlan = {
   },
   5: {
     skill: "writing",
+    tool: "writing",
     label: "Writing luân phiên",
     minutes: 60,
     focus: "Đánh vào dạng đề yếu nhất.",
@@ -307,6 +320,7 @@ const PHASE2: WeekPlan = {
   },
   6: {
     skill: "reading",
+    tool: "track",
     label: "Mock ghép L+R",
     minutes: 60,
     focus: "Luyện chuyển kỹ năng dưới áp lực.",

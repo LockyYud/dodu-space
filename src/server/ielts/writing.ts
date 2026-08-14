@@ -12,7 +12,7 @@ import {
 import { topErrorThemes } from "@/lib/ielts/insights";
 import { learnerProfile, targetSummary } from "@/lib/ielts/profile";
 import { toISODate } from "@/lib/ielts/srs";
-import { currentLessonMeta } from "./lessons";
+import { completeLesson, currentLessonMeta } from "./lessons";
 
 /** Grade an essay without persisting anything (learner reviews before saving). */
 export async function gradeAction(input: GradeInput): Promise<GradingResult> {
@@ -24,23 +24,40 @@ export async function gradeAction(input: GradeInput): Promise<GradingResult> {
 }
 
 export interface SaveSubmissionInput {
+  lessonId?: string;
   taskType: "task1" | "task2";
   topic?: string;
   prompt?: string;
   essay: string;
   result: GradingResult;
   selectedCards: SuggestedCard[];
+  repairNote: string;
 }
 
 /** Persist a graded submission + the error cards the learner chose to keep. */
-export async function saveSubmission(
-  input: SaveSubmissionInput,
-): Promise<{ submissionId: number; cardsAdded: number }> {
+export async function saveSubmission(input: SaveSubmissionInput): Promise<{
+  submissionId: number;
+  cardsAdded: number;
+  lessonCompleted: boolean;
+}> {
   await requireIeltsUser();
   const today = toISODate();
   const lesson = await currentLessonMeta();
+  const shouldCompleteLesson = input.lessonId === lesson.lessonId;
   const { bands } = input.result;
   const wordCount = input.essay.trim().split(/\s+/).filter(Boolean).length;
+  const minimumWords = input.taskType === "task1" ? 150 : 250;
+  if (wordCount < minimumWords) {
+    throw new Error(
+      `Bài ${input.taskType === "task1" ? "Task 1" : "Task 2"} cần ít nhất ${minimumWords} từ.`,
+    );
+  }
+  const repairNote = input.repairNote.trim();
+  if (repairNote.length < 20) {
+    throw new Error(
+      "Hãy hoàn thành phần sửa ngay: viết lại một câu hoặc nêu điều bạn sẽ sửa (ít nhất 20 ký tự).",
+    );
+  }
 
   const { submissionId, cardsAdded } = await db.transaction(async (tx) => {
     const [session] = await tx
@@ -52,7 +69,12 @@ export async function saveSubmission(
         phase: lesson.phase,
         week: lesson.week,
         bandEstimate: bands.overall,
-        notes: input.topic ?? null,
+        notes: [
+          input.topic ? `Chủ đề: ${input.topic}` : null,
+          `Repair: ${repairNote}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
         status: "done",
       })
       .returning({ id: schema.studySession.id });
@@ -96,11 +118,15 @@ export async function saveSubmission(
     };
   });
 
+  if (shouldCompleteLesson && input.lessonId) {
+    await completeLesson(input.lessonId);
+  }
+
   revalidatePath("/ielts/errors");
   revalidatePath("/ielts/review");
   revalidatePath("/ielts");
 
-  return { submissionId, cardsAdded };
+  return { submissionId, cardsAdded, lessonCompleted: shouldCompleteLesson };
 }
 
 async function buildLearnerContext(): Promise<string> {

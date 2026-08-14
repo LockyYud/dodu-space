@@ -64,7 +64,6 @@ export async function captureCards(input: {
       },
     ],
     response_format: { type: "json_object" },
-    temperature: 0.2,
   });
 
   return parseCards(completion.choices[0]?.message?.content ?? "");

@@ -13,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,13 @@ import { getStreak, listSessions } from "@/server/ielts/sessions";
 
 export const dynamic = "force-dynamic";
 
-export default async function IeltsDashboard() {
+export default function IeltsHome() {
+  redirect("/ielts/today");
+}
+
+// Kept as a direct URL for the compact metrics view, but the learner's home
+// is now the actionable Today session.
+async function _IeltsDashboard() {
   const [due, allCards, latestBand, streak] = await Promise.all([
     getDueCards(),
     db.select().from(schema.errorCard),

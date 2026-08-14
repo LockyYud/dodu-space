@@ -88,7 +88,6 @@ export async function gradeWriting(input: GradeInput): Promise<GradingResult> {
       { role: "user", content: userContent },
     ],
     response_format: { type: "json_object" },
-    temperature: 0.2,
   });
 
   const raw = completion.choices[0]?.message?.content ?? "";

@@ -6,15 +6,15 @@ import { cn } from "@/lib/utils";
 import { logout } from "@/server/ielts/auth";
 
 const LINKS = [
-  { href: "/ielts", label: "Tổng quan" },
   { href: "/ielts/today", label: "Hôm nay" },
-  { href: "/ielts/writing", label: "Writing" },
-  { href: "/ielts/track", label: "Reading/Listening" },
-  { href: "/ielts/speaking", label: "Speaking" },
-  { href: "/ielts/review", label: "Ôn tập (SRS)" },
+  { href: "/ielts/review", label: "Ôn lỗi" },
+  { href: "/ielts/journey", label: "Hành trình" },
+  { href: "/ielts/analytics", label: "Phân tích" },
+] as const;
+
+const UTILITY_LINKS = [
   { href: "/ielts/errors", label: "Kho lỗi" },
-  { href: "/ielts/progress", label: "Tiến độ" },
-  { href: "/ielts/settings", label: "Hồ sơ học" },
+  { href: "/ielts/settings", label: "Hồ sơ" },
 ] as const;
 
 // Every /ielts page is force-dynamic and per-request, so prefetching it
@@ -33,26 +33,9 @@ export function IeltsNav() {
 
   return (
     <nav className="mb-8 flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-      <div className="flex flex-wrap gap-1">
+      <div className="flex min-w-0 flex-wrap gap-1">
         {LINKS.map((l) => {
-          const active =
-            l.href === "/ielts"
-              ? pathname === l.href
-              : pathname.startsWith(l.href);
-          if (l.href === "/ielts/settings") {
-            // Plain <a>, not <Link>: a client-side transition into this
-            // page briefly remounts the (client) profile form a few times
-            // right after navigation, which can wipe out an edit typed in
-            // that window before it settles. A full navigation renders
-            // once and never re-mounts underneath the learner, so the
-            // editable settings form gets a hard link instead of a soft
-            // one.
-            return (
-              <a key={l.href} href={l.href} className={NAV_LINK_CLASS(active)}>
-                {l.label}
-              </a>
-            );
-          }
+          const active = pathname.startsWith(l.href);
           return (
             <Link
               key={l.href}
@@ -65,14 +48,34 @@ export function IeltsNav() {
           );
         })}
       </div>
-      <form action={logout}>
-        <button
-          type="submit"
-          className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-        >
-          Đăng xuất
-        </button>
-      </form>
+      <div className="flex flex-wrap items-center gap-1">
+        {UTILITY_LINKS.map((l) => {
+          const active = pathname.startsWith(l.href);
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              prefetch={false}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 text-xs transition-colors",
+                active
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+              )}
+            >
+              {l.label}
+            </Link>
+          );
+        })}
+        <form action={logout}>
+          <button
+            type="submit"
+            className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+          >
+            Đăng xuất
+          </button>
+        </form>
+      </div>
     </nav>
   );
 }

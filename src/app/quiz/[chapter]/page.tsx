@@ -3,15 +3,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { QuizSession } from "@/components/quiz/quiz-session";
-import { CHAPTER_META, getChapterQuiz } from "@/lib/content/quiz";
+import { requireIeltsUser } from "@/lib/auth/guard";
+import { getChapterQuiz } from "@/lib/content/quiz";
 
-export async function generateStaticParams() {
-  return CHAPTER_META.map((c) => ({ chapter: c.slug }));
-}
+export const dynamic = "force-dynamic";
 
 type Props = Readonly<{ params: Promise<{ chapter: string }> }>;
 
 export default async function QuizChapterPage({ params }: Props) {
+  await requireIeltsUser();
   const { chapter } = await params;
   const quiz = await getChapterQuiz(chapter);
 
@@ -37,7 +37,8 @@ export default async function QuizChapterPage({ params }: Props) {
           {quiz.title}
         </h1>
         <p className="tech-mono text-xs text-muted-foreground">
-          {quiz.mcqQuestions.length} câu trắc nghiệm · {quiz.shortAnswerQuestions.length} câu trả lời ngắn
+          {quiz.mcqQuestions.length} câu trắc nghiệm ·{" "}
+          {quiz.shortAnswerQuestions.length} câu trả lời ngắn
         </p>
       </header>
 

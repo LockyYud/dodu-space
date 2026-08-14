@@ -1,277 +1,181 @@
 import Link from "next/link";
-import { TodayWorkbench } from "@/components/ielts/today-workbench";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { adaptiveRecommendation, latestSkillGaps } from "@/lib/ielts/insights";
-import {
-  type Activity,
-  type Lesson,
-  lessonQueueStatus,
-} from "@/lib/ielts/plan";
-import { getReadingArticles } from "@/lib/ielts/reading";
-import { cn } from "@/lib/utils";
-import { listBands } from "@/server/ielts/bands";
-import { listCards } from "@/server/ielts/errors";
+import { lessonQueueStatus } from "@/lib/ielts/plan";
+import { learnerProfile } from "@/lib/ielts/profile";
 import { listCompletedLessonIds } from "@/server/ielts/lessons";
 import { countDue } from "@/server/ielts/reviews";
 import { getStreak, listSessions } from "@/server/ielts/sessions";
 
 export const dynamic = "force-dynamic";
 
-const SKILL_EMOJI: Record<string, string> = {
-  writing: "✍️",
-  reading: "📖",
-  listening: "👂",
-  speaking: "🗣️",
-  vocab: "🧠",
-  rest: "🔁",
-};
 export default async function TodayPage() {
-  const [completedLessons, streak, due, bands, cards, sessions] =
+  const [completedLessons, dueCount, streak, sessions, profile] =
     await Promise.all([
       listCompletedLessonIds(),
-      getStreak(),
       countDue(),
-      listBands(),
-      listCards(),
-      listSessions(14),
+      getStreak(),
+      listSessions(7),
+      learnerProfile(),
     ]);
-  const queue = lessonQueueStatus(completedLessons);
-  const lesson = queue.current;
-  const a = lesson.activity;
-  const articles = needsArticles(a) ? await getReadingArticles(4) : [];
-  const externalAction = actionFor(a);
-  const [recommendation, gaps] = await Promise.all([
-    adaptiveRecommendation({
-      bands,
-      cards,
-      dueCount: due,
-      sessions,
-    }),
-    latestSkillGaps(bands),
-  ]);
+  const { current: lesson } = lessonQueueStatus(completedLessons);
+  const action = actionFor(
+    lesson.id,
+    lesson.activity.tool,
+    lesson.activity.skill,
+  );
+  const hasStudiedToday = sessions.some(
+    (session) => session.date === new Date().toISOString().slice(0, 10),
+  );
 
   return (
-    <section className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-2">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Hôm nay</h1>
-          <p className="text-sm text-muted-foreground">
-            {lesson.phaseLabel} · Bài {lesson.index}/{queue.totalCount} · Tuần{" "}
-            {lesson.week} · {lesson.dowLabel}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Badge variant="secondary" className="text-xs">
-            {queue.percent}% lộ trình
-          </Badge>
-          <Badge variant="secondary" className="text-xs">
-            🔥 {streak} ngày
-          </Badge>
-          {due > 0 && (
-            <Badge variant="destructive" className="text-xs">
-              {due} lỗi cần ôn
-            </Badge>
-          )}
-        </div>
+    <section className="mx-auto max-w-3xl space-y-6">
+      <header className="space-y-2">
+        <p className="text-sm text-muted-foreground">
+          {hasStudiedToday
+            ? "Bạn đã có một attempt hôm nay."
+            : "Một bước nhỏ cũng tính."}
+        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          Hôm nay, học gì?
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Không cần theo kịp một backlog. Chỉ cần hoàn thành một attempt có đầu
+          ra.
+        </p>
       </header>
 
-      <Card className="border-primary/30 bg-primary/5">
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">
-              Coach riêng: {recommendation.title}
-            </CardTitle>
-            <Badge variant="secondary" className="text-[11px]">
-              adaptive
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            {recommendation.reason}
-          </p>
-          {recommendation.secondary.length > 0 && (
-            <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
-              {recommendation.secondary.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href={recommendation.href} prefetch={false}>
-              <Button>{recommendation.actionLabel} →</Button>
-            </Link>
-            {gaps.map((g) => (
-              <Badge key={g.skill} variant="outline" className="text-[10px]">
-                {g.skill} {g.latest == null ? "—" : g.latest.toFixed(1)} /{" "}
-                {g.target.toFixed(1)}
-              </Badge>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Current focused lesson */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span>{SKILL_EMOJI[a.skill] ?? "•"}</span>
-              {a.label}
-            </CardTitle>
-            <Badge variant="outline" className="text-[11px]">
-              ~{a.minutes} phút
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">🎯 {a.focus}</p>
-
-          <div id="today-workbench" className="scroll-mt-20">
-            <TodayWorkbench lesson={lesson} articles={articles} />
-          </div>
-
-          {a.links && a.links.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Nguồn:</span>
-              {a.links.map((l) => (
-                <a
-                  key={l.url}
-                  href={l.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
-                >
-                  {l.label} ↗
-                </a>
-              ))}
+      {dueCount > 0 && (
+        <Card className="border-primary/25 bg-primary/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div>
+              <p className="font-medium">Khởi động 5–8 phút</p>
+              <p className="text-sm text-muted-foreground">
+                Gọi lại {dueCount} lỗi đến hạn trước khi học nội dung mới.
+              </p>
             </div>
-          )}
+            <Link href="/ielts/review" prefetch={false}>
+              <Button variant="outline">
+                Ôn nhanh {Math.min(dueCount, 6)} lỗi
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="flex flex-wrap gap-2 pt-1">
-            {externalAction && (
-              <Link href={externalAction.href} prefetch={false}>
-                <Button>{externalAction.label} →</Button>
-              </Link>
-            )}
-            {due > 0 && a.skill !== "rest" && (
-              <Link href="/ielts/review" prefetch={false}>
-                <Button variant="outline">Ôn {due} lỗi</Button>
-              </Link>
-            )}
+      <Card className="border-primary/40 shadow-sm">
+        <CardHeader className="space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              <Badge variant="secondary">Phiên ưu tiên hôm nay</Badge>
+              <CardTitle className="text-xl">{lesson.activity.label}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {lesson.activity.focus}
+              </p>
+            </div>
+            <Badge variant="outline">~{lesson.activity.minutes} phút</Badge>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Queue bài học</CardTitle>
+          <div className="rounded-md bg-muted/50 p-3 text-sm">
+            <span className="font-medium">Đầu ra cần có: </span>
+            {outcomeFor(lesson.activity.tool, lesson.activity.skill)}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-1.5">
-          {queue.previous.map((item) => (
-            <LessonRow
-              key={item.id}
-              lesson={item}
-              state="done"
-              completed={queue.completedIds.has(item.id)}
-            />
-          ))}
-          <LessonRow lesson={lesson} state="current" completed={false} />
-          {queue.upcoming.map((item) => (
-            <LessonRow
-              key={item.id}
-              lesson={item}
-              state="upcoming"
-              completed={false}
-            />
-          ))}
+        <CardContent className="space-y-5">
+          <ol className="space-y-2">
+            {lesson.activity.steps.slice(0, 3).map((step, index) => (
+              <li key={step.text} className="flex gap-3 text-sm">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
+                  {index + 1}
+                </span>
+                <span>{step.text}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="flex flex-wrap gap-2">
+            <Link href={action.href} prefetch={false}>
+              <Button size="lg">{action.label} →</Button>
+            </Link>
+            <Link href="/ielts/review" prefetch={false}>
+              <Button size="lg" variant="outline">
+                Đang bận? Ôn 5 phút
+              </Button>
+            </Link>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Kế hoạch theo mục tiêu {profile.examGoal}. Nhịp gần đây: {streak}
+            ngày liên tiếp.
+          </p>
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground">
-        Lộ trình chạy theo queue liên tiếp, không còn tự nhảy theo ngày. Bài chỉ
-        chuyển khi bạn bấm{" "}
-        <span className="font-medium">Hoàn thành bài này</span>.
-      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Card>
+          <CardContent className="space-y-2 py-4">
+            <p className="font-medium">Bạn không phải học lại từ đầu</p>
+            <p className="text-sm text-muted-foreground">
+              Mở Hành trình để xem bài cũ, feedback và repair đã lưu.
+            </p>
+            <Link
+              href="/ielts/journey"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Mở hành trình →
+            </Link>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-2 py-4">
+            <p className="font-medium">Ngày bận vẫn có giá trị</p>
+            <p className="text-sm text-muted-foreground">
+              Một phiên review ngắn giữ mạch mà không tạo cảm giác nợ bài.
+            </p>
+            <Link
+              href="/ielts/review"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Làm phiên ngắn →
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
     </section>
   );
 }
 
-function needsArticles(activity: Activity): boolean {
-  return activity.steps.some((s) => /bài báo|article|đọc 1 bài/i.test(s.text));
+function actionFor(lessonId: string, tool: string | undefined, skill: string) {
+  if (tool === "writing") {
+    return {
+      href: `/ielts/writing?lessonId=${lessonId}`,
+      label: "Bắt đầu Writing",
+    };
+  }
+  if (tool === "track") {
+    return {
+      href: `/ielts/track?lessonId=${lessonId}`,
+      label: "Mở Source Runner",
+    };
+  }
+  if (tool === "speaking") {
+    return {
+      href: `/ielts/speaking?lessonId=${lessonId}`,
+      label: "Bắt đầu Speaking",
+    };
+  }
+  return skill === "writing"
+    ? { href: `/ielts/writing?lessonId=${lessonId}`, label: "Bắt đầu Writing" }
+    : { href: `/ielts/track?lessonId=${lessonId}`, label: "Bắt đầu phiên học" };
 }
 
-function actionFor(activity: Activity): { href: string; label: string } | null {
-  const text = `${activity.label} ${activity.focus} ${activity.steps
-    .map((s) => s.text)
-    .join(" ")}`;
-  const needsDedicatedWriting =
-    activity.skill === "writing" &&
-    /AI chấm|Chấm bài|đúng 40|Task 1|Task 2/i.test(text);
-
-  if (needsDedicatedWriting)
-    return { href: "/ielts/writing", label: "Mở Writing" };
-  if (activity.skill === "reading" || activity.skill === "listening") {
-    return { href: "/ielts/track", label: "Mở Track" };
+function outcomeFor(tool: string | undefined, skill: string) {
+  if (tool === "writing" || skill === "writing") {
+    return "một bài viết, feedback theo rubric và một repair ngắn.";
   }
-  if (activity.skill === "speaking") {
-    return { href: "/ielts/speaking", label: "Mở Speaking" };
+  if (tool === "track" || skill === "reading" || skill === "listening") {
+    return "điểm/kết quả và lý do sai đáng nhớ.";
   }
-  if (activity.skill === "rest")
-    return { href: "/ielts/review", label: "Mở SRS" };
-  return null;
-}
-
-function LessonRow({
-  lesson,
-  state,
-  completed,
-}: {
-  lesson: Lesson;
-  state: "done" | "current" | "upcoming";
-  completed: boolean;
-}) {
-  const activity = lesson.activity;
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-md px-3 py-2 text-sm",
-        state === "current" ? "bg-primary/5 ring-1 ring-primary/30" : "",
-        state === "done" ? "text-muted-foreground" : "",
-      )}
-    >
-      <span
-        className={cn(
-          "w-16 text-xs font-medium",
-          state === "current" ? "text-foreground" : "text-muted-foreground",
-        )}
-      >
-        #{lesson.index}
-      </span>
-      <span>{SKILL_EMOJI[activity.skill] ?? "•"}</span>
-      <span
-        className={cn(
-          "min-w-0 flex-1 truncate",
-          state === "current" && "font-medium",
-        )}
-      >
-        {activity.label}
-      </span>
-      <span className="hidden text-[10px] text-muted-foreground sm:inline">
-        W{lesson.week} · {lesson.dowLabel}
-      </span>
-      {state === "current" && (
-        <Badge variant="secondary" className="text-[10px]">
-          đang học
-        </Badge>
-      )}
-      {completed && (
-        <Badge variant="outline" className="text-[10px]">
-          xong
-        </Badge>
-      )}
-    </div>
-  );
+  if (tool === "speaking" || skill === "speaking") {
+    return "một ghi âm hoặc nhận xét tutor, kèm một điểm cần sửa.";
+  }
+  return "một ghi chú cụ thể về điều bạn đã truy hồi hoặc áp dụng.";
 }

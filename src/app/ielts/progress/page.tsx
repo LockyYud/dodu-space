@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BandChart } from "@/components/ielts/band-chart";
 import { BandForm } from "@/components/ielts/band-form";
 import { Badge } from "@/components/ui/badge";
@@ -71,31 +72,46 @@ export default async function ProgressPage() {
           {sessions.length === 0 && (
             <p className="text-sm text-muted-foreground">Chưa có buổi nào.</p>
           )}
-          {sessions.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm"
-            >
-              <span>{SKILL_EMOJI[s.skill] ?? "•"}</span>
-              <span className="w-24 text-muted-foreground">{s.date}</span>
-              <Badge variant="outline" className="text-[10px]">
-                {s.skill}
-              </Badge>
-              {s.rawScore && (
-                <span className="text-muted-foreground">{s.rawScore}</span>
-              )}
-              {s.bandEstimate != null && (
-                <span className="text-muted-foreground">
-                  band {s.bandEstimate.toFixed(1)}
-                </span>
-              )}
-              {s.notes && (
-                <span className="truncate text-muted-foreground">
-                  — {s.notes}
-                </span>
-              )}
-            </div>
-          ))}
+          {sessions.map((s) => {
+            const content = (
+              <>
+                <span>{SKILL_EMOJI[s.skill] ?? "•"}</span>
+                <span className="w-24 text-muted-foreground">{s.date}</span>
+                <Badge variant="outline" className="text-[10px]">
+                  {s.skill}
+                </Badge>
+                {s.rawScore && (
+                  <span className="text-muted-foreground">{s.rawScore}</span>
+                )}
+                {s.bandEstimate != null && (
+                  <span className="text-muted-foreground">
+                    band {s.bandEstimate.toFixed(1)}
+                  </span>
+                )}
+                {s.notes && (
+                  <span className="truncate text-muted-foreground">
+                    — {s.notes}
+                  </span>
+                )}
+              </>
+            );
+            return s.lessonId ? (
+              <Link
+                key={s.id}
+                href={`/ielts/history/${s.lessonId}`}
+                className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
+              >
+                {content}
+              </Link>
+            ) : (
+              <div
+                key={s.id}
+                className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm"
+              >
+                {content}
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
     </section>

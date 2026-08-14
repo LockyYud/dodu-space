@@ -9,21 +9,25 @@ import type { Lesson } from "@/lib/ielts/plan";
 import type { ReadingArticle } from "@/lib/ielts/reading";
 import type { Skill } from "@/lib/ielts/schema";
 import { cn } from "@/lib/utils";
-import { completeLesson } from "@/server/ielts/lessons";
+import { completeGuidedLesson } from "@/server/ielts/lessons";
 import { captureLessonCards } from "@/server/ielts/today";
 
 export function TodayWorkbench({
   lesson,
   articles,
+  dueCount,
 }: {
   lesson: Lesson;
   articles: ReadingArticle[];
+  dueCount: number;
 }) {
   const activity = lesson.activity;
   const router = useRouter();
   const [sources, setSources] = useState<Record<number, ReadingArticle>>({});
   const [captureText, setCaptureText] = useState("");
   const [captured, setCaptured] = useState<number | null>(null);
+  const [checkedSteps, setCheckedSteps] = useState<Set<number>>(new Set());
+  const [reflection, setReflection] = useState("");
   const [lessonDone, setLessonDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -34,6 +38,9 @@ export function TodayWorkbench({
   );
 
   const selectedSource = Object.values(sources)[0];
+  const hasDedicatedTool = Boolean(activity.tool);
+  const allStepsComplete = checkedSteps.size === activity.steps.length;
+  const hasReflection = reflection.trim().length >= 20;
 
   function capture() {
     const raw = captureText.trim();
@@ -64,7 +71,12 @@ export function TodayWorkbench({
     setError(null);
     startTransition(async () => {
       try {
-        await completeLesson(lesson.id);
+        await completeGuidedLesson({
+          lessonId: lesson.id,
+          completedSteps: checkedSteps.size,
+          reflection,
+          sourceTitle: selectedSource?.title,
+        });
         setLessonDone(true);
         router.refresh();
       } catch (e) {
@@ -86,6 +98,20 @@ export function TodayWorkbench({
               className="space-y-3 rounded-md border p-3"
             >
               <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={checkedSteps.has(i)}
+                  onChange={() =>
+                    setCheckedSteps((previous) => {
+                      const next = new Set(previous);
+                      if (next.has(i)) next.delete(i);
+                      else next.add(i);
+                      return next;
+                    })
+                  }
+                  className="mt-1 size-4 accent-primary"
+                  aria-label={`Đã xong bước ${i + 1}`}
+                />
                 <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium">
                   {i + 1}
                 </span>
@@ -185,58 +211,101 @@ export function TodayWorkbench({
         })}
       </ol>
 
-      <div className="space-y-3 rounded-md border bg-muted/20 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Auto-capture lỗi/từ mới</p>
-            <p className="text-xs text-muted-foreground">
-              Dán thô những gì bạn sai hoặc chưa biết. App sẽ biến chúng thành
-              SRS card kiểu Anki, không cần viết note dài.
-            </p>
+      <details className="rounded-md border bg-muted/20 p-3">
+        <summary className="cursor-pointer list-none text-sm font-medium">
+          Ghi lại 1–3 lỗi đáng nhớ{" "}
+          <span className="text-muted-foreground">(tuỳ chọn)</span>
+        </summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Chỉ cần dán câu sai, từ mới hoặc bẫy vừa gặp. App sẽ tạo card ôn
+            tập; không cần viết note dài.
+          </p>
+          <Textarea
+            value={captureText}
+            onChange={(e) => setCaptureText(e.target.value)}
+            placeholder="Ví dụ: do more efforts → make more efforts"
+            className="min-h-20 text-sm"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={capture} disabled={pending}>
+              Lưu lỗi để ôn lại
+            </Button>
+            {captured != null && (
+              <span className="text-sm text-emerald-600 dark:text-emerald-400">
+                Đã thêm {captured} card
+              </span>
+            )}
+            {selectedSource && (
+              <span className="truncate text-xs text-muted-foreground">
+                Nguồn: {selectedSource.title}
+              </span>
+            )}
           </div>
-          <Badge variant="outline" className="text-[10px]">
-            Anki-style
-          </Badge>
         </div>
-        <Textarea
-          value={captureText}
-          onChange={(e) => setCaptureText(e.target.value)}
-          placeholder={[
-            "Ví dụ:",
-            "do more efforts -> make more efforts",
-            "tick bite = vết cắn của ve; allergic reaction = phản ứng dị ứng",
-            "T/F/NG: chọn True nhưng sai vì thiếu điều kiện 'only'",
-          ].join("\n")}
-          className="min-h-28 text-sm"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={capture} disabled={pending}>
-            Tạo card SRS
-          </Button>
-          {captured != null && (
-            <span className="text-sm text-emerald-600 dark:text-emerald-400">
-              Đã thêm {captured} card vào SRS
-            </span>
-          )}
-          {selectedSource && (
-            <span className="truncate text-xs text-muted-foreground">
-              Source: {selectedSource.title}
-            </span>
-          )}
-        </div>
-      </div>
+      </details>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 p-3">
-        <Button onClick={complete} disabled={pending || lessonDone}>
-          {lessonDone ? "Đã hoàn thành" : "Hoàn thành bài này"}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Bấm nút này mới chuyển sang bài kế tiếp. Nếu bỏ qua vài ngày, bài này
-          vẫn nằm ở đây.
-        </p>
+        {hasDedicatedTool ? (
+          <p className="text-sm text-muted-foreground">
+            Sau khi lưu kết quả ở công cụ, bài này sẽ tự được đánh dấu hoàn
+            thành.
+          </p>
+        ) : (
+          <div className="w-full space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">Xác nhận kết quả buổi học</p>
+              <Badge variant={allStepsComplete ? "secondary" : "outline"}>
+                {checkedSteps.size}/{activity.steps.length} bước
+              </Badge>
+            </div>
+            <Textarea
+              value={reflection}
+              onChange={(event) => setReflection(event.target.value)}
+              placeholder="Bạn đã làm được gì, lỗi/bẫy nào cần nhớ? (ít nhất 20 ký tự)"
+              className="min-h-20 text-sm"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                onClick={complete}
+                disabled={
+                  pending || lessonDone || !allStepsComplete || !hasReflection
+                }
+              >
+                {lessonDone ? "Đã lưu vào lịch sử" : "Hoàn tất & lưu nhật ký"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Tick đủ các bước và ghi điều đã học để mở bài kế tiếp.
+              </p>
+            </div>
+            {lessonDone && (
+              <a
+                href={`/ielts/history/${lesson.id}`}
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Xem lại bài vừa làm →
+              </a>
+            )}
+          </div>
+        )}
       </div>
+
+      {dueCount > 0 && activity.skill !== "rest" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 p-3">
+          <p className="text-sm">
+            Bạn có <span className="font-medium">{dueCount} lỗi đến hạn</span>.
+            Dành 5–10 phút ôn sau buổi học?
+          </p>
+          <a
+            href="/ielts/review"
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            Ôn sau →
+          </a>
+        </div>
+      )}
     </div>
   );
 }

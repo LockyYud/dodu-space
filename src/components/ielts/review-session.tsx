@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,14 @@ export function ReviewSession({ initialCards }: { initialCards: ErrorCard[] }) {
       <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground">
           🎉 Không còn lỗi nào đến hạn hôm nay. Quay lại sau nhé.
+          <div className="mt-3">
+            <Link
+              href="/ielts/today"
+              className="font-medium text-primary hover:underline"
+            >
+              Về bài hôm nay →
+            </Link>
+          </div>
         </CardContent>
       </Card>
     );
@@ -53,6 +62,12 @@ export function ReviewSession({ initialCards }: { initialCards: ErrorCard[] }) {
           <p className="mt-1 text-sm text-muted-foreground">
             Đã ôn {done} lỗi. Tải lại trang để xem lỗi mới đến hạn.
           </p>
+          <Link
+            href="/ielts/today"
+            className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
+          >
+            Tiếp tục bài hôm nay →
+          </Link>
         </CardContent>
       </Card>
     );

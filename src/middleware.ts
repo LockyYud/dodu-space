@@ -28,7 +28,7 @@ export async function middleware(request: NextRequest) {
   return NextResponse.redirect(loginUrl);
 }
 
-// Only the /ielts area is gated — the rest of the site (portfolio) stays public.
+// Personal learning areas are gated; the portfolio itself stays public.
 export const config = {
-  matcher: ["/ielts", "/ielts/:path*"],
+  matcher: ["/ielts", "/ielts/:path*", "/quiz", "/quiz/:path*"],
 };

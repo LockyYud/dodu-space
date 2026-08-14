@@ -1,15 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import type { Lesson } from "@/lib/ielts/plan";
 import { addSpeaking } from "@/server/ielts/speaking";
 
 type CardDraft = { front: string; back: string; explanation: string };
 
-export function SpeakingForm() {
+export function SpeakingForm({ lesson }: { lesson?: Lesson }) {
   const [duration, setDuration] = useState("");
   const [band, setBand] = useState("");
   const [notes, setNotes] = useState("");
@@ -30,9 +32,27 @@ export function SpeakingForm() {
 
   function save() {
     setError(null);
+    if (!duration || Number.isNaN(Number(duration)) || Number(duration) <= 0) {
+      setError("Hãy nhập thời lượng buổi Speaking lớn hơn 0 phút.");
+      return;
+    }
+    if (notes.trim().length < 20) {
+      setError(
+        "Hãy ghi ít nhất một nhận xét cụ thể của buổi Speaking (20 ký tự).",
+      );
+      return;
+    }
+    if (
+      band &&
+      (Number.isNaN(Number(band)) || Number(band) < 0 || Number(band) > 9)
+    ) {
+      setError("Band phải nằm trong khoảng 0–9.");
+      return;
+    }
     startSave(async () => {
       try {
         await addSpeaking({
+          lessonId: lesson?.id,
           durationMin: duration ? Number(duration) : undefined,
           bandEstimate: band ? Number(band) : undefined,
           tutorNotes: notes || undefined,
@@ -55,6 +75,22 @@ export function SpeakingForm() {
         <CardTitle className="text-base">Ghi buổi Speaking</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {lesson && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2">
+            <div>
+              <p className="text-xs font-medium text-primary">Bài hôm nay</p>
+              <p className="text-sm font-medium">
+                Bài {lesson.index}: {lesson.activity.label}
+              </p>
+            </div>
+            <Link
+              href="/ielts/today"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              ← Hôm nay
+            </Link>
+          </div>
+        )}
         <div className="flex gap-2">
           <Input
             placeholder="Thời lượng (phút)"
@@ -70,7 +106,7 @@ export function SpeakingForm() {
           />
         </div>
         <Textarea
-          placeholder="Ghi chú của gia sư (điểm mạnh/yếu, phát âm, fluency…)"
+          placeholder="Điểm mạnh/yếu, phát âm, fluency… (ít nhất 20 ký tự; mỗi lỗi một dòng nếu có)"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           className="min-h-24"
@@ -78,8 +114,13 @@ export function SpeakingForm() {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Lỗi để đưa vào SRS</span>
-            <Button size="xs" variant="outline" onClick={addCardRow}>
+            <span className="text-sm font-medium">1–3 lỗi ưu tiên</span>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={addCardRow}
+              disabled={cards.length >= 3}
+            >
               + Thêm lỗi
             </Button>
           </div>
@@ -123,9 +164,17 @@ export function SpeakingForm() {
             {saving ? "Đang lưu…" : "Lưu buổi"}
           </Button>
           {saved && (
-            <span className="text-sm text-emerald-600 dark:text-emerald-400">
-              Đã lưu ✓
-            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm text-emerald-600 dark:text-emerald-400">
+                Đã lưu ✓
+              </span>
+              <Link
+                href="/ielts/today"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                Về bài hôm nay →
+              </Link>
+            </div>
           )}
         </div>
       </CardContent>

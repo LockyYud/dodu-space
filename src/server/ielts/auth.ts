@@ -47,16 +47,21 @@ export async function login(
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/ielts",
+    path: "/",
     maxAge: IELTS_SESSION_MAX_AGE_SECONDS,
   });
 
-  const next = String(formData.get("next") ?? "/ielts");
-  redirect(next.startsWith("/ielts") ? next : "/ielts");
+  const next = String(formData.get("next") ?? "/ielts/today");
+  redirect(isPrivatePath(next) ? next : "/ielts/today");
 }
 
 export async function logout(): Promise<void> {
   const store = await cookies();
+  store.delete({ name: IELTS_SESSION_COOKIE, path: "/" });
   store.delete({ name: IELTS_SESSION_COOKIE, path: "/ielts" });
   redirect("/ielts/login");
+}
+
+function isPrivatePath(value: string): boolean {
+  return value.startsWith("/ielts") || value.startsWith("/quiz");
 }

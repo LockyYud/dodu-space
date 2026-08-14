@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import Link from "next/link";
+import { useEffect, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { GradingResult, TaskType } from "@/lib/ielts/grading";
+import type { Lesson } from "@/lib/ielts/plan";
 import { cn } from "@/lib/utils";
 import { gradeAction, saveSubmission } from "@/server/ielts/writing";
 
@@ -18,28 +20,65 @@ const CRITERIA: { key: CriterionKey; label: string }[] = [
   { key: "grammar", label: "Grammar" },
 ];
 
-export function WritingWorkbench({ configured }: { configured: boolean }) {
-  const [taskType, setTaskType] = useState<TaskType>("task2");
+export function WritingWorkbench({
+  configured,
+  lesson,
+}: {
+  configured: boolean;
+  lesson?: Lesson;
+}) {
+  const plannedTaskType: TaskType = lesson?.activity.label.includes("Task 1")
+    ? "task1"
+    : "task2";
+  const [taskType, setTaskType] = useState<TaskType>(plannedTaskType);
   const [topic, setTopic] = useState("");
   const [prompt, setPrompt] = useState("");
   const [essay, setEssay] = useState("");
   const [result, setResult] = useState<GradingResult | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [saved, setSaved] = useState<{ cardsAdded: number } | null>(null);
+  const [repairNote, setRepairNote] = useState("");
+  const [saved, setSaved] = useState<{
+    cardsAdded: number;
+    lessonCompleted: boolean;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [grading, startGrading] = useTransition();
   const [saving, startSaving] = useTransition();
 
   const wordCount = essay.trim().split(/\s+/).filter(Boolean).length;
+  const minimumWords = taskType === "task1" ? 150 : 250;
+  const timeLimit = taskType === "task1" ? 20 * 60 : 40 * 60;
+
+  useEffect(() => {
+    if (!started) return;
+    const timer = window.setInterval(
+      () => setElapsed((value) => value + 1),
+      1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [started]);
+
+  useEffect(() => {
+    if (taskType === "task1" || taskType === "task2") {
+      setStarted(false);
+      setElapsed(0);
+    }
+  }, [taskType]);
 
   function handleGrade() {
+    if (wordCount < minimumWords) {
+      setError(`Bài này cần ít nhất ${minimumWords} từ trước khi chấm.`);
+      return;
+    }
     setError(null);
     setSaved(null);
     startGrading(async () => {
       try {
         const r = await gradeAction({ taskType, prompt, essay });
         setResult(r);
-        setSelected(new Set(r.error_cards.map((_, i) => i)));
+        setSelected(new Set(r.error_cards.slice(0, 3).map((_, i) => i)));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Chấm bài thất bại.");
       }
@@ -53,14 +92,19 @@ export function WritingWorkbench({ configured }: { configured: boolean }) {
       try {
         const cards = result.error_cards.filter((_, i) => selected.has(i));
         const res = await saveSubmission({
+          lessonId: lesson?.id,
           taskType,
           topic: topic || undefined,
           prompt: prompt || undefined,
           essay,
           result,
           selectedCards: cards,
+          repairNote,
         });
-        setSaved({ cardsAdded: res.cardsAdded });
+        setSaved({
+          cardsAdded: res.cardsAdded,
+          lessonCompleted: res.lessonCompleted,
+        });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Lưu thất bại.");
       }
@@ -71,13 +115,35 @@ export function WritingWorkbench({ configured }: { configured: boolean }) {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(i)) next.delete(i);
-      else next.add(i);
+      else if (next.size < 3) next.add(i);
       return next;
     });
   }
 
   return (
     <div className="space-y-6">
+      {lesson && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4 py-3">
+          <div>
+            <p className="text-xs font-medium text-primary">
+              Đang làm bài hôm nay
+            </p>
+            <p className="text-sm font-medium">
+              Bài {lesson.index}: {lesson.activity.label}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {lesson.activity.focus}
+            </p>
+          </div>
+          <Link
+            href="/ielts/today"
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            ← Quay lại Hôm nay
+          </Link>
+        </div>
+      )}
+
       {!configured && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
           Chưa cấu hình AI chấm bài. Đặt <code>LLM_BASE_URL</code>,{" "}
@@ -93,17 +159,24 @@ export function WritingWorkbench({ configured }: { configured: boolean }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            {(["task2", "task1"] as TaskType[]).map((t) => (
-              <Button
-                key={t}
-                type="button"
-                size="sm"
-                variant={taskType === t ? "default" : "outline"}
-                onClick={() => setTaskType(t)}
-              >
-                {t === "task2" ? "Task 2 (Essay)" : "Task 1 (Report)"}
-              </Button>
-            ))}
+            {lesson ? (
+              <Badge variant="secondary">
+                Phiên này:{" "}
+                {taskType === "task2" ? "Task 2 (Essay)" : "Task 1 (Report)"}
+              </Badge>
+            ) : (
+              (["task2", "task1"] as TaskType[]).map((t) => (
+                <Button
+                  key={t}
+                  type="button"
+                  size="sm"
+                  variant={taskType === t ? "default" : "outline"}
+                  onClick={() => setTaskType(t)}
+                >
+                  {t === "task2" ? "Task 2 (Essay)" : "Task 1 (Report)"}
+                </Button>
+              ))
+            )}
             <span className="ml-auto text-xs text-muted-foreground">
               {wordCount} từ
             </span>
@@ -120,21 +193,35 @@ export function WritingWorkbench({ configured }: { configured: boolean }) {
             className="min-h-16"
           />
           <Textarea
-            placeholder="Dán bài viết của bạn vào đây…"
+            placeholder="Viết bài viết của bạn vào đây…"
             value={essay}
-            onChange={(e) => setEssay(e.target.value)}
+            onChange={(e) => {
+              setEssay(e.target.value);
+              if (e.target.value.trim() && !started) setStarted(true);
+            }}
             className="min-h-64"
           />
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              className={
+                elapsed > timeLimit
+                  ? "text-xs text-destructive"
+                  : "text-xs text-muted-foreground"
+              }
+            >
+              {started
+                ? `${formatTime(elapsed)} / ${formatTime(timeLimit)}`
+                : `Gợi ý: ${formatTime(timeLimit)}`}
+            </span>
             <Button
               onClick={handleGrade}
-              disabled={!configured || grading || essay.trim().length < 40}
+              disabled={!configured || grading || wordCount < minimumWords}
             >
               {grading ? "Đang chấm…" : "Chấm bài"}
             </Button>
-            {essay.trim().length > 0 && essay.trim().length < 40 && (
+            {essay.trim().length > 0 && wordCount < minimumWords && (
               <span className="text-xs text-muted-foreground">
-                Cần ít nhất ~40 ký tự.
+                Còn {minimumWords - wordCount} từ nữa để chấm.
               </span>
             )}
           </div>
@@ -192,11 +279,35 @@ export function WritingWorkbench({ configured }: { configured: boolean }) {
             </CardContent>
           </Card>
 
+          <Card className="border-primary/30 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Repair ngay bây giờ · 5 phút
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Đừng chỉ đọc feedback. Hãy viết lại một câu/đoạn yếu nhất, hoặc
+                nêu chính xác thay đổi bạn sẽ áp dụng ở lần viết sau.
+              </p>
+              <Textarea
+                value={repairNote}
+                onChange={(event) => setRepairNote(event.target.value)}
+                placeholder="Ví dụ: Body 2 thiếu giải thích. Tôi viết lại: This is because ... Therefore ..."
+                className="min-h-28"
+              />
+              <p className="text-xs text-muted-foreground">
+                {repairNote.trim().length < 20
+                  ? `Còn ${20 - repairNote.trim().length} ký tự để chốt repair.`
+                  : "Repair đã sẵn sàng để lưu."}
+              </p>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                Lỗi trích xuất — chọn để đưa vào kho ôn tập ({selected.size}/
-                {result.error_cards.length})
+                Lỗi quan trọng — chọn tối đa 3 lỗi để ôn ({selected.size}/3)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -240,21 +351,60 @@ export function WritingWorkbench({ configured }: { configured: boolean }) {
                 </button>
               ))}
               <div className="flex items-center gap-3 pt-1">
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? "Đang lưu…" : `Lưu bài + ${selected.size} card`}
+                <Button
+                  onClick={handleSave}
+                  disabled={
+                    saving || saved != null || repairNote.trim().length < 20
+                  }
+                >
+                  {saving
+                    ? "Đang lưu…"
+                    : saved
+                      ? "Đã lưu bài"
+                      : `Lưu bài + ${selected.size} lỗi`}
                 </Button>
-                {saved && (
-                  <span className="text-sm text-emerald-600 dark:text-emerald-400">
-                    Đã lưu ✓ ({saved.cardsAdded} card vào SRS)
-                  </span>
-                )}
               </div>
             </CardContent>
           </Card>
+          {saved && (
+            <Card className="border-emerald-500/40 bg-emerald-500/5">
+              <CardContent className="space-y-4 py-5">
+                <div className="space-y-1">
+                  <p className="font-medium text-emerald-700 dark:text-emerald-400">
+                    Attempt đã được lưu
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {saved.cardsAdded} lỗi đã vào lịch ôn
+                    {saved.lessonCompleted
+                      ? ". Bài hôm nay đã hoàn thành; app đã chọn phiên kế tiếp cho bạn."
+                      : ". Bạn có thể quay lại Hôm nay để chọn bước tiếp theo."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link href="/ielts/today">
+                    <Button>
+                      {saved.lessonCompleted
+                        ? "Tiếp tục phiên tiếp theo →"
+                        : "Về Hôm nay →"}
+                    </Button>
+                  </Link>
+                  <Link href="/ielts/journey">
+                    <Button variant="outline">Xem lại attempt</Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>
   );
+}
+
+function formatTime(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const secs = String(seconds % 60).padStart(2, "0");
+  return `${minutes}:${secs}`;
 }
 
 function BandTile({
