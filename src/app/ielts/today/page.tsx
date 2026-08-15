@@ -19,7 +19,8 @@ export default async function TodayPage() {
       listSessions(7),
       learnerProfile(),
     ]);
-  const { current: lesson } = lessonQueueStatus(completedLessons);
+  const queue = lessonQueueStatus(completedLessons);
+  const { current: lesson } = queue;
   const action = actionFor(
     lesson.id,
     lesson.activity.tool,
@@ -45,6 +46,48 @@ export default async function TodayPage() {
           ra.
         </p>
       </header>
+
+      <Card>
+        <CardContent className="space-y-3 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-medium">Trạng thái hiện tại</p>
+            <Badge variant="outline">
+              {queue.completedCount}/{queue.totalCount} mốc đã hoàn thành
+            </Badge>
+          </div>
+          <div className="grid gap-3 text-sm sm:grid-cols-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Bạn đang ở</p>
+              <p className="mt-1 font-medium">
+                {lesson.phaseLabel} · Bài {lesson.index}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Buổi hôm nay</p>
+              <p className="mt-1 font-medium">
+                {hasStudiedToday ? "Đã có attempt" : "Chưa bắt đầu"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Ôn tập</p>
+              <p className="mt-1 font-medium">
+                {dueCount > 0
+                  ? `${dueCount} lỗi đến hạn`
+                  : "Không có lỗi đến hạn"}
+              </p>
+            </div>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${queue.percent}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Đây là mốc để định vị lộ trình, không phải backlog cần chạy cho hết.
+          </p>
+        </CardContent>
+      </Card>
 
       {dueCount > 0 && (
         <Card className="border-primary/25 bg-primary/5">
