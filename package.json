@@ -10,8 +10,8 @@
     "lint": "biome check",
     "format": "biome format --write",
     "ielts:generate": "drizzle-kit generate",
-    "ielts:migrate": "tsx scripts/ielts/migrate.ts",
-    "ielts:seed": "tsx scripts/ielts/seed.ts",
+    "ielts:migrate": "tsx --env-file-if-exists=.env scripts/ielts/migrate.ts",
+    "ielts:seed": "tsx --env-file-if-exists=.env scripts/ielts/seed.ts",
     "ielts:test": "tsx scripts/ielts/srs.test.ts && tsx scripts/ielts/plan.test.ts && tsx scripts/ielts/pace.test.ts"
   },
   "dependencies": {
