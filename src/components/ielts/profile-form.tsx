@@ -54,6 +54,11 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
     profile.constraints.join("\n"),
   );
   const [priorities, setPriorities] = useState(profile.priorities.join("\n"));
+  const [planStart, setPlanStart] = useState(profile.planStart);
+  const [examDate, setExamDate] = useState(profile.examDate ?? "");
+  const [weeklyTarget, setWeeklyTarget] = useState(
+    String(profile.weeklyTarget),
+  );
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, startSave] = useTransition();
@@ -82,6 +87,9 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
             .split("\n")
             .map((s) => s.trim())
             .filter(Boolean),
+          planStart,
+          examDate: examDate || null,
+          weeklyTarget: Number(weeklyTarget) || 0,
         });
         setSaved(true);
       } catch (e) {
@@ -179,6 +187,45 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
               onChange={(e) => setTargetSpeaking(e.target.value)}
             />
           </Field>
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-primary/25 bg-primary/5 p-3">
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium">Nhịp lộ trình</p>
+            <p className="text-xs text-muted-foreground">
+              Ngày thi để trống cho tới khi bạn giữ được nhịp 4 tuần liền. App
+              dùng ba giá trị này để tính bạn còn phải học bao nhiêu bài mỗi
+              tuần.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field id="profile-plan-start" label="Ngày bắt đầu lại">
+              <Input
+                id="profile-plan-start"
+                type="date"
+                value={planStart}
+                onChange={(e) => setPlanStart(e.target.value)}
+              />
+            </Field>
+            <Field id="profile-exam-date" label="Ngày thi (có thể để trống)">
+              <Input
+                id="profile-exam-date"
+                type="date"
+                value={examDate}
+                onChange={(e) => setExamDate(e.target.value)}
+              />
+            </Field>
+            <Field id="profile-weekly-target" label="Bài bắt buộc/tuần">
+              <Input
+                id="profile-weekly-target"
+                type="number"
+                min={1}
+                max={7}
+                value={weeklyTarget}
+                onChange={(e) => setWeeklyTarget(e.target.value)}
+              />
+            </Field>
+          </div>
         </div>
 
         <Field id="profile-strategy" label="Chiến lược">

@@ -288,6 +288,22 @@ Nếu đây là tool dùng xuyên nhiều tháng, chọn **B**. Có thể làm B
 4. Requeue card `Again` trong cùng phiên.
 5. Tạo trang Profile/Settings nếu muốn tự đổi mục tiêu/lịch mà không redeploy.
 
+## Trạng thái (cập nhật 2026-09-07)
+
+Toàn bộ 5 mục trên đã được xử lý:
+
+| # | Mục | Đã làm |
+| --- | --- | --- |
+| 1 | Bảo vệ khu vực IELTS | `src/middleware.ts` + `requireIeltsUser()` gọi đầu mỗi Server Action mutation; trang `/ielts/login` |
+| 2 | Phase/week theo queue | `currentLessonMeta()` lấy từ `lessonQueueStatus`, `study_session.lesson_id` được lưu |
+| 3 | Transaction | Writing, Track, Review, Speaking, Errors đều bọc `db.transaction` |
+| 4 | Requeue `Again` | `review-session.tsx` đẩy card về cuối queue, giới hạn số lần lặp mỗi phiên |
+| 5 | Hồ sơ chỉnh trong app | `/ielts/settings` + bảng `learner_profile`; `.env` chỉ còn là seed |
+
+Một vấn đề mới, không có trong review này, được xử lý ở lộ trình v2 (2026-09-07):
+kế hoạch không có ngày bù, không có chỉ số pace và không ép bước viết lại — xem
+`ROADMAP.md` §1 và `TECH-DESIGN.md` §9.
+
 ## Kiểm tra đã thực hiện trong review
 
 - `npm run ielts:test`: pass 8/8 test cho scheduler SRS.

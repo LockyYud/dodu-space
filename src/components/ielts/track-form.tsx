@@ -34,6 +34,9 @@ export function TrackForm({
   lesson?: Lesson;
   sources?: LearningSource[];
 }) {
+  const lessonKind = lesson?.activity.kind;
+  const isBaseline = lessonKind === "baseline";
+  const isMock = lessonKind === "mock";
   const lessonSkill = lesson?.activity.skill;
   const [skill, setSkill] = useState<TrackSkill>(() =>
     lessonSkill === "listening" || lessonSkill === "reading"
@@ -43,6 +46,8 @@ export function TrackForm({
   const [sourceUrl, setSourceUrl] = useState("");
   const [rawScore, setRawScore] = useState("");
   const [band, setBand] = useState("");
+  const [bandListening, setBandListening] = useState("");
+  const [bandReading, setBandReading] = useState("");
   const [notes, setNotes] = useState("");
   const [duration, setDuration] = useState("");
   const [readyToRecord, setReadyToRecord] = useState(sources.length === 0);
@@ -108,11 +113,21 @@ export function TrackForm({
       );
       return;
     }
-    if (
-      band &&
-      (Number.isNaN(Number(band)) || Number(band) < 0 || Number(band) > 9)
-    ) {
-      setError("Band phải nằm trong khoảng 0–9.");
+    for (const value of [band, bandListening, bandReading]) {
+      if (
+        value &&
+        (Number.isNaN(Number(value)) || Number(value) < 0 || Number(value) > 9)
+      ) {
+        setError("Band phải nằm trong khoảng 0–9.");
+        return;
+      }
+    }
+    if (isBaseline && !band) {
+      setError("Bài baseline cần band ước tính để làm mốc so sánh.");
+      return;
+    }
+    if (isMock && (!bandListening || !bandReading)) {
+      setError("Mock cần cả band Listening và band Reading.");
       return;
     }
     startSave(async () => {
@@ -123,6 +138,8 @@ export function TrackForm({
           sourceUrl: sourceUrl || undefined,
           rawScore: rawScore || undefined,
           bandEstimate: band ? Number(band) : undefined,
+          bandListening: bandListening ? Number(bandListening) : undefined,
+          bandReading: bandReading ? Number(bandReading) : undefined,
           durationMin: duration ? Number(duration) : undefined,
           notes: notes || undefined,
           cards: cards.filter((_, i) => selected.has(i)),
@@ -279,17 +296,59 @@ export function TrackForm({
                   className="max-w-24"
                 />
               </div>
-              <details>
-                <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                  Thêm band ước tính (tuỳ chọn)
-                </summary>
-                <Input
-                  placeholder="Band (vd 7.0)"
-                  value={band}
-                  onChange={(e) => setBand(e.target.value)}
-                  className="mt-2 max-w-32"
-                />
-              </details>
+              {isMock ? (
+                <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <p className="text-sm font-medium">
+                    Band của mock (bắt buộc)
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Hai số này được lưu vào biểu đồ tiến độ và quyết định giữ
+                    hay dời ngày thi.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      placeholder="Listening (vd 7.0)"
+                      value={bandListening}
+                      onChange={(e) => setBandListening(e.target.value)}
+                      className="max-w-40"
+                    />
+                    <Input
+                      placeholder="Reading (vd 7.5)"
+                      value={bandReading}
+                      onChange={(e) => setBandReading(e.target.value)}
+                      className="max-w-40"
+                    />
+                  </div>
+                </div>
+              ) : isBaseline ? (
+                <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <p className="text-sm font-medium">
+                    Band khởi điểm (bắt buộc)
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Đây là mốc so sánh của cả lộ trình. Ước tính từ số câu đúng
+                    cũng được.
+                  </p>
+                  <Input
+                    placeholder="Band (vd 6.0)"
+                    value={band}
+                    onChange={(e) => setBand(e.target.value)}
+                    className="max-w-32"
+                  />
+                </div>
+              ) : (
+                <details>
+                  <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                    Thêm band ước tính (tuỳ chọn)
+                  </summary>
+                  <Input
+                    placeholder="Band (vd 7.0)"
+                    value={band}
+                    onChange={(e) => setBand(e.target.value)}
+                    className="mt-2 max-w-32"
+                  />
+                </details>
+              )}
               <Textarea
                 placeholder="Vì sao bạn sai? Ví dụ: chọn theo từ khóa, bỏ sót not given, không nhận ra paraphrase…"
                 value={notes}

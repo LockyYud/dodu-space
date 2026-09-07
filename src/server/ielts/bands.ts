@@ -3,6 +3,7 @@
 import { desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireIeltsUser } from "@/lib/auth/guard";
+import { overallOf } from "@/lib/ielts/bands";
 import { db, schema } from "@/lib/ielts/db";
 import type { BandHistory } from "@/lib/ielts/schema";
 import { toISODate } from "@/lib/ielts/srs";
@@ -15,16 +16,6 @@ export interface AddBandInput {
   speaking?: number;
   isMock?: boolean;
   note?: string;
-}
-
-/** Overall = mean of the provided skills, rounded to nearest 0.5. */
-function overallOf(v: AddBandInput): number | null {
-  const vals = [v.listening, v.reading, v.writing, v.speaking].filter(
-    (x): x is number => typeof x === "number",
-  );
-  if (vals.length === 0) return null;
-  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-  return Math.round(mean * 2) / 2;
 }
 
 export async function addBand(input: AddBandInput): Promise<number> {
@@ -48,8 +39,9 @@ export async function addBand(input: AddBandInput): Promise<number> {
 }
 
 export async function listBands(): Promise<BandHistory[]> {
+  // id as a tiebreak so two rows on the same day stay in insertion order.
   return db
     .select()
     .from(schema.bandHistory)
-    .orderBy(desc(schema.bandHistory.date));
+    .orderBy(desc(schema.bandHistory.date), desc(schema.bandHistory.id));
 }

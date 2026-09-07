@@ -20,9 +20,14 @@
 ✅ v2  Dashboard + tiến độ: streak, band theo thời gian, phase   (progress + dashboard)
 ✅ v3  Trace Reading/Listening bằng screenshot + AI vision       (track)
 ✅ v4  Speaking tracking + lịch hôm nay theo roadmap             (speaking + today)
+✅ v5  Auth cho toàn khu /ielts + hồ sơ học chỉnh trong app      (login + settings)
+✅ v6  Lịch sử theo bài, hành trình, analytics                   (history + journey + analytics)
+✅ v7  Lộ trình v2: hàng đợi 5+1, pace, baseline/mock, viết lại  (plan + pace)
 ```
-Tất cả 8 route `/ielts/*` đã build, typecheck sạch, biome sạch, curl 200. Còn lại chỉ là
-tinh chỉnh nội dung/UX khi dùng thực tế.
+
+**Route hiện có:** `/ielts` (redirect sang today) · `today` · `writing` · `review` ·
+`errors` · `progress` · `track` · `speaking` · `history` (+ `history/[lessonId]`) ·
+`journey` (redirect sang history) · `analytics` · `settings` · `login`.
 
 ---
 
@@ -69,7 +74,12 @@ dodu-space/
 │   ├── db.ts                      # libSQL client + Drizzle
 │   ├── schema.ts                  # Drizzle schema (mục 4)
 │   ├── srs.ts                     # Thuật toán SM-2 (mục 5)
-│   └── grading.ts                 # Prompt + gọi Claude (mục 6)
+│   ├── plan.ts                    # Hàng đợi bài của lộ trình v2 (mục 9)
+│   ├── pace.ts                    # Pace + chế độ hạ tải (mục 9), thuần, có test
+│   ├── bands.ts                   # overallOf() dùng chung cho band_history
+│   ├── profile.ts                 # Hồ sơ học (DB thắng, .env chỉ là seed)
+│   ├── insights.ts                # Coach: gap band, lỗi cứng đầu, baseline
+│   └── grading.ts                 # Prompt + gọi LLM (mục 6)
 └── docs/ielts/                    # ROADMAP.md, TECH-DESIGN.md (tài liệu này)
 ```
 
@@ -126,6 +136,18 @@ is_mock (bool) · note
 ```
 id · date · duration_min · tutor_notes · band_estimate
 ```
+
+**`learner_profile`** — hồ sơ học, 1 dòng duy nhất (v5, mở rộng ở v7)
+```
+id · name · exam_goal · start_point · daily_minutes
+target_overall · target_listening · target_reading · target_writing · target_speaking
+strategy · constraints (JSON) · priorities (JSON)
+plan_start · exam_date (nullable) · weekly_target   -- v7: nhịp lộ trình
+updated_at
+```
+
+> `study_session` có thêm `lesson_id` và `phase`/`week` lấy từ **hàng đợi**, không lấy
+> từ lịch — nghỉ bao lâu cũng không làm sai metadata (xem REVIEW-PERSONALIZATION.md §2).
 
 > "Lỗi cứng đầu" = `error_card` có `lapses >= 3` → app đánh dấu ôn dày hơn.
 
@@ -240,4 +262,53 @@ Chi phí tuỳ endpoint/model bạn cấu hình trong env — app không ràng b
 2. ✅ **AI chấm:** OpenAI-compatible, cấu hình toàn bộ qua env (`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`).
 3. ✅ **Slice bắt đầu:** **Nền tảng trước** — DB + schema + thuật toán SRS + seed dữ liệu mẫu,
    trước khi làm UI. (UI writing/review/errors là slice kế tiếp.)
+
+---
+
+## 9. Lộ trình v2 — pace, baseline và vòng viết lại (2026-09-07)
+
+Bản v1 của app chạy đúng về kỹ thuật nhưng lộ trình không sống được khi dùng thật.
+Xem `docs/ielts/ROADMAP.md` §1 cho chẩn đoán. Phần kỹ thuật thay đổi như sau.
+
+### 9a. Hàng đợi bài — `src/lib/ielts/plan.ts`
+
+- 20 tuần × 6 bài = **120 bài**, trong đó **105 bắt buộc**. Chủ nhật không có bài.
+- `Lesson.required = false` cho ngày bù thứ Bảy. `lessonQueueStatus()` chỉ chọn
+  `current` trong các bài bắt buộc, còn ngày bù trả về ở `queue.buffer` để UI mời thêm.
+- `Activity.kind` là `core | baseline | rewrite | mock | buffer` — UI và server đọc
+  `kind` để đổi hành vi (bắt buộc nhập band, mở bài gốc để viết lại...).
+- `Lesson.stage` là `A | B1 | B2`; `Lesson.phase` giữ dạng số 0/1/2 để không phải
+  migrate cột `study_session.phase`.
+- `habitGatePassed()` quyết định khi nào app gợi ý đặt ngày thi.
+
+### 9b. Pace — `src/lib/ielts/pace.ts` + `src/server/ielts/pace.ts`
+
+`paceStatus()` là hàm thuần, nhận số bài còn lại, mục tiêu tuần, ngày thi và số ngày
+học trong 14 ngày gần nhất; trả về `on-track | behind | at-risk | no-exam` cùng cờ
+`degraded`. `getPaceOverview()` gom dữ liệu từ DB rồi gọi hàm thuần đó, nên toàn bộ
+logic đều test được không cần DB (`scripts/ielts/pace.test.ts`).
+
+`degraded = dưới 6 ngày học trong 14 ngày` → Hôm nay hiện banner giữ nhịp và coach
+đổi khuyến nghị sang một phiên SRS ngắn.
+
+### 9c. Baseline và mock ghi band trong cùng transaction
+
+`saveTrackSession()` đọc `kind` của bài: `baseline` bắt buộc có `bandEstimate`, `mock`
+bắt buộc có cả `bandListening` và `bandReading`; cả hai đều chèn `band_history` ngay
+trong transaction lưu session. Baseline một kỹ năng cố tình để `overall = null` để
+không vẽ điểm giả trên biểu đồ overall.
+
+### 9d. Vòng viết lại thật
+
+`latestRewritableSubmission()` tìm bài đã chấm gần nhất chưa có bản viết lại.
+Bài `kind: "rewrite"` mở thẳng `/ielts/writing?lessonId=…&rewriteOf=<id>`, workbench
+hiển thị bài gốc, feedback cũ và chênh lệch band sau khi chấm lại; `saveSubmission()`
+ghi `is_rewrite` và `parent_submission_id`.
+
+Bài Giai đoạn A dài 25 phút nên `minimumWordsFor()` hạ ngưỡng xuống 100 từ thay vì
+250 — giữ nguyên 150/250 cho các bài full-length.
+
+### 9e. Test
+
+`npm run ielts:test` chạy 3 bộ: `srs.test.ts`, `plan.test.ts`, `pace.test.ts`.
 ```

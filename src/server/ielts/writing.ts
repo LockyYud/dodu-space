@@ -1,15 +1,19 @@
 "use server";
 
+import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
 import {
+  type GradedBands,
+  type GradedFeedback,
   type GradeInput,
   type GradingResult,
   gradeWriting,
   type SuggestedCard,
 } from "@/lib/ielts/grading";
 import { topErrorThemes } from "@/lib/ielts/insights";
+import { findLesson } from "@/lib/ielts/plan";
 import { learnerProfile, targetSummary } from "@/lib/ielts/profile";
 import { toISODate } from "@/lib/ielts/srs";
 import { completeLesson, currentLessonMeta } from "./lessons";
@@ -23,8 +27,91 @@ export async function gradeAction(input: GradeInput): Promise<GradingResult> {
   });
 }
 
+/** Full-length Task 2 minimum; Stage A writes short paragraphs instead. */
+const MIN_WORDS = { task1: 150, task2: 250 } as const;
+const MIN_WORDS_SHORT = 100;
+
+/**
+ * A previously graded original the learner can now rewrite. The rewrite loop
+ * ("viết → chấm → viết lại") is what actually moves the band, so the app has
+ * to hand the learner the exact essay and feedback rather than hoping they
+ * remember to reopen it.
+ */
+export interface RewriteSource {
+  id: number;
+  taskType: "task1" | "task2";
+  topic: string | null;
+  prompt: string | null;
+  essayText: string;
+  createdAt: string;
+  bands: GradedBands | null;
+  feedback: GradedFeedback | null;
+}
+
+function toRewriteSource(
+  row: typeof schema.writingSubmission.$inferSelect,
+): RewriteSource {
+  const bands =
+    row.bandOverall == null
+      ? null
+      : {
+          task_response: row.bandTa ?? 0,
+          coherence: row.bandCc ?? 0,
+          lexical: row.bandLr ?? 0,
+          grammar: row.bandGra ?? 0,
+          overall: row.bandOverall,
+        };
+  let feedback: GradedFeedback | null = null;
+  if (row.feedbackJson) {
+    try {
+      feedback = JSON.parse(row.feedbackJson) as GradedFeedback;
+    } catch {
+      feedback = null;
+    }
+  }
+  return {
+    id: row.id,
+    taskType: row.taskType,
+    topic: row.topic,
+    prompt: row.prompt,
+    essayText: row.essayText,
+    createdAt: row.createdAt,
+    bands,
+    feedback,
+  };
+}
+
+/** The newest graded original that hasn't been rewritten yet. */
+export async function latestRewritableSubmission(): Promise<RewriteSource | null> {
+  const rows = await db
+    .select()
+    .from(schema.writingSubmission)
+    .orderBy(desc(schema.writingSubmission.id));
+  const rewrittenParents = new Set(
+    rows
+      .map((row) => row.parentSubmissionId)
+      .filter((id): id is number => id != null),
+  );
+  const original = rows.find(
+    (row) => !row.isRewrite && !rewrittenParents.has(row.id),
+  );
+  return original ? toRewriteSource(original) : null;
+}
+
+export async function getRewriteSource(
+  submissionId: number,
+): Promise<RewriteSource | null> {
+  const [row] = await db
+    .select()
+    .from(schema.writingSubmission)
+    .where(eq(schema.writingSubmission.id, submissionId));
+  return row ? toRewriteSource(row) : null;
+}
+
 export interface SaveSubmissionInput {
   lessonId?: string;
+  /** Set when this submission is a rewrite of an earlier graded essay. */
+  parentSubmissionId?: number;
   taskType: "task1" | "task2";
   topic?: string;
   prompt?: string;
@@ -46,7 +133,7 @@ export async function saveSubmission(input: SaveSubmissionInput): Promise<{
   const shouldCompleteLesson = input.lessonId === lesson.lessonId;
   const { bands } = input.result;
   const wordCount = input.essay.trim().split(/\s+/).filter(Boolean).length;
-  const minimumWords = input.taskType === "task1" ? 150 : 250;
+  const minimumWords = minimumWordsFor(input.taskType, input.lessonId);
   if (wordCount < minimumWords) {
     throw new Error(
       `Bài ${input.taskType === "task1" ? "Task 1" : "Task 2"} cần ít nhất ${minimumWords} từ.`,
@@ -94,6 +181,8 @@ export async function saveSubmission(input: SaveSubmissionInput): Promise<{
         bandGra: bands.grammar,
         bandOverall: bands.overall,
         feedbackJson: JSON.stringify(input.result.feedback),
+        isRewrite: input.parentSubmissionId != null,
+        parentSubmissionId: input.parentSubmissionId ?? null,
       })
       .returning({ id: schema.writingSubmission.id });
 
@@ -127,6 +216,26 @@ export async function saveSubmission(input: SaveSubmissionInput): Promise<{
   revalidatePath("/ielts");
 
   return { submissionId, cardsAdded, lessonCompleted: shouldCompleteLesson };
+}
+
+/**
+ * Stage A lessons are 25' paragraph drills, so holding them to a full 250-word
+ * essay would make the daily habit impossible. Anything else keeps exam length.
+ */
+export async function minimumWordsForLesson(
+  taskType: "task1" | "task2",
+  lessonId?: string,
+): Promise<number> {
+  return minimumWordsFor(taskType, lessonId);
+}
+
+function minimumWordsFor(
+  taskType: "task1" | "task2",
+  lessonId?: string,
+): number {
+  const lesson = lessonId ? findLesson(lessonId) : undefined;
+  if (lesson && lesson.activity.minutes < 40) return MIN_WORDS_SHORT;
+  return MIN_WORDS[taskType];
 }
 
 async function buildLearnerContext(): Promise<string> {

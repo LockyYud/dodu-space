@@ -1,5 +1,7 @@
 import { db, schema } from "./db";
+import { WEEKLY_TARGET_DEFAULT } from "./plan";
 import type { Skill } from "./schema";
+import { toISODate } from "./srs";
 
 type TargetSkill = Extract<
   Skill,
@@ -16,6 +18,10 @@ export interface LearnerProfile {
   strategy: string;
   constraints: string[];
   priorities: string[];
+  /** Roadmap v2 pace fields — see src/lib/ielts/pace.ts. */
+  planStart: string;
+  examDate: string | null;
+  weeklyTarget: number;
 }
 
 function numberEnv(name: string, fallback: number): number {
@@ -74,6 +80,9 @@ function envDefaults(): LearnerProfile {
       "Listening/Reading: tận dụng nền TOEIC để kéo lên 7.5.",
       "SRS: xử lý lỗi lặp và lỗi cứng đầu trước.",
     ]),
+    planStart: process.env.IELTS_PLAN_START ?? toISODate(),
+    examDate: process.env.IELTS_EXAM_DATE || null,
+    weeklyTarget: numberEnv("IELTS_WEEKLY_TARGET", WEEKLY_TARGET_DEFAULT),
   };
 }
 
@@ -102,6 +111,9 @@ export async function learnerProfile(): Promise<LearnerProfile> {
     strategy: row.strategy,
     constraints: parseJsonList(row.constraints) ?? defaults.constraints,
     priorities: parseJsonList(row.priorities) ?? defaults.priorities,
+    planStart: row.planStart ?? defaults.planStart,
+    examDate: row.examDate ?? null,
+    weeklyTarget: row.weeklyTarget ?? defaults.weeklyTarget,
   };
 }
 

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { lessonQueueStatus } from "@/lib/ielts/plan";
 import { listBands } from "@/server/ielts/bands";
 import { listCompletedLessonIds } from "@/server/ielts/lessons";
+import { getPaceOverview } from "@/server/ielts/pace";
 import { getStreak, listSessions } from "@/server/ielts/sessions";
 
 export const dynamic = "force-dynamic";
@@ -19,29 +20,40 @@ const SKILL_EMOJI: Record<string, string> = {
 };
 
 export default async function ProgressPage() {
-  const [bands, sessions, streak, completedLessons] = await Promise.all([
+  const [bands, sessions, streak, completedLessons, pace] = await Promise.all([
     listBands(),
     listSessions(30),
     getStreak(),
     listCompletedLessonIds(),
+    getPaceOverview(),
   ]);
   const queue = lessonQueueStatus(completedLessons);
   const currentLesson = queue.current;
-  const latest = bands[0];
+  // Baseline rows carry a single skill and no overall, so the headline stat has
+  // to skip them rather than showing "—" right after a baseline is recorded.
+  const latest = bands.find((band) => band.overall != null);
 
   return (
     <section className="space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Tiến độ</h1>
         <p className="text-sm text-muted-foreground">
-          {currentLesson.phaseLabel} · Bài {currentLesson.index}/
-          {queue.totalCount} · streak {streak} ngày
+          {currentLesson.phaseLabel} · Tuần {currentLesson.week} · streak{" "}
+          {streak} ngày
         </p>
+        <p className="text-sm text-muted-foreground">{pace.report.message}</p>
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Streak" value={`${streak}🔥`} />
-        <Stat label="Buổi học" value={sessions.length} />
+        <Stat
+          label="Cần mỗi tuần"
+          value={
+            pace.report.requiredPerWeek == null
+              ? "—"
+              : `${pace.report.requiredPerWeek}/${pace.report.weeklyTarget}`
+          }
+        />
         <Stat
           label="Bài học"
           value={`${queue.completedCount}/${queue.totalCount}`}

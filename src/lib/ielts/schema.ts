@@ -142,6 +142,11 @@ export const learnerProfile = sqliteTable("learner_profile", {
   strategy: text("strategy").notNull(),
   constraints: text("constraints").notNull(), // JSON string[]
   priorities: text("priorities").notNull(), // JSON string[]
+  // Pace tracking (roadmap v2): when the plan restarted, when the exam is,
+  // and how many required lessons a week the learner is committing to.
+  planStart: text("plan_start"), // YYYY-MM-DD
+  examDate: text("exam_date"), // YYYY-MM-DD, null until the habit gate passes
+  weeklyTarget: integer("weekly_target").notNull().default(5),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 

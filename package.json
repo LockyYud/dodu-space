@@ -12,7 +12,7 @@
     "ielts:generate": "drizzle-kit generate",
     "ielts:migrate": "tsx scripts/ielts/migrate.ts",
     "ielts:seed": "tsx scripts/ielts/seed.ts",
-    "ielts:test": "tsx scripts/ielts/srs.test.ts"
+    "ielts:test": "tsx scripts/ielts/srs.test.ts && tsx scripts/ielts/plan.test.ts && tsx scripts/ielts/pace.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

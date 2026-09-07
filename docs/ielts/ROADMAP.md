@@ -1,214 +1,185 @@
-# Lộ trình IELTS 7.0 — Bản thiết kế cá nhân
+# Lộ trình IELTS 7.0 — bản v2 (chiến lược thực thi)
 
-> Tài liệu nguồn (source-of-truth) cho lộ trình học của Duy. Đây vừa là kế hoạch học,
-> vừa là spec nội dung cho app tracking sẽ build trong `dodu-space`.
-> Ngày lập: 2026-07-19.
+> Tài liệu nguồn cho lộ trình học của Duy, đồng thời là spec nội dung cho app
+> `/ielts` trong `dodu-space`. Lộ trình được mã hoá trong `src/lib/ielts/plan.ts`.
+> Bản v1 lập 2026-07-19. **Bản v2 lập 2026-09-07, reset mốc bắt đầu về 2026-09-07.**
 
 ---
 
-## 1. Hồ sơ người học
+## 1. Vì sao có bản v2
 
-| Mục | Giá trị |
+Bản v1 có chiến lược band đúng nhưng đổ ở khâu thực thi. Sau 7 tuần kể từ mốc
+2026-07-19, dữ liệu thật chỉ ghi nhận 2 buổi học, hàng đợi vẫn đứng ở bài đầu tiên,
+không có baseline, không có buổi Speaking nào và 3 error card chưa được ôn lần nào.
+
+Nguyên nhân nằm ở thiết kế kế hoạch, không nằm ở ý chí:
+
+| Lỗi thiết kế của v1 | Hệ quả |
 |---|---|
-| Điểm xuất phát | TOEIC 750 (L/R) · TOEIC Speaking & Writing 300/400 |
-| Quy đổi ước tính | Listening/Reading ~5.5–6.0 · Writing/Speaking ~5.5–6.0 |
-| Mục tiêu | **IELTS 7.0 overall** |
-| Thời gian/ngày | 1 giờ |
-| Nghỉ học gần đây | ~6 tháng → cần warm-up |
-| Speaking | Luyện với **gia sư** (ngoài app) — app chỉ tracking |
-| Điểm yếu trần band | **Writing** (cần feedback + error log + SRS) |
+| 60 phút/ngày, 7 ngày/tuần, không ngày bù | Bận một ngày là bỏ hẳn, bỏ vài ngày là mất đà |
+| 140 bài khác nhau | Áp lực "phải học đúng bài hôm nay" thay vì hình thành thói quen |
+| Speaking nằm ngoài kế hoạch | Không có điểm cam kết với người thật |
+| Mốc thi cố định nhưng tiến độ theo hàng đợi | Ngày thi trôi đi trong im lặng, app không báo |
+| Baseline chỉ là một dòng text | Không có số khởi điểm, mọi biểu đồ và khuyến nghị đều mù |
+| Bước viết lại không được ép | Viết xong rồi thôi, vòng lặp đẩy band không khép lại |
+
+Bản v2 giữ nguyên chiến lược band và thay toàn bộ cách thực thi.
 
 ---
 
-## 2. Chiến lược band (quan trọng — đọc kỹ)
+## 2. Chiến lược band — giữ nguyên từ v1
 
-IELTS overall = trung bình 4 kỹ năng, làm tròn 0.5. Muốn **7.0 overall cần tổng ≥ 27.0** (28/4 = 7.0; 27/4 = 6.75 → làm tròn 7.0).
-
-**Vấn đề:** Writing là kỹ năng khó nhất với bạn. Thay vì ép Writing lên 7.0, ta dùng chiến lược **kéo Listening/Reading lên cao để bù**:
+IELTS overall là trung bình 4 kỹ năng, làm tròn 0.5. Tổng 27.0 đã đủ ra 7.0.
 
 | Kịch bản | L | R | W | S | Tổng | Overall |
 |---|---|---|---|---|---|---|
 | Cân bằng (khó) | 7.0 | 7.0 | 7.0 | 7.0 | 28 | 7.0 |
-| **Bù trừ (thực tế cho bạn)** ⭐ | 7.5 | 7.5 | **6.5** | 6.5 | 28 | **7.0** |
-| Rủi ro | 7.0 | 7.5 | 6.0 | 6.5 | 27 | 7.0 (sát nút) |
+| **Bù trừ (đang áp dụng)** ⭐ | 7.5 | 7.5 | **6.5** | 6.5 | 28 | **7.0** |
 
-> **Kim chỉ nam:** L/R là lợi thế từ TOEIC → đẩy lên **7.5**. Writing chỉ cần chạm **6.5 chắc chắn**.
-> Đây là con đường ít tốn sức nhất tới 7.0.
->
-> ✅ **ĐÃ CHỐT (2026-07-19):** Mục tiêu chỉ yêu cầu **overall 7.0, không ràng buộc band tối thiểu
-> từng kỹ năng** → áp dụng kịch bản **Bù trừ**: L/R 7.5 · Writing 6.5 · Speaking 6.5.
-> Timeline **~20 tuần** (thi giữa tháng 12/2026).
+Kim chỉ nam: L/R là lợi thế từ nền TOEIC nên đẩy lên 7.5, Writing chỉ cần chạm 6.5
+chắc chắn. Mục tiêu không ràng buộc band tối thiểu từng kỹ năng.
 
 ---
 
-## 3. Tổng quan lộ trình
+## 3. Sáu nguyên tắc của v2
 
-```
-PHASE 0 — Warm-up            2 tuần    (tuần 1–2)   → kích hoạt lại + lý thuyết IELTS
-PHASE 1 — Xây nền            6 tuần    (tuần 3–8)   → xây Writing, chuẩn hóa L/R
-PHASE 2 — Luyện đề & tối ưu  12 tuần   (tuần 9–20)  → mock test, bịt lỗ hổng
-─────────────────────────────────────────────────────────────────────
-Tổng: ~20 tuần (~5 tháng) @ 1h/ngày   |  Speaking: song song với gia sư
-```
-
-Mốc thi mục tiêu: **cuối tuần 20** (khoảng giữa tháng 12/2026 nếu bắt đầu 2026-07-19).
+1. **Thói quen trước, band sau.** Không tăng thời lượng khi chưa giữ được nhịp.
+2. **Ít loại bài, lặp nhiều.** Ba vòng lặp cố định thay cho 140 bài riêng biệt.
+3. **Có buffer.** 5 bài bắt buộc mỗi tuần, thứ Bảy là ngày bù, Chủ nhật nghỉ hẳn.
+4. **Neo bằng người thật.** Buổi gia sư Speaking là điểm cam kết bên ngoài của tuần.
+5. **Đo trước khi chạy.** Chưa có baseline thì chưa đặt ngày thi.
+6. **Cho phép thua có kiểm soát.** Học thưa quá thì hạ tải, không để hàng đợi đứng im.
 
 ---
 
-## 4. Phân vai từng kỹ năng trong app
+## 4. Hai giai đoạn
+
+Tổng 20 tuần, 120 bài, trong đó **105 bài bắt buộc** và 15 ngày bù tuỳ chọn.
+
+```
+GIAI ĐOẠN A — Thói quen    4 tuần   (tuần 1–4)    25'/ngày · 5 bài/tuần
+GIAI ĐOẠN B1 — Xây nền     8 tuần   (tuần 5–12)   45–60'/ngày · đề lẻ
+GIAI ĐOẠN B2 — Luyện đề    8 tuần   (tuần 13–20)  45–60'/ngày · full test
+```
+
+### 4.1 Giai đoạn A — Thói quen (tuần 1–4), 25 phút/ngày
+
+Mục tiêu duy nhất là giữ nhịp. Không mock, không ép độ dài bài viết.
+
+| Ngày | Vòng lặp | Nội dung 25 phút | Đầu ra trong app |
+|---|---|---|---|
+| T2 | Writing | 1 đoạn body Task 2 (~120 từ) theo chủ đề tuần, chấm AI | submission + error card |
+| T3 | Listening | 1 section, ghi "vì sao sai" | track session + card |
+| T4 | Viết lại | Viết lại đoạn hôm T2 theo feedback | submission `is_rewrite` |
+| T5 | Reading | 1 passage, ghi "vì sao sai" | track session + card |
+| T6 | Speaking | Buổi gia sư: band ước tính + 1–3 lỗi | speaking session + card |
+| T7 | Ngày bù | Làm bù bài thiếu, hoặc chỉ ôn SRS | tuỳ chọn |
+| CN | Nghỉ | — | — |
+| Mỗi ngày | SRS | 5–10 phút đầu buổi, trước mọi việc khác | review log |
+
+**Tuần 1 bắt buộc có baseline.** Bài T3 và T5 của tuần 1 là bài đo: làm bấm giờ thật
+rồi nhập band. App chặn lưu nếu thiếu band, vì đây là mốc so sánh của cả lộ trình.
+
+**Điều kiện mở sang Giai đoạn B:** 4 tuần liên tiếp, mỗi tuần đạt đủ số bài bắt buộc.
+Chưa đạt thì Giai đoạn A kéo dài thêm, không nhảy cóc. App tính điều kiện này qua
+`habitGatePassed` và chỉ gợi ý đặt ngày thi sau khi đã qua.
+
+**Listening thụ động:** 20 phút podcast mỗi ngày khi di chuyển, không tính vào 25 phút,
+không cần trace. Đây là phần rẻ nhất để kéo Listening lên 7.5.
+
+### 4.2 Giai đoạn B1 và B2 (tuần 5–20), 45–60 phút/ngày
+
+Cấu trúc tuần giữ nguyên, chỉ tăng lượng đề.
+
+| Ngày | Nội dung B1 (tuần 5–12) | Nội dung B2 (tuần 13–20) |
+|---|---|---|
+| T2 | Task 2 full 40 phút, chấm AI | như B1 |
+| T3 | 2 Listening section | Listening full test 4 section |
+| T4 | Viết lại Task 2 (30') + Task 1 (20') | như B1 |
+| T5 | 2 Reading passage | Reading full test 3 passage |
+| T6 | Buổi gia sư, kèm nhờ xem bản viết lại hôm T4 | như B1 |
+| T7 | Ngày bù, hoặc mock ở tuần có mock | như B1 |
+| CN | Nghỉ, ôn SRS nếu muốn | như B1 |
+
+**Mock ở tuần 7, 10, 13, 16, 19.** Mock là bài bắt buộc, khung 3 giờ nằm ngoài ngân
+sách ngày thường, và bắt buộc nhập cả band Listening lẫn band Reading.
+
+**Chủ đề Writing xoay theo tuần:** Education, Environment, Technology, Health,
+Society & Crime, Work & Career, Culture & Media, Government & Money. App hiển thị
+chủ đề của tuần ngay trong bài.
+
+---
+
+## 5. Cột mốc band và quy tắc dời thi
+
+| Mốc | Listening | Reading | Writing | Speaking |
+|---|---|---|---|---|
+| Baseline (tuần 1) | đo thật | đo thật | ~5.5 theo AI | gia sư đánh giá |
+| Cuối B1 (tuần 12) | 6.5–7.0 | 7.0 | 6.0 | 6.0 |
+| Trước thi (tuần 19) | **7.5** | **7.5** | **6.5** | **6.5** |
+
+**Quy tắc dời thi:** nếu mock tuần 16 chưa đạt L+R ≥ 14.0, hoặc Writing dưới 6.0 ở
+3 bài liên tiếp, thì dời thi 6 tuần. Không nén lộ trình để đuổi ngày thi.
+
+**Mốc thi mặc định:** bắt đầu 2026-09-07, 20 tuần học cộng 2 tuần đệm, ngày thi sớm
+nhất khoảng **2027-02-08**. Ngày thi để trống trong app cho tới khi qua được điều kiện
+thói quen ở mục 4.1.
+
+---
+
+## 6. Chế độ hạ tải
+
+Kế hoạch được phép thua, nhưng phải thua có kiểm soát.
+
+- **Kích hoạt** khi 14 ngày gần nhất có dưới 6 ngày học.
+- **Hành vi:** app hiện banner "chế độ giữ nhịp", đề xuất một phiên SRS 10 phút thay
+  cho bài của hôm nay. Hàng đợi không trôi, bài vẫn nằm nguyên chỗ cũ.
+- **Thoát** khi có 5 ngày học liên tiếp.
+
+---
+
+## 7. Phân vai từng kỹ năng trong app
 
 | Kỹ năng | App làm gì | Nguồn học |
 |---|---|---|
-| 📖 Reading | Link ra web free → trace bằng screenshot → log lỗi vào SRS | Mini-IELTS, IELTS Online Tests, Cambridge 15–19 |
-| 👂 Listening | Link ra web free → trace screenshot → log lỗi nghe | Mini-IELTS, BBC Learning English, Cambridge |
-| ✍️ Writing | **Core của app:** AI chấm → auto sinh error card → SRS | Nội bộ app + AI + đề Cambridge |
-| 🗣️ Speaking | Chỉ tracking buổi gia sư (nhập lịch, ghi chú lỗi) | Gia sư |
-| 🧠 Vocab/Grammar | Error log chung + SRS xuyên suốt mọi kỹ năng | Sinh từ chính lỗi của bạn |
+| 📖 Reading | Link ra web free, nhập điểm hoặc đọc screenshot, log lỗi vào SRS | Mini-IELTS, IELTS Online Tests, Cambridge 15–19 |
+| 👂 Listening | Như Reading, cộng thêm dictation câu nghe sai | Mini-IELTS, BBC Learning English, Cambridge |
+| ✍️ Writing | Lõi của app: AI chấm, sinh error card, ép vòng viết lại | Nội bộ app + đề Cambridge |
+| 🗣️ Speaking | Bài bắt buộc mỗi tuần: ghi band và lỗi gia sư nêu | Gia sư |
+| 🧠 Vocab/Grammar | Error log chung + SRS xuyên suốt | Sinh từ chính lỗi của bạn |
 
 ---
 
-## 5. PHASE 0 — Warm-up (Tuần 1–2)
-
-**Mục tiêu:** quay lại đường ray, tạo thói quen 1h/ngày, nắm "lý thuyết IELTS". *Không chấm điểm, không bấm giờ (trừ bài test cuối).*
-
-### Tuần 1 — Đánh thức phản xạ (không lý thuyết)
-| Ngày | Nội dung (60') |
-|---|---|
-| T2 | 30' đọc 1 bài báo tiếng Anh dễ (chủ đề thích) · 30' ghi 10–15 từ/collocation mới |
-| T3 | 30' nghe podcast có phụ đề (tốc độ vừa) · 30' nghe lại không phụ đề |
-| T4 | 45' viết tự do 150 từ "một ngày của tôi" (không cần chuẩn IELTS) · 15' đọc lại |
-| T5 | 30' đọc 1 bài báo · 30' tóm tắt bằng 3–4 câu của mình |
-| T6 | 30' nghe (phụ đề) · 30' chép 5–10 câu hay (dictation nhẹ) |
-| T7 | 40' viết tự do 150–200 từ chủ đề bất kỳ · 20' ôn từ vựng tuần |
-| CN | Nghỉ / xem 1 phim–series có phụ đề (thư giãn nhưng vẫn "tắm" ngôn ngữ) |
-
-### Tuần 2 — Lý thuyết IELTS (phần lý thuyết DUY NHẤT cần học bài bản)
-| Ngày | Nội dung (60') |
-|---|---|
-| T2 | 30' học các **dạng câu hỏi Reading** (T/F/NG, matching headings, matching info, MCQ, gap-fill) · 30' làm thử 1 passage không bấm giờ |
-| T3 | 30' học các **dạng Listening** (form/note completion, map, matching, MCQ) · 30' làm 1 section + nghe lại kèm transcript |
-| T4 | 30' đọc 1 essay **Task 2 band 7 mẫu**, phân tích cấu trúc (intro–body–body–conclusion) · 30' viết dàn ý cho 1 đề |
-| T5 | 20' học dạng **Task 1** (line/bar/pie/table/process/map) · 40' viết 1 đoạn mô tả ngắn |
-| T6 | 45' viết 1 essay Task 2 ngắn (~200 từ, chưa bấm giờ) · 15' tự soát bằng checklist band 7 |
-| T7 | **Bài test baseline:** 1 Reading passage + 1 Listening section, bấm giờ thật → ghi band khởi điểm |
-| CN | Ôn từ vựng · nghỉ · chuẩn bị tinh thần vào Phase 1 |
-
-**Đầu ra Phase 0:** band khởi điểm (baseline) cho L/R + cảm nhận về Writing → mốc để đo tiến bộ.
-
-**Checklist band 7 tự soát Writing (dùng suốt lộ trình):**
-- [ ] Trả lời đủ & đúng trọng tâm đề (không lạc đề)
-- [ ] Mỗi body có 1 ý chính + giải thích + ví dụ cụ thể
-- [ ] Liên kết ý tự nhiên (không nhồi "Firstly/Moreover" máy móc)
-- [ ] Có collocation & từ ít phổ biến dùng đúng chỗ
-- [ ] Đa dạng câu (đơn/ghép/phức), phần lớn không lỗi
-- [ ] Đủ số từ (Task 1 ≥150, Task 2 ≥250), đúng thời gian (20'/40')
-
----
-
-## 6. PHASE 1 — Xây nền (Tuần 3–8)
-
-**Mục tiêu:** dựng bộ khung Writing band 6.5, chuẩn hóa kỹ thuật L/R, khởi động error log + SRS.
-
-### Lịch tuần chuẩn (lặp lại tuần 3–8)
-| Ngày | Kỹ năng | Nội dung (60') | App trace |
-|---|---|---|---|
-| T2 | ✍️ Writing Task 2 | 40' viết essay đúng giờ · 20' gửi AI chấm | Điểm band + error card |
-| T3 | 👂 Listening | 30' làm 1–2 section (link ngoài) · 15' nghe lại + transcript · 15' dictation câu sai | Screenshot điểm + lỗi nghe |
-| T4 | ✍️ Writing Task 1 | 20' viết mô tả biểu đồ · 15' học collocation chủ đề · 25' **viết lại** bài T2 đã chấm | Band + card |
-| T5 | 📖 Reading | 20' 1 passage đúng giờ · 20' soát "vì sao sai" · 20' paraphrase + từ mới | Screenshot + lỗi |
-| T6 | ✍️ Writing Task 2 | 40' essay chủ đề mới · 20' gửi AI chấm | Band + card |
-| T7 | 👂+📖 | 30' 1 Listening section · 30' 1 Reading passage (luyện tốc độ) | Screenshot ×2 |
-| CN | 🔁 Ôn SRS | Viết lại bài T6 · ôn toàn bộ error card đến hạn (SRS) | SRS review count |
-
-**Phân bổ:** Writing ×3 · Listening ×2 · Reading ×2/tuần. Speaking: 2–3 buổi gia sư/tuần (app nhắc + lưu ghi chú lỗi).
-
-### Nguyên tắc cốt lõi Phase 1
-1. **Vòng lặp vàng cho Writing:** viết → AI chấm → **viết lại** bài đã sửa. Bước "viết lại" (T4, CN) mới là thứ đẩy band.
-2. **Mọi lỗi → error card.** Front = câu sai / Back = câu đúng + loại lỗi (grammar / vocab / collocation / coherence) → nạp SRS.
-3. **Reading/Listening: chú trọng "vì sao sai"** hơn số lượng đề. Mỗi câu sai → 1 dòng ghi chú nguyên nhân (không đọc kịp / bẫy paraphrase / từ vựng / nghe sót).
-4. **Từ vựng học theo collocation + chủ đề**, không học từ lẻ.
-
-### Chủ đề Writing Task 2 luyện theo tuần (xoay vòng chủ đề hay ra)
-- T3: Education · T4: Environment · T5: Technology · T6: Health · T7: Society/Crime · T8: Work/Career
-
-**Mốc kiểm tra cuối tuần 8:** 1 mock Writing (Task 1 + Task 2 đúng giờ) + 1 mock Reading full → kỳ vọng Writing chạm ~6.0, Reading ~6.5–7.0.
-
----
-
-## 7. PHASE 2 — Luyện đề & tối ưu (Tuần 9–20)
-
-**Mục tiêu:** đưa Writing lên 6.5 chắc chắn, L/R lên 7.5, luyện sức bền phòng thi.
-
-### Cấu trúc tuần (tuần 9–20)
-| Ngày | Nội dung (60') |
-|---|---|
-| T2 | ✍️ Writing Task 2 full đúng giờ → AI chấm → error card |
-| T3 | 👂 Listening full test (4 sections) → screenshot → phân tích lỗi |
-| T4 | ✍️ Viết lại bài T2 + Writing Task 1 → chấm |
-| T5 | 📖 Reading full test (3 passages) đúng giờ → screenshot → phân tích |
-| T6 | ✍️ Writing (luân phiên Task 1/Task 2, tập trung dạng đề yếu) |
-| T7 | 🔁 Mock ghép (nửa Listening + nửa Reading) luyện chuyển kỹ năng liên tục |
-| CN | 🧠 Ôn SRS toàn bộ + review "top lỗi cứng đầu" (lỗi sai lặp ≥3 lần) |
-
-### Trọng tâm Phase 2
-- **Ưu tiên SRS lỗi lặp lại.** App đánh dấu "lỗi cứng đầu" → ôn dày hơn.
-- **Full mock test mỗi 2 tuần** (tuần 10, 12, 14, 16, 18, 20) → vẽ đường band theo thời gian, so baseline.
-- **Timing thật.** Reading 60' cho 3 passage, Listening 30'+10' transfer — luyện đúng áp lực phòng thi.
-- **Tuần 19–20:** giảm cường độ, ôn lỗi tồn, giữ phong độ (không nhồi bài mới) → vào thi.
-
-### Cột mốc band kỳ vọng
-| Mốc | Listening | Reading | Writing | Speaking* |
-|---|---|---|---|---|
-| Baseline (cuối T2) | 5.5–6.0 | 5.5–6.0 | ~5.5 | ~5.5 |
-| Cuối Phase 1 (T8) | 6.5 | 6.5–7.0 | 6.0 | 6.0 |
-| Cuối Phase 2 (T20) | **7.5** | **7.5** | **6.5** | **6.5** |
-
-*Speaking do gia sư đánh giá, app chỉ ghi nhận.
-
----
-
-## 8. Nguồn học ngoài (free/public) — cho L/R & tham khảo
+## 8. Nguồn học ngoài (free/public)
 
 | Loại | Nguồn | Ghi chú |
 |---|---|---|
-| Đề Reading/Listening | Mini-IELTS (mini-ielts.com) · IELTS Online Tests (ieltsonlinetests.com) | Có chấm tự động → dễ screenshot |
+| Đề Reading/Listening | Mini-IELTS · IELTS Online Tests | Có chấm tự động, dễ chụp màn hình |
 | Đề gốc chất lượng | Cambridge IELTS 15–19 | Sát đề thật nhất |
-| Listening bổ trợ | BBC Learning English (6 Minute English) · TED Talks · British Council podcasts | Luyện tai + accent đa dạng |
-| Lý thuyết & bài mẫu | IELTS Liz (ieltsliz.com) · engVid · British Council LearnEnglish | Task 2 band 7+ mẫu, dạng câu hỏi |
-| Từ vựng | Academic Word List (AWL) · collocation theo topic | Học theo cụm, không học lẻ |
-
-> App sẽ **link trực tiếp** tới các nguồn này theo từng buổi, kèm nút "Tôi đã làm xong → upload screenshot".
+| Listening bổ trợ | BBC 6 Minute English · TED Talks · British Council | Luyện tai và accent đa dạng |
+| Lý thuyết và bài mẫu | IELTS Liz · engVid · British Council LearnEnglish | Task 2 band 7+ mẫu |
+| Từ vựng | Academic Word List · collocation theo topic | Học theo cụm, không học lẻ |
 
 ---
 
-## 9. Cơ chế trace (tóm tắt — chi tiết ở phase thiết kế kỹ thuật)
+## 9. Chỉ số app theo dõi
 
-Mục đích trace = **(1) dữ liệu thói quen** (streak, giờ, band theo thời gian) + **(2) bắt lỗi vào SRS**. KHÔNG phải chống gian lận.
-
-- **Reading/Listening (nguồn ngoài):** làm xong → **upload screenshot kết quả** → AI vision đọc điểm + câu sai → auto điền tracking & gợi ý error card. Fallback: nhập tay điểm.
-- **Writing (trong app):** dán bài → AI chấm theo band descriptor → auto sinh error card.
-- **Speaking (gia sư):** nhập buổi học + ghi chú lỗi gia sư nêu → thành error card thủ công.
-
----
-
-## 10. Chỉ số app cần theo dõi (feed cho data model sau này)
-
-- Streak ngày liên tục + tổng giờ học
-- Band từng kỹ năng theo thời gian (line chart, mốc mỗi mock)
-- Error card: tổng / mới / đang ôn / đã thuộc (trạng thái SRS)
-- "Top lỗi cứng đầu" (sai lặp ≥3 lần)
-- Tiến độ theo phase (đang ở tuần mấy, % hoàn thành buổi trong tuần)
-- Lịch buổi Speaking với gia sư (đã học / sắp tới)
+- Streak ngày liên tục và số bài bắt buộc đã hoàn thành trên tổng 105.
+- **Pace:** số bài cần làm mỗi tuần để kịp ngày thi, so với mục tiêu tuần.
+- Band từng kỹ năng theo thời gian, mốc từ baseline và các mock.
+- Error card: tổng, đến hạn, và "lỗi cứng đầu" (lapses ≥ 3).
+- Điều kiện thói quen: đã đủ 4 tuần liên tiếp đạt target hay chưa.
+- Chế độ hạ tải: đang bật hay tắt.
 
 ---
 
-## 11. Rủi ro & cách phòng
+## 10. Rủi ro và cách phòng
 
-| Rủi ro | Phòng ngừa |
+| Rủi ro | Cách phòng trong v2 |
 |---|---|
-| Bỏ bê Writing (khó, ngại) | App ép vòng lặp viết-lại; đếm streak Writing riêng |
-| Học lý thuyết mãi, ngại làm bài | Lý thuyết gói gọn trong tuần 2; sau đó 90% là luyện |
-| Không có người chấm Writing | Dùng AI chấm theo band descriptor (trong app) |
-| Nhập lỗi thủ công gây nản | Ưu tiên screenshot + AI vision auto-sinh card |
-| Mất động lực giữa chừng | Streak + biểu đồ band đi lên + mock 2 tuần/lần tạo phản hồi |
-```
+| Bỏ bê Writing vì khó | Bài viết lại là bài riêng trong hàng đợi, mở sẵn bài gốc kèm feedback |
+| Bận việc, đứt nhịp | Ngày bù thứ Bảy, Chủ nhật nghỉ, chế độ hạ tải khi học thưa |
+| Học mãi không đo | Baseline bắt buộc ở tuần 1, mock bắt buộc 5 lần, đều chặn lưu nếu thiếu band |
+| Ngày thi trôi trong im lặng | Chỉ số pace hiện trên Hôm nay và Tiến độ, đổi màu theo mức rủi ro |
+| Mất động lực | Chênh lệch band giữa bài gốc và bản viết lại hiện ngay sau khi chấm |
+| Speaking bị quên | Là bài bắt buộc mỗi tuần, không hoàn thành thì hàng đợi không đi tiếp |

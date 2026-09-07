@@ -1,4 +1,4 @@
-import { desc } from "drizzle-orm";
+import { desc, isNotNull } from "drizzle-orm";
 import {
   AlertCircle,
   ArrowRight,
@@ -25,6 +25,7 @@ import { learnerProfile, targetSummary } from "@/lib/ielts/profile";
 import { isStubborn } from "@/lib/ielts/srs";
 import { listBands } from "@/server/ielts/bands";
 import { listCompletedLessonIds } from "@/server/ielts/lessons";
+import { getPaceOverview } from "@/server/ielts/pace";
 import { getDueCards } from "@/server/ielts/reviews";
 import { getStreak, listSessions } from "@/server/ielts/sessions";
 
@@ -40,17 +41,20 @@ async function _IeltsDashboard() {
   const [due, allCards, latestBand, streak] = await Promise.all([
     getDueCards(),
     db.select().from(schema.errorCard),
+    // Skip band rows without an overall (single-skill baselines).
     db
       .select()
       .from(schema.bandHistory)
+      .where(isNotNull(schema.bandHistory.overall))
       .orderBy(desc(schema.bandHistory.date))
       .limit(1),
     getStreak(),
   ]);
-  const [bands, sessions, completedLessons] = await Promise.all([
+  const [bands, sessions, completedLessons, pace] = await Promise.all([
     listBands(),
     listSessions(14),
     listCompletedLessonIds(),
+    getPaceOverview(),
   ]);
 
   const stubborn = allCards.filter((c) => isStubborn(c.lapses)).length;
@@ -64,6 +68,7 @@ async function _IeltsDashboard() {
       cards: allCards,
       dueCount: due.length,
       sessions,
+      degraded: pace.report.degraded,
     }),
     targetSummary(profile),
   ]);
@@ -123,7 +128,7 @@ async function _IeltsDashboard() {
               </div>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>
-                  {queue.completedCount}/{queue.totalCount} bài đã hoàn thành
+                  {queue.completedCount}/{queue.totalCount} bài bắt buộc đã xong
                 </span>
                 <span>{queue.percent}%</span>
               </div>

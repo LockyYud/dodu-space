@@ -1,4 +1,4 @@
-import { learnerProfile, targetBandFor } from "./profile";
+import { learnerProfile, targetBandFor, targetSummary } from "./profile";
 import type { BandHistory, ErrorCard, Skill, StudySession } from "./schema";
 import { isStubborn } from "./srs";
 
@@ -76,6 +76,8 @@ export async function adaptiveRecommendation(input: {
   cards: ErrorCard[];
   dueCount: number;
   sessions: StudySession[];
+  /** True when the last 14 days are too sparse to keep the normal load. */
+  degraded?: boolean;
 }): Promise<AdaptiveRecommendation> {
   const profile = await learnerProfile();
   const stubborn = input.cards.filter((c) => isStubborn(c.lapses));
@@ -87,6 +89,41 @@ export async function adaptiveRecommendation(input: {
   const recentSkillSet = new Set(
     input.sessions.slice(0, 7).map((s) => s.skill),
   );
+
+  // Losing the habit outranks any band gap: a plan nobody runs improves nothing.
+  if (input.degraded) {
+    return {
+      title:
+        input.dueCount > 0
+          ? `Giữ nhịp: ôn ${Math.min(input.dueCount, 6)} lỗi trong 10 phút`
+          : "Giữ nhịp: một buổi ngắn thôi cũng được",
+      reason:
+        "14 ngày qua học quá thưa. Ưu tiên lúc này là quay lại nhịp, không phải học thêm nội dung mới.",
+      actionLabel: input.dueCount > 0 ? "Ôn 10 phút" : "Mở bài hôm nay",
+      href: input.dueCount > 0 ? SKILL_HREF.review : "/ielts/today",
+      focusSkill: "review",
+      secondary: [
+        "Làm một buổi ngắn hôm nay quan trọng hơn làm đúng bài của hôm nay.",
+        `Khi đã đủ 5 ngày liên tiếp, app sẽ trả lại tải bình thường ${profile.dailyMinutes} phút.`,
+      ],
+    };
+  }
+
+  // Without a baseline every gap below is computed from nothing.
+  if (input.bands.length === 0) {
+    return {
+      title: "Đo baseline trước đã",
+      reason:
+        "Chưa có band khởi điểm nào, nên chưa thể biết bạn cách mục tiêu bao xa.",
+      actionLabel: "Làm bài baseline",
+      href: "/ielts/today",
+      focusSkill: "review",
+      secondary: [
+        "1 Reading passage + 1 Listening section bấm giờ thật là đủ.",
+        `Mục tiêu để so sánh: ${await targetSummary(profile)}`,
+      ],
+    };
+  }
 
   if (dueStubborn.length > 0) {
     return {

@@ -10,7 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import type { GradingResult, TaskType } from "@/lib/ielts/grading";
 import type { Lesson } from "@/lib/ielts/plan";
 import { cn } from "@/lib/utils";
-import { gradeAction, saveSubmission } from "@/server/ielts/writing";
+import {
+  gradeAction,
+  type RewriteSource,
+  saveSubmission,
+} from "@/server/ielts/writing";
 
 type CriterionKey = "task_response" | "coherence" | "lexical" | "grammar";
 const CRITERIA: { key: CriterionKey; label: string }[] = [
@@ -23,16 +27,22 @@ const CRITERIA: { key: CriterionKey; label: string }[] = [
 export function WritingWorkbench({
   configured,
   lesson,
+  rewriteSource = null,
+  minimumWords: minimumWordsProp,
 }: {
   configured: boolean;
   lesson?: Lesson;
+  rewriteSource?: RewriteSource | null;
+  minimumWords?: number;
 }) {
-  const plannedTaskType: TaskType = lesson?.activity.label.includes("Task 1")
-    ? "task1"
-    : "task2";
+  const plannedTaskType: TaskType =
+    rewriteSource?.taskType ??
+    (lesson?.activity.label.includes("Task 1") ? "task1" : "task2");
   const [taskType, setTaskType] = useState<TaskType>(plannedTaskType);
-  const [topic, setTopic] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [topic, setTopic] = useState(
+    rewriteSource?.topic ?? lesson?.activity.topic ?? "",
+  );
+  const [prompt, setPrompt] = useState(rewriteSource?.prompt ?? "");
   const [essay, setEssay] = useState("");
   const [result, setResult] = useState<GradingResult | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -48,7 +58,7 @@ export function WritingWorkbench({
   const [saving, startSaving] = useTransition();
 
   const wordCount = essay.trim().split(/\s+/).filter(Boolean).length;
-  const minimumWords = taskType === "task1" ? 150 : 250;
+  const minimumWords = minimumWordsProp ?? (taskType === "task1" ? 150 : 250);
   const timeLimit = taskType === "task1" ? 20 * 60 : 40 * 60;
 
   useEffect(() => {
@@ -93,6 +103,7 @@ export function WritingWorkbench({
         const cards = result.error_cards.filter((_, i) => selected.has(i));
         const res = await saveSubmission({
           lessonId: lesson?.id,
+          parentSubmissionId: rewriteSource?.id,
           taskType,
           topic: topic || undefined,
           prompt: prompt || undefined,
@@ -142,6 +153,61 @@ export function WritingWorkbench({
             ← Quay lại Hôm nay
           </Link>
         </div>
+      )}
+
+      {rewriteSource && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Bài gốc đang sửa
+              {rewriteSource.bands
+                ? ` · band ${rewriteSource.bands.overall.toFixed(1)}`
+                : ""}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {rewriteSource.feedback && (
+              <div className="space-y-1 text-sm">
+                {CRITERIA.map((c) => (
+                  <p key={c.key}>
+                    <span className="font-medium">{c.label}: </span>
+                    <span className="text-muted-foreground">
+                      {rewriteSource.feedback?.[c.key]}
+                    </span>
+                  </p>
+                ))}
+              </div>
+            )}
+            {rewriteSource.feedback &&
+              rewriteSource.feedback.to_reach_7.length > 0 && (
+                <div className="rounded-md bg-muted/50 p-3 text-sm">
+                  <p className="mb-1 font-medium">Cần sửa để lên band:</p>
+                  <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                    {rewriteSource.feedback.to_reach_7.map((t) => (
+                      <li key={t}>{t}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            <details className="rounded-md border p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                Xem lại bài đã viết
+              </summary>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                {rewriteSource.essayText}
+              </p>
+            </details>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEssay(rewriteSource.essayText)}
+              disabled={essay.trim().length > 0}
+            >
+              Chép bài gốc xuống để sửa trực tiếp
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {!configured && (
@@ -248,12 +314,22 @@ export function WritingWorkbench({
                     key={c.key}
                     label={c.label}
                     value={result.bands[c.key]}
+                    delta={
+                      rewriteSource?.bands
+                        ? result.bands[c.key] - rewriteSource.bands[c.key]
+                        : undefined
+                    }
                   />
                 ))}
                 <BandTile
                   label="Overall"
                   value={result.bands.overall}
                   highlight
+                  delta={
+                    rewriteSource?.bands
+                      ? result.bands.overall - rewriteSource.bands.overall
+                      : undefined
+                  }
                 />
               </div>
               <div className="space-y-2 text-sm">
@@ -411,10 +487,13 @@ function BandTile({
   label,
   value,
   highlight,
+  delta,
 }: {
   label: string;
   value: number;
   highlight?: boolean;
+  /** Change against the essay being rewritten, when there is one. */
+  delta?: number;
 }) {
   return (
     <div
@@ -426,6 +505,19 @@ function BandTile({
       <div className="text-2xl font-semibold tabular-nums">
         {value.toFixed(1)}
       </div>
+      {delta != null && delta !== 0 && (
+        <div
+          className={cn(
+            "text-[11px] font-medium tabular-nums",
+            delta > 0
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-destructive",
+          )}
+        >
+          {delta > 0 ? "+" : ""}
+          {delta.toFixed(1)}
+        </div>
+      )}
       <div className="mt-0.5 text-[11px] leading-tight text-muted-foreground">
         {label}
       </div>
