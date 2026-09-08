@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  integer,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /**
  * IELTS tracker — Drizzle schema (SQLite / libSQL).
@@ -31,11 +37,24 @@ export const REVIEW_GRADES = ["again", "hard", "good", "easy"] as const;
 export type ReviewGrade = (typeof REVIEW_GRADES)[number];
 
 /** One completed study activity of any skill. */
+/**
+ * `study_session.source_url` marker for the once-a-day row written when the
+ * learner reviews SRS cards. Reviewing is studying: without this row the
+ * streak and the 14-day pace window could not see review-only days, so the
+ * app's own "just review for 10 minutes today" advice never counted.
+ */
+export const REVIEW_SESSION_MARKER = "ielts:review";
+/** `study_session.status` for that row. */
+export const REVIEW_SESSION_STATUS = "review";
+
 export const studySession = sqliteTable("study_session", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   date: text("date").notNull(), // YYYY-MM-DD
   skill: text("skill").$type<Skill>().notNull(),
-  lessonId: text("lesson_id"), // e.g. "w3-d1" — id in the roadmap lesson queue
+  lessonId: text("lesson_id"), // legacy: id in the v2 lesson queue
+  // Roadmap v3 accounting unit: which daily/weekly slot this session filled.
+  // See SlotId in ./plan.ts.
+  slot: text("slot"),
   phase: integer("phase"), // 0 = warm-up, 1, 2 — derived from the lesson queue, not the calendar
   week: integer("week"),
   durationMin: integer("duration_min"),
@@ -54,6 +73,9 @@ export const writingSubmission = sqliteTable("writing_submission", {
   sessionId: integer("session_id").references(() => studySession.id),
   taskType: text("task_type").$type<"task1" | "task2">().notNull(),
   topic: text("topic"),
+  // Which prompt from the bank this answered, so the app can hand out a fresh
+  // one next time instead of repeating.
+  promptId: text("prompt_id"),
   prompt: text("prompt"),
   essayText: text("essay_text").notNull(),
   wordCount: integer("word_count"),
@@ -62,7 +84,14 @@ export const writingSubmission = sqliteTable("writing_submission", {
   bandLr: real("band_lr"), // lexical resource
   bandGra: real("band_gra"), // grammatical range & accuracy
   bandOverall: real("band_overall"),
-  feedbackJson: text("feedback_json"), // JSON: per-criterion notes + to_reach_7
+  feedbackJson: text("feedback_json"), // JSON: per-criterion notes + next steps
+  // Errors per 100 words from the extraction pass. The progress measure for
+  // the coach phases, where bands are deliberately absent.
+  errorDensity: real("error_density"),
+  gradingMode: text("grading_mode").$type<"coach" | "band">(),
+  // Spread between the highest and lowest sampled overall band; high spread
+  // means the grade is not trustworthy and the UI says so.
+  graderSpread: real("grader_spread"),
   isRewrite: integer("is_rewrite", { mode: "boolean" })
     .notNull()
     .default(false),
@@ -76,6 +105,9 @@ export const errorCard = sqliteTable("error_card", {
   sourceType: text("source_type").$type<Skill>().notNull(),
   sourceRef: text("source_ref"), // e.g. "writing_submission:12"
   errorType: text("error_type").$type<ErrorType>().notNull(),
+  // Closed rule id from ./error-rules.ts, so repeat offences can be counted
+  // across submissions rather than per free-form card text.
+  rule: text("rule"),
   front: text("front").notNull(), // the wrong sentence / point
   back: text("back").notNull(), // the corrected version
   explanation: text("explanation"),
@@ -150,10 +182,34 @@ export const learnerProfile = sqliteTable("learner_profile", {
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 
+/**
+ * One row per phase the learner has entered (roadmap v3). Phases advance on
+ * explicit confirmation once every exit criterion is met, never on a date, so
+ * the app needs to remember when the current phase actually began.
+ */
+export const phaseState = sqliteTable(
+  "phase_state",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    phase: text("phase").notNull(), // PhaseId
+    startedOn: text("started_on").notNull(), // YYYY-MM-DD
+    completedOn: text("completed_on"),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    // At most one phase may be open at a time. Belt and braces alongside the
+    // re-check in currentPhase(): two concurrent loaders must not both open one.
+    uniqueIndex("phase_state_one_open")
+      .on(table.completedOn)
+      .where(sql`${table.completedOn} is null`),
+  ],
+);
+
 export type StudySession = typeof studySession.$inferSelect;
 export type WritingSubmission = typeof writingSubmission.$inferSelect;
 export type ErrorCard = typeof errorCard.$inferSelect;
 export type ReviewLog = typeof reviewLog.$inferSelect;
 export type BandHistory = typeof bandHistory.$inferSelect;
 export type SpeakingSession = typeof speakingSession.$inferSelect;
+export type PhaseStateRow = typeof phaseState.$inferSelect;
 export type LearnerProfileRow = typeof learnerProfile.$inferSelect;

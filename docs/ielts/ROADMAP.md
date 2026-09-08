@@ -1,185 +1,216 @@
-# Lộ trình IELTS 7.0 — bản v2 (chiến lược thực thi)
+# Lộ trình IELTS 7.0 — bản v3 (xây từ trình độ thật)
 
-> Tài liệu nguồn cho lộ trình học của Duy, đồng thời là spec nội dung cho app
-> `/ielts` trong `dodu-space`. Lộ trình được mã hoá trong `src/lib/ielts/plan.ts`.
-> Bản v1 lập 2026-07-19. **Bản v2 lập 2026-09-07, reset mốc bắt đầu về 2026-09-07.**
-
----
-
-## 1. Vì sao có bản v2
-
-Bản v1 có chiến lược band đúng nhưng đổ ở khâu thực thi. Sau 7 tuần kể từ mốc
-2026-07-19, dữ liệu thật chỉ ghi nhận 2 buổi học, hàng đợi vẫn đứng ở bài đầu tiên,
-không có baseline, không có buổi Speaking nào và 3 error card chưa được ôn lần nào.
-
-Nguyên nhân nằm ở thiết kế kế hoạch, không nằm ở ý chí:
-
-| Lỗi thiết kế của v1 | Hệ quả |
-|---|---|
-| 60 phút/ngày, 7 ngày/tuần, không ngày bù | Bận một ngày là bỏ hẳn, bỏ vài ngày là mất đà |
-| 140 bài khác nhau | Áp lực "phải học đúng bài hôm nay" thay vì hình thành thói quen |
-| Speaking nằm ngoài kế hoạch | Không có điểm cam kết với người thật |
-| Mốc thi cố định nhưng tiến độ theo hàng đợi | Ngày thi trôi đi trong im lặng, app không báo |
-| Baseline chỉ là một dòng text | Không có số khởi điểm, mọi biểu đồ và khuyến nghị đều mù |
-| Bước viết lại không được ép | Viết xong rồi thôi, vòng lặp đẩy band không khép lại |
-
-Bản v2 giữ nguyên chiến lược band và thay toàn bộ cách thực thi.
+> Tài liệu nguồn cho lộ trình học của Duy và là spec nội dung cho app `/ielts` trong
+> `dodu-space`. **Bản v3 lập 2026-09-08**, thay thế v2. Code trong `src/lib/ielts/plan.ts`
+> hiện vẫn là v2; phần 9 liệt kê những gì phải đổi.
 
 ---
 
-## 2. Chiến lược band — giữ nguyên từ v1
+## 1. Vì sao có bản v3
 
-IELTS overall là trung bình 4 kỹ năng, làm tròn 0.5. Tổng 27.0 đã đủ ra 7.0.
+Hai bản trước đều xây trên một giả định trình độ chưa được kiểm chứng, và đều có cùng một
+lỗi hình dạng: xếp lịch cho đều thay vì xếp theo cách từng kỹ năng tiến bộ.
+
+| Bản | Sai ở đâu | Bằng chứng |
+|---|---|---|
+| v1 (07/2026) | 60 phút × 7 ngày, không ngày bù, không tín hiệu lệch tiến độ | 2 buổi học trong 7 tuần |
+| v2 (07/09) | Giữ được thói quen nhưng bài số 1 đã đo bằng thước band IELTS; bốn kỹ năng ép chung khuôn "mỗi ngày một bài"; giai đoạn chia theo tuần chứ không theo năng lực | Bài viết tự do đầu tiên bị chấm 4.5 kèm lời khuyên "viết 4 đoạn" |
+
+v3 khác ở ba điểm gốc: **xuất phát từ trình độ đã hiệu chỉnh**, **ba luồng chạy song song với
+nhịp khác nhau**, và **chuyển giai đoạn theo việc đã làm được**.
+
+---
+
+## 2. Trình độ xuất phát (đã hiệu chỉnh)
+
+Duy chủ động hạ điểm TOEIC cũ để phản ánh thời gian nghỉ.
+
+| Nguồn | Điểm | Quy đổi IELTS ước tính |
+|---|---|---|
+| TOEIC Listening & Reading | 700 | Listening ~5.5 · Reading ~5.5 |
+| TOEIC Speaking & Writing | 220 / 400 | Writing ~5.0 · Speaking ~5.0 |
+
+Mẫu viết tự do 102 từ ngày 07/09 xác nhận mức Writing: mật độ khoảng một lỗi mỗi tám từ,
+tập trung ở năm nhóm **lỗi quy tắc lặp lại**: danh từ số nhiều, hoà hợp chủ ngữ và động từ,
+thì, giới từ, viết hoa và mạo từ. Đây là loại lỗi sửa nhanh và cho lợi tức band cao nhất.
+
+> Con số trên là **sàn**. Bài baseline thật làm ở cuối Giai đoạn 1 (mục 5) sẽ thay nó.
+
+---
+
+## 3. Mục tiêu và mức độ thực tế
+
+Mục tiêu giữ nguyên: **overall 7.0**, không ràng buộc band tối thiểu từng kỹ năng. Mốc thi
+muộn nhất: **đầu tháng 2/2027**, tức 22 tuần kể từ 2026-09-08.
+
+Tổng 27.0 là đủ (27/4 = 6.75, làm tròn 7.0). Với xuất phát điểm mới, các kịch bản:
 
 | Kịch bản | L | R | W | S | Tổng | Overall |
 |---|---|---|---|---|---|---|
-| Cân bằng (khó) | 7.0 | 7.0 | 7.0 | 7.0 | 28 | 7.0 |
-| **Bù trừ (đang áp dụng)** ⭐ | 7.5 | 7.5 | **6.5** | 6.5 | 28 | **7.0** |
+| Cơ sở, khả năng cao | 6.5 | 6.5 | 6.0 | 6.0 | 25 | 6.5 |
+| Kéo L/R | 7.0 | 7.0 | 6.0 | 6.0 | 26 | 6.5 |
+| **Đạt mục tiêu** | **7.5** | **7.5** | 6.0 | 6.0 | 27 | **7.0** |
 
-Kim chỉ nam: L/R là lợi thế từ nền TOEIC nên đẩy lên 7.5, Writing chỉ cần chạm 6.5
-chắc chắn. Mục tiêu không ràng buộc band tối thiểu từng kỹ năng.
+Điều này nói thẳng: **7.0 vào tháng 2 chỉ xảy ra nếu Listening và Reading cùng lên 7.5**, tức
++2.0 band mỗi kỹ năng trong 22 tuần. Writing và Speaking chỉ cần 6.0, tức +1.0, dễ hơn v1 tưởng.
 
----
+Quỹ giờ khả dụng trong 22 tuần, tính cả nghe thụ động và gia sư, vào khoảng 180 đến 200 giờ.
+Đó xấp xỉ một bậc CEFR, tức B1+ lên B2, tương đương 5.5 lên 6.5 đồng đều. Vì vậy:
 
-## 3. Sáu nguyên tắc của v2
-
-1. **Thói quen trước, band sau.** Không tăng thời lượng khi chưa giữ được nhịp.
-2. **Ít loại bài, lặp nhiều.** Ba vòng lặp cố định thay cho 140 bài riêng biệt.
-3. **Có buffer.** 5 bài bắt buộc mỗi tuần, thứ Bảy là ngày bù, Chủ nhật nghỉ hẳn.
-4. **Neo bằng người thật.** Buổi gia sư Speaking là điểm cam kết bên ngoài của tuần.
-5. **Đo trước khi chạy.** Chưa có baseline thì chưa đặt ngày thi.
-6. **Cho phép thua có kiểm soát.** Học thưa quá thì hạ tải, không để hàng đợi đứng im.
+- **Kịch bản cơ sở là 6.5.** Kế hoạch được thiết kế để tối đa hoá cơ hội lên 7.0, không hứa.
+- **Điểm quyết định ở tuần 14** (mục 5): mock cho L+R ≥ 14.0 thì đăng ký thi tháng 2; chưa
+  thì dời sang tháng 4 hoặc 5/2027 và kéo dài Giai đoạn 2. Không nén.
 
 ---
 
-## 4. Hai giai đoạn
+## 4. Ba luồng, ba nhịp
 
-Tổng 20 tuần, 120 bài, trong đó **105 bài bắt buộc** và 15 ngày bù tuỳ chọn.
+Mỗi kỹ năng tiến bộ theo cách khác nhau, nên có nhịp khác nhau. Đây là thay đổi lớn nhất so
+với v2.
 
-```
-GIAI ĐOẠN A — Thói quen    4 tuần   (tuần 1–4)    25'/ngày · 5 bài/tuần
-GIAI ĐOẠN B1 — Xây nền     8 tuần   (tuần 5–12)   45–60'/ngày · đề lẻ
-GIAI ĐOẠN B2 — Luyện đề    8 tuần   (tuần 13–20)  45–60'/ngày · full test
-```
-
-### 4.1 Giai đoạn A — Thói quen (tuần 1–4), 25 phút/ngày
-
-Mục tiêu duy nhất là giữ nhịp. Không mock, không ép độ dài bài viết.
-
-| Ngày | Vòng lặp | Nội dung 25 phút | Đầu ra trong app |
+| Luồng | Nhịp | Vì sao nhịp này | App làm gì |
 |---|---|---|---|
-| T2 | Writing | 1 đoạn body Task 2 (~120 từ) theo chủ đề tuần, chấm AI | submission + error card |
-| T3 | Listening | 1 section, ghi "vì sao sai" | track session + card |
-| T4 | Viết lại | Viết lại đoạn hôm T2 theo feedback | submission `is_rewrite` |
-| T5 | Reading | 1 passage, ghi "vì sao sai" | track session + card |
-| T6 | Speaking | Buổi gia sư: band ước tính + 1–3 lỗi | speaking session + card |
-| T7 | Ngày bù | Làm bù bài thiếu, hoặc chỉ ôn SRS | tuỳ chọn |
-| CN | Nghỉ | — | — |
-| Mỗi ngày | SRS | 5–10 phút đầu buổi, trước mọi việc khác | review log |
+| **Tiếp nhận** (Listening + Reading) | **mỗi ngày**, 20 đến 30 phút | L/R lên band nhờ khối lượng tiếp xúc; một bài mỗi tuần là quá thưa cho +2.0 band | tick "đã nghe / đã đọc" mỗi ngày; mỗi tuần một bài bấm giờ có ghi lỗi theo dạng câu hỏi |
+| **Sản xuất** (Writing) | **2 lần mỗi tuần** + viết lại hôm sau | Writing lên band nhờ vòng phản hồi, không nhờ số lượng | viết → coach sửa → viết lại; đo **mật độ lỗi trên 100 từ** trước, band sau |
+| **Speaking** | 2 buổi gia sư mỗi tuần | có người thật, là điểm neo cam kết của tuần | ghi band ước tính và lỗi; nhờ gia sư sửa cùng năm nhóm lỗi ngữ pháp ở trên |
+| **SRS** | mỗi ngày, 5 đến 10 phút | keo dán của ba luồng | như hiện tại; một ngày chỉ ôn vẫn là một ngày học |
 
-**Tuần 1 bắt buộc có baseline.** Bài T3 và T5 của tuần 1 là bài đo: làm bấm giờ thật
-rồi nhập band. App chặn lưu nếu thiếu band, vì đây là mốc so sánh của cả lộ trình.
-
-**Điều kiện mở sang Giai đoạn B:** 4 tuần liên tiếp, mỗi tuần đạt đủ số bài bắt buộc.
-Chưa đạt thì Giai đoạn A kéo dài thêm, không nhảy cóc. App tính điều kiện này qua
-`habitGatePassed` và chỉ gợi ý đặt ngày thi sau khi đã qua.
-
-**Listening thụ động:** 20 phút podcast mỗi ngày khi di chuyển, không tính vào 25 phút,
-không cần trace. Đây là phần rẻ nhất để kéo Listening lên 7.5.
-
-### 4.2 Giai đoạn B1 và B2 (tuần 5–20), 45–60 phút/ngày
-
-Cấu trúc tuần giữ nguyên, chỉ tăng lượng đề.
-
-| Ngày | Nội dung B1 (tuần 5–12) | Nội dung B2 (tuần 13–20) |
-|---|---|---|
-| T2 | Task 2 full 40 phút, chấm AI | như B1 |
-| T3 | 2 Listening section | Listening full test 4 section |
-| T4 | Viết lại Task 2 (30') + Task 1 (20') | như B1 |
-| T5 | 2 Reading passage | Reading full test 3 passage |
-| T6 | Buổi gia sư, kèm nhờ xem bản viết lại hôm T4 | như B1 |
-| T7 | Ngày bù, hoặc mock ở tuần có mock | như B1 |
-| CN | Nghỉ, ôn SRS nếu muốn | như B1 |
-
-**Mock ở tuần 7, 10, 13, 16, 19.** Mock là bài bắt buộc, khung 3 giờ nằm ngoài ngân
-sách ngày thường, và bắt buộc nhập cả band Listening lẫn band Reading.
-
-**Chủ đề Writing xoay theo tuần:** Education, Environment, Technology, Health,
-Society & Crime, Work & Career, Culture & Media, Government & Money. App hiển thị
-chủ đề của tuần ngay trong bài.
+**Một ngày bình thường** = tiếp nhận + SRS, khoảng 25 đến 30 phút, phần lớn khi di chuyển.
+**Hai ngày trong tuần** nặng hơn vì có viết. Chủ nhật chỉ nghe thụ động.
 
 ---
 
-## 5. Cột mốc band và quy tắc dời thi
+## 5. Bốn giai đoạn, chuyển theo năng lực
 
-| Mốc | Listening | Reading | Writing | Speaking |
-|---|---|---|---|---|
-| Baseline (tuần 1) | đo thật | đo thật | ~5.5 theo AI | gia sư đánh giá |
-| Cuối B1 (tuần 12) | 6.5–7.0 | 7.0 | 6.0 | 6.0 |
-| Trước thi (tuần 19) | **7.5** | **7.5** | **6.5** | **6.5** |
+Số tuần là dự kiến để khớp mốc tháng 2. Điều kiện ra mới là thứ quyết định.
 
-**Quy tắc dời thi:** nếu mock tuần 16 chưa đạt L+R ≥ 14.0, hoặc Writing dưới 6.0 ở
-3 bài liên tiếp, thì dời thi 6 tuần. Không nén lộ trình để đuổi ngày thi.
+### Giai đoạn 0 — Quay lại · tuần 1–3 · 08/09 → 28/09
 
-**Mốc thi mặc định:** bắt đầu 2026-09-07, 20 tuần học cộng 2 tuần đệm, ngày thi sớm
-nhất khoảng **2027-02-08**. Ngày thi để trống trong app cho tới khi qua được điều kiện
-thói quen ở mục 4.1.
+Mục tiêu: ngồi xuống mỗi ngày, và triệt năm nhóm lỗi cơ bản. **Không band, không bấm giờ, không test.**
 
----
-
-## 6. Chế độ hạ tải
-
-Kế hoạch được phép thua, nhưng phải thua có kiểm soát.
-
-- **Kích hoạt** khi 14 ngày gần nhất có dưới 6 ngày học.
-- **Hành vi:** app hiện banner "chế độ giữ nhịp", đề xuất một phiên SRS 10 phút thay
-  cho bài của hôm nay. Hàng đợi không trôi, bài vẫn nằm nguyên chỗ cũ.
-- **Thoát** khi có 5 ngày học liên tiếp.
-
----
-
-## 7. Phân vai từng kỹ năng trong app
-
-| Kỹ năng | App làm gì | Nguồn học |
-|---|---|---|
-| 📖 Reading | Link ra web free, nhập điểm hoặc đọc screenshot, log lỗi vào SRS | Mini-IELTS, IELTS Online Tests, Cambridge 15–19 |
-| 👂 Listening | Như Reading, cộng thêm dictation câu nghe sai | Mini-IELTS, BBC Learning English, Cambridge |
-| ✍️ Writing | Lõi của app: AI chấm, sinh error card, ép vòng viết lại | Nội bộ app + đề Cambridge |
-| 🗣️ Speaking | Bài bắt buộc mỗi tuần: ghi band và lỗi gia sư nêu | Gia sư |
-| 🧠 Vocab/Grammar | Error log chung + SRS xuyên suốt | Sinh từ chính lỗi của bạn |
-
----
-
-## 8. Nguồn học ngoài (free/public)
-
-| Loại | Nguồn | Ghi chú |
-|---|---|---|
-| Đề Reading/Listening | Mini-IELTS · IELTS Online Tests | Có chấm tự động, dễ chụp màn hình |
-| Đề gốc chất lượng | Cambridge IELTS 15–19 | Sát đề thật nhất |
-| Listening bổ trợ | BBC 6 Minute English · TED Talks · British Council | Luyện tai và accent đa dạng |
-| Lý thuyết và bài mẫu | IELTS Liz · engVid · British Council LearnEnglish | Task 2 band 7+ mẫu |
-| Từ vựng | Academic Word List · collocation theo topic | Học theo cụm, không học lẻ |
-
----
-
-## 9. Chỉ số app theo dõi
-
-- Streak ngày liên tục và số bài bắt buộc đã hoàn thành trên tổng 105.
-- **Pace:** số bài cần làm mỗi tuần để kịp ngày thi, so với mục tiêu tuần.
-- Band từng kỹ năng theo thời gian, mốc từ baseline và các mock.
-- Error card: tổng, đến hạn, và "lỗi cứng đầu" (lapses ≥ 3).
-- Điều kiện thói quen: đã đủ 4 tuần liên tiếp đạt target hay chưa.
-- Chế độ hạ tải: đang bật hay tắt.
-
----
-
-## 10. Rủi ro và cách phòng
-
-| Rủi ro | Cách phòng trong v2 |
+| Luồng | Việc làm |
 |---|---|
-| Bỏ bê Writing vì khó | Bài viết lại là bài riêng trong hàng đợi, mở sẵn bài gốc kèm feedback |
-| Bận việc, đứt nhịp | Ngày bù thứ Bảy, Chủ nhật nghỉ, chế độ hạ tải khi học thưa |
-| Học mãi không đo | Baseline bắt buộc ở tuần 1, mock bắt buộc 5 lần, đều chặn lưu nếu thiếu band |
-| Ngày thi trôi trong im lặng | Chỉ số pace hiện trên Hôm nay và Tiến độ, đổi màu theo mức rủi ro |
-| Mất động lực | Chênh lệch band giữa bài gốc và bản viết lại hiện ngay sau khi chấm |
-| Speaking bị quên | Là bài bắt buộc mỗi tuần, không hoàn thành thì hàng đợi không đi tiếp |
+| Tiếp nhận | 20' podcast dễ (BBC 6 Minute English) + 10' một bài báo ngắn, mỗi ngày |
+| Sản xuất | 2 bài viết tự do 120–150 từ mỗi tuần theo gợi ý đời thường (kể về trường cũ, một ngày làm việc, một chuyến đi); **chế độ coach**: chỉ chỉ lỗi ngôn ngữ, sinh thẻ; hôm sau viết lại |
+| Ngữ pháp | 10' mỗi hai ngày: drill năm nhóm lỗi, nạp vào SRS |
+| Speaking | gia sư như thường, báo gia sư năm nhóm lỗi để sửa cả khi nói |
+
+**Điều kiện ra:** ít nhất 14 trong 21 ngày có tiếp nhận · 6 bài viết đã có thẻ lỗi · mật độ lỗi
+của hai bản viết lại gần nhất dưới 5 lỗi / 100 từ.
+
+### Giai đoạn 1 — Học format · tuần 4–7 · 29/09 → 26/10
+
+Mục tiêu: biết từng dạng câu hỏi, viết được essay đủ cấu trúc, rồi **đo baseline thật**.
+
+| Tuần | Reading học dạng | Listening học dạng | Writing |
+|---|---|---|---|
+| 4 | True/False/Not Given | Form / note completion | 1 đoạn body cho một đề Task 2 thật (app đưa đề) |
+| 5 | Matching headings | Map / plan labelling | 2 đoạn body cho cùng một đề |
+| 6 | Matching information / features | Matching | Essay 4 đoạn, không bấm giờ, có band tham khảo |
+| 7 | Gap fill / MCQ | MCQ | Essay 4 đoạn, không bấm giờ |
+
+Tiếp nhận hằng ngày vẫn chạy nền. Mỗi tuần thêm **một passage và một section bấm giờ** đúng
+dạng đang học, ghi "vì sao sai" theo dạng câu hỏi.
+
+**Cuối tuần 7: baseline thật.** Một Listening đủ 4 section + một Reading đủ 3 passage, bấm giờ,
+cùng một Task 2 40 phút. Đây là mốc thay cho ước tính ở mục 2.
+
+**Điều kiện ra:** đã có baseline · essay 4 đoạn ≥ 250 từ · mật độ lỗi dưới 4 / 100 từ.
+
+### Giai đoạn 2 — Nâng band · tuần 8–19 · 27/10 → 18/01
+
+Mục tiêu: đẩy L/R về 7.5, giữ W/S ở 6.0, luyện sức bền.
+
+| Luồng | Việc làm mỗi tuần |
+|---|---|
+| Tiếp nhận | nền hằng ngày, nâng độ khó (TED, bài giảng); **2 bài bấm giờ**: 1 Listening, 1 Reading; từ tuần 12 là full test |
+| Sản xuất | 1 Task 2 đúng 40 phút có band + 1 viết lại; **Task 1 bắt đầu từ tuần 10**, mỗi hai tuần một bài |
+| Speaking | gia sư 2 buổi; ghi band mỗi tháng |
+| SRS | ưu tiên lỗi cứng đầu |
+
+**Mock mỗi 3 tuần:** tuần 10, 13, 16, 19. Khung 3 giờ cuối tuần, ngoài quỹ ngày.
+
+**Điểm quyết định, tuần 14 (08/12):** dựa trên mock tuần 13.
+
+| Kết quả mock tuần 13 | Quyết định |
+|---|---|
+| L + R ≥ 14.0 và Writing ≥ 5.5 | đăng ký thi đầu tháng 2/2027 |
+| L + R từ 13.0 đến 13.5 | đăng ký tháng 4/2027, kéo Giai đoạn 2 thêm 8 tuần |
+| L + R dưới 13.0 | dời tháng 5/2027, xem lại chiến lược bù trừ |
+
+### Giai đoạn 3 — Trước thi · tuần 20–22 · 19/01 → 08/02
+
+Một mock cuối ở tuần 20. Sau đó chỉ SRS và tiếp nhận nhẹ, **không nạp bài mới**. Thi khoảng
+07 đến 08/02/2027.
+
+---
+
+## 6. Cột mốc band kỳ vọng
+
+| Mốc | L | R | W | S | Tổng |
+|---|---|---|---|---|---|
+| Ước tính hiện tại | 5.5 | 5.5 | 5.0 | 5.0 | 21 |
+| Baseline thật, cuối tuần 7 | 6.0 | 6.0 | 5.5 | 5.5 | 23 |
+| Mock tuần 13, điểm quyết định | 6.5–7.0 | 6.5–7.0 | 5.5–6.0 | 6.0 | 24.5–26 |
+| Mock tuần 19 | 7.0–7.5 | 7.0–7.5 | 6.0 | 6.0 | 26–27 |
+
+Writing trong Giai đoạn 0 và 1 **không đo bằng band** mà bằng mật độ lỗi / 100 từ. Band chỉ
+xuất hiện từ tuần 6.
+
+---
+
+## 7. Chế độ hạ tải
+
+Giữ từ v2, có sửa: kích hoạt khi 14 ngày gần nhất có dưới 6 ngày học; hành vi là chỉ yêu cầu
+tiếp nhận 10 phút + SRS; **một ngày chỉ ôn SRS vẫn là một ngày học**; thoát khi cửa sổ 14 ngày
+đủ 6 ngày trở lại.
+
+---
+
+## 8. Nguồn học
+
+| Loại | Nguồn |
+|---|---|
+| Nghe thụ động | BBC 6 Minute English (GĐ 0–1) · TED Talks, BBC Learning English "Lingohack" (GĐ 2) |
+| Đề Reading / Listening | Mini-IELTS · IELTS Online Tests · Cambridge IELTS 15–19 |
+| Lý thuyết dạng câu hỏi | IELTS Liz · British Council LearnEnglish |
+| Ngữ pháp năm nhóm lỗi | English Grammar in Use (Murphy), các unit về số nhiều, hoà hợp, thì, giới từ, mạo từ |
+| Từ vựng | Academic Word List, học theo collocation trong bài đọc hằng ngày |
+
+---
+
+## 9. App đã đổi gì (triển khai 2026-09-08)
+
+Phần giữ nguyên: SRS, Track, Speaking, chế độ hạ tải, hồ sơ học, auth. Phần đã viết lại,
+tất cả đều có test trong `npm run ielts:test`:
+
+1. ✅ **Hàng đợi tuyến tính 105 bài → checklist ngày + suất tuần.** Mỗi ngày: tiếp nhận + SRS.
+   Mỗi tuần: 2 suất viết, 1–2 bài bấm giờ, 2 buổi gia sư. `plan.ts` mô tả giai đoạn và suất,
+   không mô tả từng ngày.
+2. ✅ **Chuyển giai đoạn theo điều kiện ra**, tính từ dữ liệu thật: ngày có tiếp nhận, số bài viết,
+   mật độ lỗi, baseline đã có hay chưa. Không theo tuần đã trôi.
+3. ✅ **Chế độ coach cho Writing.** Prompt riêng, trả nhận xét và thẻ lỗi, không trả band, không
+   ghi band vào buổi học. Ẩn ô band, ẩn nhãn Task, đồng hồ chỉ là gợi ý mềm.
+4. ✅ **Mật độ lỗi / 100 từ** là chỉ số tiến bộ Writing ở Giai đoạn 0 và 1; bản viết lại so số
+   lỗi, không so band.
+5. ✅ **Ngân hàng đề**: gợi ý đời thường cho Giai đoạn 0, đề Task 2 thật theo chủ đề cho Giai
+   đoạn 1 trở đi. Ô đề bài không còn tuỳ chọn.
+6. ✅ **Thẻ lỗi**: yêu cầu AI trích 3 đến 5 thẻ, mỗi thẻ một lỗi, gộp trùng; UI giữ tối đa 3.
+7. ✅ **Baseline** dời về cuối Giai đoạn 1. **Điểm quyết định tuần 14** hiện thành một thẻ trên
+   trang Hôm nay với ba nhánh ở mục 5.
+8. ✅ **Tiếp nhận hằng ngày** là một hành động mới trong app: một nút "đã nghe / đã đọc" với số
+   phút, không cần nguồn, không cần điểm.
+9. ✅ **Chấm bài AI làm lại** theo `TECH-DESIGN.md` §10: tách bước trích lỗi khỏi bước chấm, hai
+   chế độ coach và band, descriptor thật thay tóm tắt, trung vị nhiều mẫu, thẻ một lỗi có
+   `rule` để đếm lỗi lặp, và **bộ đo chuẩn** để biết chấm có tốt hơn hay không thay vì cảm giác.
+
+### Ghi chú triển khai
+
+- `src/lib/ielts/plan.ts` chỉ còn mô tả giai đoạn, mục tiêu ngày và suất tuần. Không còn
+  khái niệm "bài số N".
+- `src/lib/ielts/progress.ts` là nơi duy nhất đánh giá dữ liệu thật so với kế hoạch; thuần và
+  có test, nên các ngưỡng không thể trôi khỏi tài liệu này nữa.
+- `study_session.slot` là đơn vị đếm cho cả ngày lẫn tuần. Ôn SRS, tiếp nhận, viết, viết lại,
+  bấm giờ, mock và gia sư đều ghi slot riêng.
+- Điểm quyết định tuần 14 nằm ở tiêu chí ra của Giai đoạn 2: đủ 4 mock có band, và đã chốt
+  ngày thi. Bảng ba nhánh ở mục 5 là quyết định của bạn, app chỉ cung cấp số.

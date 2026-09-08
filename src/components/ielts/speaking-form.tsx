@@ -6,12 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { Lesson } from "@/lib/ielts/plan";
 import { addSpeaking } from "@/server/ielts/speaking";
 
 type CardDraft = { front: string; back: string; explanation: string };
 
-export function SpeakingForm({ lesson }: { lesson?: Lesson }) {
+export function SpeakingForm() {
   const [duration, setDuration] = useState("");
   const [band, setBand] = useState("");
   const [notes, setNotes] = useState("");
@@ -52,7 +51,6 @@ export function SpeakingForm({ lesson }: { lesson?: Lesson }) {
     startSave(async () => {
       try {
         await addSpeaking({
-          lessonId: lesson?.id,
           durationMin: duration ? Number(duration) : undefined,
           bandEstimate: band ? Number(band) : undefined,
           tutorNotes: notes || undefined,
@@ -75,22 +73,6 @@ export function SpeakingForm({ lesson }: { lesson?: Lesson }) {
         <CardTitle className="text-base">Ghi buổi Speaking</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {lesson && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/25 bg-primary/5 px-3 py-2">
-            <div>
-              <p className="text-xs font-medium text-primary">Bài hôm nay</p>
-              <p className="text-sm font-medium">
-                Bài {lesson.index}: {lesson.activity.label}
-              </p>
-            </div>
-            <Link
-              href="/ielts/today"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              ← Hôm nay
-            </Link>
-          </div>
-        )}
         <div className="flex gap-2">
           <Input
             placeholder="Thời lượng (phút)"

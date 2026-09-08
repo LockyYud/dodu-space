@@ -1,91 +1,56 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-import { requireIeltsUser } from "@/lib/auth/guard";
-import { captureCards } from "@/lib/ielts/capture";
-import { db, schema } from "@/lib/ielts/db";
-import { lessonSequence } from "@/lib/ielts/plan";
-import type { Skill } from "@/lib/ielts/schema";
-import { toISODate } from "@/lib/ielts/srs";
-import { logSession } from "./sessions";
+import {
+  countRecentSessions,
+  type PaceReport,
+  paceStatus,
+  suggestedExamDate,
+} from "@/lib/ielts/pace";
+import { computeStreak, plannedWeeksRemaining } from "@/lib/ielts/plan";
+import { type LearnerProfile, learnerProfile } from "@/lib/ielts/profile";
+import type { ProgressReport } from "@/lib/ielts/progress";
+import { loadProgress } from "./progress";
+import { countDue } from "./reviews";
+import { listStudyDates } from "./sessions";
 
-export interface SaveTodayNoteInput {
-  lessonId: string;
-  skill: Skill;
-  durationMin: number;
-  sourceUrl?: string;
-  notes: string;
+export interface TodayData {
+  progress: ProgressReport;
+  pace: PaceReport;
+  suggestedExam: string;
+  dueCount: number;
+  streak: number;
+  profile: LearnerProfile;
 }
 
-export async function saveTodayNote(
-  input: SaveTodayNoteInput,
-): Promise<number> {
-  await requireIeltsUser();
-  const notes = input.notes.trim();
-  if (!notes) throw new Error("Note đang trống.");
-  const lesson = lessonSequence().find((item) => item.id === input.lessonId);
+/**
+ * Everything the Today page needs, resolved once. Loading progress and pace
+ * separately meant `currentPhase()` ran twice per request, which raced to
+ * create two opening phase rows on a fresh database.
+ */
+export async function loadToday(): Promise<TodayData> {
+  const [progress, profile, studyDates, dueCount] = await Promise.all([
+    loadProgress(),
+    learnerProfile(),
+    listStudyDates(),
+    countDue(),
+  ]);
 
-  return logSession({
-    skill: input.skill,
-    lessonId: lesson?.id,
-    phase: lesson?.phase,
-    week: lesson?.week,
-    durationMin: input.durationMin,
-    sourceUrl: input.sourceUrl,
-    notes: lesson
-      ? [`Bài ${lesson.index}: ${lesson.activity.label}`, "", notes].join("\n")
-      : notes,
-  });
-}
-
-export interface CaptureLessonCardsInput {
-  lessonId: string;
-  skill: Skill;
-  sourceTitle?: string;
-  sourceUrl?: string;
-  raw: string;
-}
-
-export async function captureLessonCards(
-  input: CaptureLessonCardsInput,
-): Promise<{ cardsAdded: number }> {
-  await requireIeltsUser();
-  const raw = input.raw.trim();
-  if (!raw) throw new Error("Chưa có lỗi/từ mới để capture.");
-
-  const lesson = lessonSequence().find((item) => item.id === input.lessonId);
-  const cards = await captureCards({
-    skill: input.skill,
-    lessonLabel: lesson?.activity.label ?? input.lessonId,
-    sourceTitle: input.sourceTitle,
-    raw,
-  });
-
-  if (cards.length === 0) return { cardsAdded: 0 };
-
-  const context = [
-    lesson ? `Bài ${lesson.index}: ${lesson.activity.label}` : input.lessonId,
-    input.sourceTitle,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  await db.insert(schema.errorCard).values(
-    cards.map((card) => ({
-      sourceType: input.skill,
-      sourceRef: input.sourceUrl ?? `lesson:${input.lessonId}`,
-      errorType: card.error_type,
-      front: card.front,
-      back: card.back,
-      explanation: card.explanation,
-      context,
-      dueDate: toISODate(),
-    })),
+  const planned = plannedWeeksRemaining(
+    progress.phase.id,
+    progress.weekInPhase,
   );
+  const pace = paceStatus({
+    plannedWeeksRemaining: planned,
+    studyDaysLast14: countRecentSessions(studyDates),
+    examDate: profile.examDate,
+  });
 
-  revalidatePath("/ielts");
-  revalidatePath("/ielts/today");
-  revalidatePath("/ielts/errors");
-  revalidatePath("/ielts/review");
-  return { cardsAdded: cards.length };
+  return {
+    progress,
+    pace,
+    suggestedExam: suggestedExamDate(planned),
+    dueCount,
+    streak: computeStreak(studyDates),
+    profile,
+  };
 }

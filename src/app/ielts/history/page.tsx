@@ -1,21 +1,24 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { listLessonHistory } from "@/server/ielts/lessons";
+import { listStudyDays } from "@/server/ielts/history";
 
 export const dynamic = "force-dynamic";
 
-const SKILL_EMOJI: Record<string, string> = {
-  writing: "✍️",
-  reading: "📖",
-  listening: "👂",
-  speaking: "🗣️",
-  vocab: "🧠",
-  rest: "🔁",
+const SLOT_LABEL: Record<string, string> = {
+  input: "Tiếp nhận",
+  srs: "Ôn lỗi",
+  writing: "Viết",
+  rewrite: "Viết lại",
+  "timed-listening": "Listening bấm giờ",
+  "timed-reading": "Reading bấm giờ",
+  mock: "Mock",
+  tutor: "Gia sư",
+  grammar: "Ngữ pháp",
 };
 
 export default async function HistoryPage() {
-  const records = await listLessonHistory();
+  const days = await listStudyDays();
 
   return (
     <section className="space-y-6">
@@ -24,60 +27,58 @@ export default async function HistoryPage() {
           Hành trình học
         </h1>
         <p className="text-sm text-muted-foreground">
-          Mỗi attempt, feedback và repair bạn đã lưu — mở lại để học tiếp từ
-          đúng chỗ.
+          Mỗi ngày bạn đã học, và những gì còn giữ lại được từ ngày đó.
         </p>
       </header>
 
-      {records.length === 0 ? (
+      {days.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-sm text-muted-foreground">
-            Chưa có attempt nào. Hoàn thành một phiên ở Hôm nay để bắt đầu có
-            hành trình xem lại.
+            Chưa có ngày nào được ghi. Mở Hôm nay và bắt đầu bằng phần tiếp
+            nhận.
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {records.map(({ lesson, sessions, submissions, cards }) => {
-            const latest = sessions[0];
+          {days.map((day) => {
+            const slots = [
+              ...new Set(
+                day.sessions.map((s) => s.slot ?? "khác").filter(Boolean),
+              ),
+            ];
+            const minutes = day.sessions.reduce(
+              (sum, s) => sum + (s.durationMin ?? 0),
+              0,
+            );
             return (
-              <Card key={lesson.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <CardTitle className="text-base">
-                        {SKILL_EMOJI[lesson.activity.skill]} Bài {lesson.index}:{" "}
-                        {lesson.activity.label}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground">
-                        Lần gần nhất: {latest.date} · {sessions.length} lần lưu
-                      </p>
-                    </div>
-                    <div className="flex gap-1.5">
-                      {submissions.length > 0 && (
+              <Card key={day.date}>
+                <CardHeader className="pb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="text-base">{day.date}</CardTitle>
+                    <div className="flex flex-wrap gap-1.5">
+                      {minutes > 0 && (
+                        <Badge variant="outline">{minutes} phút</Badge>
+                      )}
+                      {day.submissions.length > 0 && (
                         <Badge variant="secondary">
-                          {submissions.length} bài viết
+                          {day.submissions.length} bài viết
                         </Badge>
                       )}
-                      {cards.length > 0 && (
-                        <Badge variant="outline">
-                          {cards.length} lỗi đã lưu
-                        </Badge>
+                      {day.cards.length > 0 && (
+                        <Badge variant="outline">{day.cards.length} lỗi</Badge>
                       )}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-0">
-                  <p className="line-clamp-2 text-sm text-muted-foreground">
-                    {latest.notes ||
-                      latest.rawScore ||
-                      "Đã lưu kết quả buổi học."}
+                  <p className="text-sm text-muted-foreground">
+                    {slots.map((s) => SLOT_LABEL[s] ?? s).join(" · ")}
                   </p>
                   <Link
-                    href={`/ielts/history/${lesson.id}`}
+                    href={`/ielts/history/${day.date}`}
                     className="shrink-0 text-sm font-medium text-primary hover:underline"
                   >
-                    Mở attempt →
+                    Xem ngày này →
                   </Link>
                 </CardContent>
               </Card>

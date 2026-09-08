@@ -1,111 +1,74 @@
 import { toISODate } from "./srs";
 
 /**
- * Pace tracking for roadmap v2 (see docs/ielts/ROADMAP.md §2).
+ * Pace and reduced-load detection for roadmap v3.
  *
- * v1 had no way to notice it was falling behind: the queue simply stood still
- * while the calendar moved, so the exam date drifted in silence. These pure
- * functions turn "lessons left vs. weeks left" into a status the UI can show,
- * and detect the stall early enough to switch to a reduced-load mode instead
- * of letting the plan break.
+ * v2 measured pace as "required lessons left divided by weeks left", which
+ * only worked while the plan was a fixed queue. v3 has phases with exit
+ * criteria, so the honest question is: does the roadmap still fit before the
+ * exam date? That is planned weeks remaining against calendar weeks remaining.
  */
 
 export type PaceStatus = "no-exam" | "on-track" | "behind" | "at-risk";
 
-/** Study sessions in the last 14 days below this ⇒ reduced-load mode. */
+/** Study days in the last 14 below this ⇒ reduced-load mode. */
 export const DEGRADED_SESSION_THRESHOLD = 6;
 export const DEGRADED_WINDOW_DAYS = 14;
-/** How far above the weekly target still counts as merely "behind". */
-const AT_RISK_MULTIPLIER = 1.3;
+/** Weeks of slack that still counts as merely "behind" rather than at risk. */
+const AT_RISK_SLACK = -3;
 
 export interface PaceInput {
-  completedRequired: number;
-  totalRequired: number;
-  weeklyTarget: number;
-  sessionsLast14d: number;
+  /** From `plannedWeeksRemaining()` in ./plan.ts. */
+  plannedWeeksRemaining: number;
+  studyDaysLast14: number;
   examDate?: string | null;
   today?: Date;
 }
 
 export interface PaceReport {
-  remaining: number;
+  plannedWeeksRemaining: number;
   /** Whole weeks left until the exam; null when no exam date is set. */
   weeksLeft: number | null;
-  /** Required lessons per week to finish in time; null when no exam date. */
-  requiredPerWeek: number | null;
-  weeklyTarget: number;
+  /** Weeks of slack: calendar weeks minus planned weeks. */
+  slack: number | null;
   status: PaceStatus;
-  /** True when the last 14 days are too sparse to keep the normal load. */
   degraded: boolean;
   message: string;
 }
 
 export function paceStatus(input: PaceInput): PaceReport {
   const today = input.today ?? new Date();
-  const remaining = Math.max(0, input.totalRequired - input.completedRequired);
-  const degraded = input.sessionsLast14d < DEGRADED_SESSION_THRESHOLD;
-  const weeklyTarget = Math.max(1, input.weeklyTarget);
+  const planned = Math.max(0, input.plannedWeeksRemaining);
+  const degraded = input.studyDaysLast14 < DEGRADED_SESSION_THRESHOLD;
 
   if (!input.examDate) {
     return {
-      remaining,
+      plannedWeeksRemaining: planned,
       weeksLeft: null,
-      requiredPerWeek: null,
-      weeklyTarget,
+      slack: null,
       status: "no-exam",
       degraded,
-      message: degraded
-        ? "Chưa đặt ngày thi. Giữ nhịp học đã rồi hãy đặt lịch."
-        : `Chưa đặt ngày thi. Còn ${remaining} bài bắt buộc trong lộ trình.`,
+      message: `Chưa đặt ngày thi. Lộ trình còn khoảng ${planned} tuần nữa theo kế hoạch.`,
     };
   }
 
   const weeksLeft = weeksBetween(today, input.examDate);
+  const slack = weeksLeft - planned;
 
-  if (remaining === 0) {
-    return {
-      remaining,
-      weeksLeft,
-      requiredPerWeek: 0,
-      weeklyTarget,
-      status: "on-track",
-      degraded,
-      message: "Đã hoàn thành toàn bộ bài bắt buộc của lộ trình.",
-    };
-  }
-
-  if (weeksLeft <= 0) {
-    return {
-      remaining,
-      weeksLeft,
-      requiredPerWeek: null,
-      weeklyTarget,
-      status: "at-risk",
-      degraded,
-      message: `Ngày thi đã tới nhưng còn ${remaining} bài chưa xong.`,
-    };
-  }
-
-  const requiredPerWeek = round1(remaining / weeksLeft);
   const status: PaceStatus =
-    requiredPerWeek <= weeklyTarget
-      ? "on-track"
-      : requiredPerWeek <= weeklyTarget * AT_RISK_MULTIPLIER
-        ? "behind"
-        : "at-risk";
+    slack >= 1 ? "on-track" : slack >= AT_RISK_SLACK ? "behind" : "at-risk";
 
   const message =
     status === "on-track"
-      ? `Đúng nhịp: cần ${requiredPerWeek} bài/tuần, mục tiêu ${weeklyTarget}.`
+      ? `Đúng nhịp: còn ${weeksLeft} tuần tới ngày thi, kế hoạch cần ${planned} tuần.`
       : status === "behind"
-        ? `Hơi chậm: cần ${requiredPerWeek} bài/tuần so với mục tiêu ${weeklyTarget}.`
-        : `Không kịp ngày thi: cần ${requiredPerWeek} bài/tuần. Cân nhắc dời thi thay vì nén lộ trình.`;
+        ? `Hơi chậm: còn ${weeksLeft} tuần nhưng kế hoạch cần ${planned} tuần. Bù bằng ngày bù, chưa cần dời thi.`
+        : `Không kịp: còn ${weeksLeft} tuần cho ${planned} tuần kế hoạch. Nên dời ngày thi thay vì nén giai đoạn.`;
 
   return {
-    remaining,
+    plannedWeeksRemaining: planned,
     weeksLeft,
-    requiredPerWeek,
-    weeklyTarget,
+    slack,
     status,
     degraded,
     message,
@@ -114,8 +77,7 @@ export function paceStatus(input: PaceInput): PaceReport {
 
 /** Whole weeks from `today` to `target` (YYYY-MM-DD), floored at the day level. */
 export function weeksBetween(today: Date, target: string): number {
-  const days = daysUntil(today, target);
-  return Math.floor(days / 7);
+  return Math.floor(daysUntil(today, target) / 7);
 }
 
 /** Calendar days from `today` to `target` (YYYY-MM-DD). Negative if past. */
@@ -144,19 +106,22 @@ export function countRecentSessions(
   return new Set(dates.filter((date) => date >= from && date <= to)).size;
 }
 
-/**
- * The earliest sensible exam date: the remaining required lessons at the
- * weekly target, plus two weeks of buffer before the test.
- */
+/** The earliest sensible exam date: the plan's remaining weeks plus a buffer. */
 export function suggestedExamDate(
-  remaining: number,
-  weeklyTarget: number,
+  plannedWeeksRemaining: number,
   today = new Date(),
 ): string {
-  const weeks = Math.ceil(remaining / Math.max(1, weeklyTarget)) + 2;
   const date = new Date(today);
-  date.setDate(date.getDate() + weeks * 7);
+  date.setDate(date.getDate() + (Math.max(0, plannedWeeksRemaining) + 2) * 7);
   return toISODate(date);
 }
 
-const round1 = (n: number) => Math.round(n * 10) / 10;
+/** Study days inside the current calendar week window of `days` length. */
+export function studyDaysThisWeek(
+  dates: string[],
+  weekStart: string,
+  today = new Date(),
+): number {
+  const to = toISODate(today);
+  return new Set(dates.filter((d) => d >= weekStart && d <= to)).size;
+}

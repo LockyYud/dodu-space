@@ -131,7 +131,10 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
         </Field>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field id="profile-daily-minutes" label="Số phút học/ngày">
+          <Field
+            id="profile-daily-minutes"
+            label="Số phút rảnh mỗi ngày (không phải độ dài bài)"
+          >
             <Input
               id="profile-daily-minutes"
               type="number"

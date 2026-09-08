@@ -11,13 +11,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import type { Lesson } from "@/lib/ielts/plan";
 import type { ErrorType, Skill } from "@/lib/ielts/schema";
 import type { ScreenshotResult } from "@/lib/ielts/vision";
 import { cn } from "@/lib/utils";
-import { parseScreenshotAction, saveTrackSession } from "@/server/ielts/track";
+import {
+  parseScreenshotAction,
+  saveTrackSession,
+  type TrackKind,
+} from "@/server/ielts/track";
 
 type TrackSkill = Extract<Skill, "reading" | "listening" | "vocab">;
+
+const KIND_LABEL: Record<TrackKind, string> = {
+  timed: "Bấm giờ",
+  practice: "Luyện thường",
+  mock: "Mock đầy đủ",
+  baseline: "Baseline",
+};
 type SuggestedCardDraft = {
   error_type: ErrorType;
   front: string;
@@ -27,22 +37,18 @@ type SuggestedCardDraft = {
 
 export function TrackForm({
   configured,
-  lesson,
+  initialKind,
+  initialSkill,
   sources = [],
 }: {
   configured: boolean;
-  lesson?: Lesson;
+  initialKind: TrackKind;
+  initialSkill: TrackSkill;
   sources?: LearningSource[];
 }) {
-  const lessonKind = lesson?.activity.kind;
-  const isBaseline = lessonKind === "baseline";
-  const isMock = lessonKind === "mock";
-  const lessonSkill = lesson?.activity.skill;
-  const [skill, setSkill] = useState<TrackSkill>(() =>
-    lessonSkill === "listening" || lessonSkill === "reading"
-      ? lessonSkill
-      : "reading",
-  );
+  const [kind, setKind] = useState<TrackKind>(initialKind);
+  const needsBothBands = kind === "mock" || kind === "baseline";
+  const [skill, setSkill] = useState<TrackSkill>(initialSkill);
   const [sourceUrl, setSourceUrl] = useState("");
   const [rawScore, setRawScore] = useState("");
   const [band, setBand] = useState("");
@@ -54,10 +60,7 @@ export function TrackForm({
   const [cards, setCards] = useState<SuggestedCardDraft[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<{
-    cardsAdded: number;
-    lessonCompleted: boolean;
-  } | null>(null);
+  const [saved, setSaved] = useState<{ cardsAdded: number } | null>(null);
   const [parsing, startParse] = useTransition();
   const [saving, startSave] = useTransition();
 
@@ -122,18 +125,18 @@ export function TrackForm({
         return;
       }
     }
-    if (isBaseline && !band) {
-      setError("Bài baseline cần band ước tính để làm mốc so sánh.");
-      return;
-    }
-    if (isMock && (!bandListening || !bandReading)) {
-      setError("Mock cần cả band Listening và band Reading.");
+    if (needsBothBands && (!bandListening || !bandReading)) {
+      setError(
+        kind === "mock"
+          ? "Mock cần cả band Listening và band Reading."
+          : "Baseline cần cả band Listening và band Reading.",
+      );
       return;
     }
     startSave(async () => {
       try {
         const res = await saveTrackSession({
-          lessonId: lesson?.id,
+          kind,
           skill,
           sourceUrl: sourceUrl || undefined,
           rawScore: rawScore || undefined,
@@ -146,7 +149,6 @@ export function TrackForm({
         });
         setSaved({
           cardsAdded: res.cardsAdded,
-          lessonCompleted: res.lessonCompleted,
         });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Lưu thất bại.");
@@ -156,28 +158,6 @@ export function TrackForm({
 
   return (
     <div className="space-y-6" onPaste={onPaste}>
-      {lesson && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/25 bg-primary/5 px-4 py-3">
-          <div>
-            <p className="text-xs font-medium text-primary">
-              Đang làm bài hôm nay
-            </p>
-            <p className="text-sm font-medium">
-              Bài {lesson.index}: {lesson.activity.label}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {lesson.activity.focus}
-            </p>
-          </div>
-          <Link
-            href="/ielts/today"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            ← Quay lại Hôm nay
-          </Link>
-        </div>
-      )}
-
       {sources.length > 0 && (
         <Card className="border-primary/25 bg-primary/5">
           <CardHeader>
@@ -205,31 +185,38 @@ export function TrackForm({
         <CardContent className="space-y-3">
           {readyToRecord ? (
             <>
-              {lessonSkill === "reading" || lessonSkill === "listening" ? (
-                <Badge variant="secondary">
-                  Phiên này:{" "}
-                  {lessonSkill === "reading" ? "Reading" : "Listening"}
-                </Badge>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {(["reading", "listening", "vocab"] as TrackSkill[]).map(
-                    (s) => (
-                      <Button
-                        key={s}
-                        size="sm"
-                        variant={skill === s ? "default" : "outline"}
-                        onClick={() => setSkill(s)}
-                      >
-                        {s === "reading"
-                          ? "Reading"
-                          : s === "listening"
-                            ? "Listening"
-                            : "Vocab"}
-                      </Button>
-                    ),
-                  )}
-                </div>
-              )}
+              <div className="flex flex-wrap gap-2">
+                {(["timed", "practice", "mock", "baseline"] as TrackKind[]).map(
+                  (k) => (
+                    <Button
+                      key={k}
+                      size="sm"
+                      variant={kind === k ? "default" : "outline"}
+                      onClick={() => setKind(k)}
+                    >
+                      {KIND_LABEL[k]}
+                    </Button>
+                  ),
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(["reading", "listening", "vocab"] as TrackSkill[]).map(
+                  (s) => (
+                    <Button
+                      key={s}
+                      size="sm"
+                      variant={skill === s ? "default" : "outline"}
+                      onClick={() => setSkill(s)}
+                    >
+                      {s === "reading"
+                        ? "Reading"
+                        : s === "listening"
+                          ? "Listening"
+                          : "Vocab"}
+                    </Button>
+                  ),
+                )}
+              </div>
               <details>
                 <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
                   Dán link nguồn thủ công (nếu không dùng nguồn đề xuất)
@@ -296,11 +283,9 @@ export function TrackForm({
                   className="max-w-24"
                 />
               </div>
-              {isMock ? (
+              {needsBothBands ? (
                 <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-                  <p className="text-sm font-medium">
-                    Band của mock (bắt buộc)
-                  </p>
+                  <p className="text-sm font-medium">Band (bắt buộc)</p>
                   <p className="text-xs text-muted-foreground">
                     Hai số này được lưu vào biểu đồ tiến độ và quyết định giữ
                     hay dời ngày thi.
@@ -319,22 +304,6 @@ export function TrackForm({
                       className="max-w-40"
                     />
                   </div>
-                </div>
-              ) : isBaseline ? (
-                <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-                  <p className="text-sm font-medium">
-                    Band khởi điểm (bắt buộc)
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Đây là mốc so sánh của cả lộ trình. Ước tính từ số câu đúng
-                    cũng được.
-                  </p>
-                  <Input
-                    placeholder="Band (vd 6.0)"
-                    value={band}
-                    onChange={(e) => setBand(e.target.value)}
-                    className="max-w-32"
-                  />
                 </div>
               ) : (
                 <details>
@@ -428,7 +397,6 @@ export function TrackForm({
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm text-emerald-600 dark:text-emerald-400">
                 Đã lưu ✓ ({saved.cardsAdded} lỗi để ôn lại)
-                {saved.lessonCompleted && " · Bài hôm nay đã hoàn tất"}
               </span>
               <Link
                 href="/ielts/today"

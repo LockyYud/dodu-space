@@ -4,11 +4,9 @@ import { revalidatePath } from "next/cache";
 import { requireIeltsUser } from "@/lib/auth/guard";
 import { overallOf } from "@/lib/ielts/bands";
 import { db, schema } from "@/lib/ielts/db";
-import { findLesson } from "@/lib/ielts/plan";
 import type { ErrorType, Skill } from "@/lib/ielts/schema";
 import { toISODate } from "@/lib/ielts/srs";
 import { parseScreenshot, type ScreenshotResult } from "@/lib/ielts/vision";
-import { completeLesson, currentLessonMeta } from "./lessons";
 
 /** Parse a Reading/Listening result screenshot (data URL) via the vision model. */
 export async function parseScreenshotAction(
@@ -18,30 +16,40 @@ export async function parseScreenshotAction(
   return parseScreenshot(dataUrl);
 }
 
+export type TrackKind = "practice" | "timed" | "mock" | "baseline";
+
 export interface SaveTrackInput {
-  lessonId?: string;
+  /** What this session was for; decides the slot and whether bands are required. */
+  kind: TrackKind;
   skill: Skill; // reading | listening | vocab
   sourceUrl?: string;
   rawScore?: string;
   bandEstimate?: number;
   durationMin?: number;
   notes?: string;
-  /** Mock lessons record both skills at once; baselines use `bandEstimate`. */
+  /** Mock and baseline record both skills at once. */
   bandListening?: number;
   bandReading?: number;
   cards: {
     error_type: ErrorType;
+    rule?: string;
     front: string;
     back: string;
     explanation: string;
   }[];
 }
 
-/** Persist a Reading/Listening study session + any error cards kept. */
+const SLOT_FOR: Record<TrackKind, string> = {
+  practice: "input",
+  timed: "timed",
+  mock: "mock",
+  baseline: "mock",
+};
+
+/** Persist a Reading/Listening session, plus band rows for baseline and mock. */
 export async function saveTrackSession(input: SaveTrackInput): Promise<{
   sessionId: number;
   cardsAdded: number;
-  lessonCompleted: boolean;
 }> {
   await requireIeltsUser();
   const rawScore = input.rawScore?.trim();
@@ -57,40 +65,32 @@ export async function saveTrackSession(input: SaveTrackInput): Promise<{
   ) {
     throw new Error("Thời lượng phải lớn hơn 0 phút.");
   }
-  if (
-    input.bandEstimate != null &&
-    (!Number.isFinite(input.bandEstimate) ||
-      input.bandEstimate < 0 ||
-      input.bandEstimate > 9)
-  ) {
-    throw new Error("Band phải nằm trong khoảng 0–9.");
-  }
-  const today = toISODate();
-  const lesson = await currentLessonMeta();
-  const shouldCompleteLesson = input.lessonId === lesson.lessonId;
-  const cards = input.cards.filter((c) => c.front && c.back);
-
-  // Baseline and mock lessons exist to produce numbers. Without them the band
-  // chart and every band-gap recommendation stay blind, so they are required
-  // rather than optional here.
-  const plannedLesson = input.lessonId ? findLesson(input.lessonId) : undefined;
-  const kind = plannedLesson?.activity.kind;
-  for (const band of [input.bandListening, input.bandReading]) {
+  for (const band of [
+    input.bandEstimate,
+    input.bandListening,
+    input.bandReading,
+  ]) {
     if (band != null && (!Number.isFinite(band) || band < 0 || band > 9)) {
       throw new Error("Band phải nằm trong khoảng 0–9.");
     }
   }
-  if (kind === "baseline" && input.bandEstimate == null) {
-    throw new Error(
-      "Bài baseline cần band ước tính — đây là mốc so sánh của cả lộ trình.",
-    );
-  }
+
+  // Baseline and mock exist to produce numbers. Without them the band chart
+  // and every exit criterion that depends on it stay blind.
+  const needsBothBands = input.kind === "mock" || input.kind === "baseline";
   if (
-    kind === "mock" &&
+    needsBothBands &&
     (input.bandListening == null || input.bandReading == null)
   ) {
-    throw new Error("Mock cần cả band Listening và band Reading.");
+    throw new Error(
+      input.kind === "mock"
+        ? "Mock cần cả band Listening và band Reading."
+        : "Baseline cần cả band Listening và band Reading.",
+    );
   }
+
+  const today = toISODate();
+  const cards = input.cards.filter((c) => c.front && c.back);
 
   const { sessionId } = await db.transaction(async (tx) => {
     const [session] = await tx
@@ -98,9 +98,12 @@ export async function saveTrackSession(input: SaveTrackInput): Promise<{
       .values({
         date: today,
         skill: input.skill,
-        lessonId: lesson.lessonId,
-        phase: lesson.phase,
-        week: lesson.week,
+        slot:
+          input.kind === "timed"
+            ? input.skill === "listening"
+              ? "timed-listening"
+              : "timed-reading"
+            : SLOT_FOR[input.kind],
         sourceUrl: input.sourceUrl ?? null,
         rawScore: rawScore || null,
         bandEstimate: input.bandEstimate ?? null,
@@ -116,6 +119,7 @@ export async function saveTrackSession(input: SaveTrackInput): Promise<{
           sourceType: input.skill,
           sourceRef: `study_session:${session.id}`,
           errorType: c.error_type,
+          rule: c.rule ?? null,
           front: c.front,
           back: c.back,
           explanation: c.explanation,
@@ -125,44 +129,26 @@ export async function saveTrackSession(input: SaveTrackInput): Promise<{
       );
     }
 
-    if (kind === "baseline" || kind === "mock") {
-      const listening =
-        input.bandListening ??
-        (input.skill === "listening" ? input.bandEstimate : undefined) ??
-        null;
-      const reading =
-        input.bandReading ??
-        (input.skill === "reading" ? input.bandEstimate : undefined) ??
-        null;
+    if (needsBothBands) {
       await tx.insert(schema.bandHistory).values({
         date: today,
-        listening,
-        reading,
-        // A single-skill baseline leaves `overall` null on purpose so it does
-        // not draw a fake overall point on the progress chart.
-        overall: kind === "mock" ? overallOf({ listening, reading }) : null,
-        isMock: kind === "mock",
-        note:
-          kind === "mock"
-            ? `Mock L+R tuần ${plannedLesson?.week ?? ""}`.trim()
-            : `Baseline ${input.skill}`,
+        listening: input.bandListening ?? null,
+        reading: input.bandReading ?? null,
+        overall: overallOf({
+          listening: input.bandListening,
+          reading: input.bandReading,
+        }),
+        isMock: input.kind === "mock",
+        note: input.kind === "mock" ? "Mock Listening + Reading" : "Baseline",
       });
     }
 
     return { sessionId: session.id };
   });
 
-  if (shouldCompleteLesson && input.lessonId) {
-    await completeLesson(input.lessonId);
-  }
-
-  revalidatePath("/ielts");
+  revalidatePath("/ielts/today");
   revalidatePath("/ielts/progress");
   revalidatePath("/ielts/review");
   revalidatePath("/ielts/errors");
-  return {
-    sessionId,
-    cardsAdded: cards.length,
-    lessonCompleted: shouldCompleteLesson,
-  };
+  return { sessionId, cardsAdded: cards.length };
 }

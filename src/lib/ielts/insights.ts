@@ -1,5 +1,11 @@
 import { learnerProfile, targetBandFor, targetSummary } from "./profile";
-import type { BandHistory, ErrorCard, Skill, StudySession } from "./schema";
+import {
+  type BandHistory,
+  type ErrorCard,
+  REVIEW_SESSION_STATUS,
+  type Skill,
+  type StudySession,
+} from "./schema";
 import { isStubborn } from "./srs";
 
 type BandSkill = Extract<
@@ -78,6 +84,12 @@ export async function adaptiveRecommendation(input: {
   sessions: StudySession[];
   /** True when the last 14 days are too sparse to keep the normal load. */
   degraded?: boolean;
+  /**
+   * Length of today's lesson. The profile's `dailyMinutes` is how much time the
+   * learner has, not how long the session is — Stage A deliberately uses 25 of
+   * a 60-minute budget, so quoting the profile number contradicted the plan.
+   */
+  todayMinutes?: number;
 }): Promise<AdaptiveRecommendation> {
   const profile = await learnerProfile();
   const stubborn = input.cards.filter((c) => isStubborn(c.lapses));
@@ -86,8 +98,14 @@ export async function adaptiveRecommendation(input: {
   const largestGap = gaps
     .filter((g) => g.gap != null)
     .sort((a, b) => (b.gap ?? 0) - (a.gap ?? 0))[0];
+  const sessionMinutes = input.todayMinutes ?? profile.dailyMinutes;
+  // Review-only days are logged as sessions too; they say nothing about which
+  // skills have been practised, so they must not skew the skill mix.
   const recentSkillSet = new Set(
-    input.sessions.slice(0, 7).map((s) => s.skill),
+    input.sessions
+      .filter((s) => s.status !== REVIEW_SESSION_STATUS)
+      .slice(0, 7)
+      .map((s) => s.skill),
   );
 
   // Losing the habit outranks any band gap: a plan nobody runs improves nothing.
@@ -104,7 +122,7 @@ export async function adaptiveRecommendation(input: {
       focusSkill: "review",
       secondary: [
         "Làm một buổi ngắn hôm nay quan trọng hơn làm đúng bài của hôm nay.",
-        `Khi đã đủ 5 ngày liên tiếp, app sẽ trả lại tải bình thường ${profile.dailyMinutes} phút.`,
+        `Khi đã đủ 5 ngày liên tiếp, app sẽ trả lại buổi học đầy đủ ${sessionMinutes} phút.`,
       ],
     };
   }
@@ -135,7 +153,7 @@ export async function adaptiveRecommendation(input: {
       focusSkill: "review",
       secondary: [
         `Top lỗi: ${topErrorThemes(dueStubborn, 2).join(", ") || "lỗi đến hạn"}`,
-        `Giữ phiên trong khoảng ${profile.dailyMinutes} phút để không vỡ lịch.`,
+        `Giữ phiên trong khoảng ${sessionMinutes} phút để không vỡ lịch.`,
       ],
     };
   }

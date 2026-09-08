@@ -3,10 +3,9 @@ import { BandChart } from "@/components/ielts/band-chart";
 import { BandForm } from "@/components/ielts/band-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { lessonQueueStatus } from "@/lib/ielts/plan";
 import { listBands } from "@/server/ielts/bands";
-import { listCompletedLessonIds } from "@/server/ielts/lessons";
 import { getPaceOverview } from "@/server/ielts/pace";
+import { loadProgress } from "@/server/ielts/progress";
 import { getStreak, listSessions } from "@/server/ielts/sessions";
 
 export const dynamic = "force-dynamic";
@@ -20,15 +19,13 @@ const SKILL_EMOJI: Record<string, string> = {
 };
 
 export default async function ProgressPage() {
-  const [bands, sessions, streak, completedLessons, pace] = await Promise.all([
+  const [bands, sessions, streak, pace, progress] = await Promise.all([
     listBands(),
     listSessions(30),
     getStreak(),
-    listCompletedLessonIds(),
     getPaceOverview(),
+    loadProgress(),
   ]);
-  const queue = lessonQueueStatus(completedLessons);
-  const currentLesson = queue.current;
   // Baseline rows carry a single skill and no overall, so the headline stat has
   // to skip them rather than showing "—" right after a baseline is recorded.
   const latest = bands.find((band) => band.overall != null);
@@ -38,8 +35,8 @@ export default async function ProgressPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Tiến độ</h1>
         <p className="text-sm text-muted-foreground">
-          {currentLesson.phaseLabel} · Tuần {currentLesson.week} · streak{" "}
-          {streak} ngày
+          {progress.phase.label} · Tuần {progress.weekInPhase} · streak {streak}{" "}
+          ngày
         </p>
         <p className="text-sm text-muted-foreground">{pace.report.message}</p>
       </header>
@@ -47,17 +44,14 @@ export default async function ProgressPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Streak" value={`${streak}🔥`} />
         <Stat
-          label="Cần mỗi tuần"
+          label="Tuần còn lại"
           value={
-            pace.report.requiredPerWeek == null
-              ? "—"
-              : `${pace.report.requiredPerWeek}/${pace.report.weeklyTarget}`
+            pace.report.weeksLeft == null
+              ? `${pace.report.plannedWeeksRemaining} kế hoạch`
+              : `${pace.report.weeksLeft} / ${pace.report.plannedWeeksRemaining}`
           }
         />
-        <Stat
-          label="Bài học"
-          value={`${queue.completedCount}/${queue.totalCount}`}
-        />
+        <Stat label="Buổi học" value={sessions.length} />
         <Stat
           label="Overall gần nhất"
           value={latest?.overall != null ? latest.overall.toFixed(1) : "—"}
@@ -107,10 +101,10 @@ export default async function ProgressPage() {
                 )}
               </>
             );
-            return s.lessonId ? (
+            return s.date ? (
               <Link
                 key={s.id}
-                href={`/ielts/history/${s.lessonId}`}
+                href={`/ielts/history/${s.date}`}
                 className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted/40"
               >
                 {content}

@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import {
-  HABIT_GATE_WEEKS,
-  habitGatePassed,
-  lessonQueueStatus,
-  lessonSequence,
-  MOCK_WEEKS,
-  stageOf,
-  topicForWeek,
-  WEEKLY_TARGET_DEFAULT,
-  WEEKS_TOTAL,
-  weeklyCompletionCounts,
+  FORMAT_WEEK_COUNT,
+  FORMAT_WEEKS,
+  formatWeek,
+  nextPhaseId,
+  PHASES,
+  PLANNED_WEEKS_TOTAL,
+  phaseById,
+  plannedWeeksRemaining,
+  slotsForWeek,
 } from "../../src/lib/ielts/plan";
+import { pickPrompt, promptsFor } from "../../src/lib/ielts/prompts";
 
 let passed = 0;
 const check = (name: string, fn: () => void) => {
@@ -19,131 +19,146 @@ const check = (name: string, fn: () => void) => {
   console.log(`  ✓ ${name}`);
 };
 
-const lessons = lessonSequence();
-const required = lessons.filter((l) => l.required);
+check("four phases, ordered, ending at the taper", () => {
+  assert.deepEqual(
+    PHASES.map((p) => p.id),
+    ["return", "format", "build", "taper"],
+  );
+  assert.equal(nextPhaseId("return"), "format");
+  assert.equal(nextPhaseId("taper"), null);
+  assert.equal(PLANNED_WEEKS_TOTAL, 22); // fits an early-Feb exam
+});
 
-check("6 lessons a week, 5 of them required", () => {
-  assert.equal(lessons.length, WEEKS_TOTAL * 6);
-  for (let week = 1; week <= WEEKS_TOTAL; week++) {
-    const ofWeek = lessons.filter((l) => l.week === week);
-    assert.equal(ofWeek.length, 6, `week ${week} lesson count`);
-    const requiredOfWeek = ofWeek.filter((l) => l.required).length;
-    // Mock weeks turn the Saturday buffer into a required mock.
-    assert.equal(
-      requiredOfWeek,
-      MOCK_WEEKS.includes(week)
-        ? WEEKLY_TARGET_DEFAULT + 1
-        : WEEKLY_TARGET_DEFAULT,
-      `week ${week} required count`,
+check("early phases coach, later phases grade", () => {
+  assert.equal(phaseById("return").gradingMode, "coach");
+  assert.equal(phaseById("format").gradingMode, "coach");
+  assert.equal(phaseById("build").gradingMode, "band");
+  assert.equal(phaseById("taper").gradingMode, "band");
+});
+
+check("every phase has a daily input+SRS habit", () => {
+  for (const phase of PHASES) {
+    const keys = phase.daily.map((d) => d.key).sort();
+    assert.deepEqual(
+      keys,
+      ["input-listen", "input-read", "srs"],
+      `${phase.id} daily targets`,
     );
+    const total = phase.daily.reduce((sum, d) => sum + d.minutes, 0);
+    assert.ok(total <= 50, `${phase.id}: daily load ${total}' is too heavy`);
   }
 });
 
-check("Sunday is never scheduled", () => {
+check("every phase has a weekly tutor slot", () => {
+  for (const phase of PHASES) {
+    const tutor = phase.weekly.filter((s) => s.slot === "tutor");
+    assert.equal(tutor.length, 1, `${phase.id} tutor slot`);
+    assert.equal(tutor[0].count, 2);
+  }
+});
+
+check(
+  "writing has a rewrite partner wherever it is graded for progress",
+  () => {
+    for (const id of ["return", "format", "build"] as const) {
+      const phase = phaseById(id);
+      assert.ok(
+        phase.weekly.some((s) => s.slot === "writing"),
+        `${id} writing`,
+      );
+      assert.ok(
+        phase.weekly.some((s) => s.slot === "rewrite"),
+        `${id} rewrite`,
+      );
+    }
+  },
+);
+
+check("mocks appear every third week of the build phase only", () => {
+  const build = phaseById("build");
+  const mock = build.weekly.find((s) => s.slot === "mock");
+  assert.ok(mock);
+  assert.equal(mock.everyNWeeks, 3);
   assert.equal(
-    lessons.some((l) => l.dow === 0),
+    slotsForWeek(build, 1).some((s) => s.slot === "mock"),
     false,
   );
-});
-
-check("every week has exactly one speaking lesson", () => {
-  for (let week = 1; week <= WEEKS_TOTAL; week++) {
-    const speaking = lessons.filter(
-      (l) => l.week === week && l.activity.skill === "speaking",
-    );
-    assert.equal(speaking.length, 1, `week ${week} speaking`);
-    assert.equal(speaking[0].required, true);
-  }
-});
-
-check("week 1 measures a listening and a reading baseline", () => {
-  const baselines = lessons.filter((l) => l.activity.kind === "baseline");
-  assert.equal(baselines.length, 2);
-  assert.deepEqual(baselines.map((l) => l.activity.skill).sort(), [
-    "listening",
-    "reading",
-  ]);
-  for (const lesson of baselines) {
-    assert.equal(lesson.week, 1);
-    assert.equal(lesson.required, true);
-    assert.equal(lesson.activity.tool, "track");
-  }
-});
-
-check("mocks land on the configured weeks and are required", () => {
-  const mocks = lessons.filter((l) => l.activity.kind === "mock");
-  assert.deepEqual(
-    mocks.map((l) => l.week),
-    MOCK_WEEKS,
+  assert.equal(
+    slotsForWeek(build, 3).some((s) => s.slot === "mock"),
+    true,
   );
-  for (const mock of mocks) {
-    assert.equal(mock.required, true);
-    assert.equal(mock.activity.tool, "track");
-  }
-});
-
-check("every week has a rewrite lesson right after a writing lesson", () => {
-  for (let week = 1; week <= WEEKS_TOTAL; week++) {
-    const ofWeek = lessons.filter((l) => l.week === week);
-    const write = ofWeek.find((l) => l.activity.kind === "core" && l.dow === 1);
-    const rewrite = ofWeek.find((l) => l.activity.kind === "rewrite");
-    assert.ok(write, `week ${week} writing lesson`);
-    assert.ok(rewrite, `week ${week} rewrite lesson`);
-    assert.ok(rewrite.dow > write.dow, `week ${week} rewrite comes later`);
-  }
-});
-
-check("stage boundaries and Stage A load", () => {
-  assert.equal(stageOf(1), "A");
-  assert.equal(stageOf(4), "A");
-  assert.equal(stageOf(5), "B1");
-  assert.equal(stageOf(12), "B1");
-  assert.equal(stageOf(13), "B2");
-  const stageA = required.filter((l) => l.stage === "A");
-  for (const lesson of stageA) {
-    assert.ok(
-      lesson.activity.minutes <= 25,
-      `${lesson.id} should be a 25' habit lesson`,
+  assert.equal(
+    slotsForWeek(build, 6).some((s) => s.slot === "mock"),
+    true,
+  );
+  for (const id of ["return", "format", "taper"] as const) {
+    assert.equal(
+      phaseById(id).weekly.some((s) => s.slot === "mock"),
+      false,
+      `${id} must not schedule mocks`,
     );
   }
 });
 
-check("writing topic rotates per week", () => {
-  assert.equal(topicForWeek(1), "Education");
-  assert.equal(topicForWeek(9), "Education"); // 8-topic cycle
-  assert.notEqual(topicForWeek(1), topicForWeek(2));
+check("Task 1 alternates weeks in the build phase", () => {
+  const build = phaseById("build");
+  const week1 = slotsForWeek(build, 1).filter((s) => s.slot === "writing");
+  const week2 = slotsForWeek(build, 2).filter((s) => s.slot === "writing");
+  assert.equal(week1.length, 1); // Task 2 only
+  assert.equal(week2.length, 2); // Task 2 + Task 1
 });
 
-check("queue skips buffers and never blocks on them", () => {
-  const fresh = lessonQueueStatus([]);
-  assert.equal(fresh.current.id, "w1-d1");
-  assert.equal(fresh.current.required, true);
-  assert.equal(fresh.totalCount, required.length);
-  assert.equal(fresh.completedCount, 0);
-  assert.equal(fresh.buffer?.id, "w1-d6");
-
-  // Completing Mon–Fri of week 1 moves on to week 2 even with the buffer left.
-  const weekOneDone = ["w1-d1", "w1-d2", "w1-d3", "w1-d4", "w1-d5"];
-  const next = lessonQueueStatus(weekOneDone);
-  assert.equal(next.current.week, 2);
-  assert.equal(next.completedCount, 5);
-  assert.equal(next.buffer?.id, "w2-d6");
+check("every phase can be exited by a measurable criterion", () => {
+  for (const phase of PHASES) {
+    assert.ok(phase.exit.length > 0, `${phase.id} needs exit criteria`);
+    for (const criterion of phase.exit) {
+      assert.ok(criterion.target > 0, `${phase.id}/${criterion.id} target`);
+      assert.ok(criterion.label.length > 10, `${phase.id} label`);
+    }
+  }
 });
 
-check("buffer completions still count toward the weekly total", () => {
-  const counts = weeklyCompletionCounts(["w1-d1", "w1-d6", "w3-d2", "bogus"]);
-  assert.equal(counts[0], 2);
-  assert.equal(counts[2], 1);
-  assert.equal(counts.length, WEEKS_TOTAL);
+check("planned weeks remaining shrinks as the plan progresses", () => {
+  assert.equal(plannedWeeksRemaining("return", 1), PLANNED_WEEKS_TOTAL);
+  assert.ok(
+    plannedWeeksRemaining("return", 3) < plannedWeeksRemaining("return", 1),
+  );
+  assert.equal(plannedWeeksRemaining("taper", 3), 1);
+  assert.ok(
+    plannedWeeksRemaining("build", 1) > plannedWeeksRemaining("taper", 1),
+  );
 });
 
-check("habit gate needs 4 consecutive weeks at target", () => {
-  assert.equal(habitGatePassed([5, 5, 5]), false);
-  assert.equal(habitGatePassed([5, 5, 5, 5]), true);
-  assert.equal(habitGatePassed([5, 5, 4, 5, 5, 5]), false);
-  assert.equal(habitGatePassed([5, 5, 4, 5, 5, 5, 5]), true);
-  assert.equal(habitGatePassed(new Array(HABIT_GATE_WEEKS).fill(3)), false);
-  assert.equal(habitGatePassed([3, 3, 3, 3], 3), true);
+check("the format phase teaches one question type set per week", () => {
+  assert.equal(FORMAT_WEEKS.length, FORMAT_WEEK_COUNT);
+  assert.equal(formatWeek(1)?.reading, "True / False / Not Given");
+  assert.equal(formatWeek(FORMAT_WEEK_COUNT + 1), null);
+});
+
+check("prompt bank serves each phase and never repeats until exhausted", () => {
+  assert.ok(promptsFor("return").every((p) => p.kind === "free"));
+  assert.ok(promptsFor("format").every((p) => p.kind === "task2"));
+
+  const pool = promptsFor("return");
+  const used: string[] = [];
+  for (let i = 0; i < pool.length; i++) {
+    const next = pickPrompt("return", used);
+    assert.ok(next, "bank ran dry");
+    assert.equal(used.includes(next.id), false, "repeated before exhausting");
+    used.push(next.id);
+  }
+  // Exhausted: falls back to the least recently used rather than returning null.
+  const recycled = pickPrompt("return", used);
+  assert.equal(recycled?.id, used[0]);
+});
+
+check("every prompt carries a word target the grader can use", () => {
+  for (const phase of ["return", "format", "build"] as const) {
+    for (const prompt of promptsFor(phase)) {
+      assert.ok(prompt.words >= 100, `${prompt.id} word target`);
+      assert.ok(prompt.text.length > 40, `${prompt.id} text`);
+    }
+  }
 });
 
 console.log(`\n✓ Plan: ${passed}/${passed} checks passed`);

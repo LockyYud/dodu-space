@@ -22,6 +22,18 @@ export function getLLM() {
 }
 
 export const LLM_MODEL = () => process.env.LLM_MODEL ?? "gpt-4o";
+/**
+ * Band grading runs on its own model: the extraction pass is high-volume and
+ * cheap, while grading is the step whose consistency the learner feels.
+ * Falls back to LLM_MODEL when unset.
+ */
+export const LLM_GRADER_MODEL = () =>
+  process.env.LLM_GRADER_MODEL ?? LLM_MODEL();
+/** Samples reduced to a median in band mode. 1 disables sampling. */
+export const LLM_GRADER_SAMPLES = () => {
+  const raw = Number(process.env.LLM_GRADER_SAMPLES ?? 3);
+  return Number.isFinite(raw) && raw >= 1 ? Math.min(5, Math.round(raw)) : 3;
+};
 export const LLM_VISION_MODEL = () =>
   process.env.LLM_VISION_MODEL ?? LLM_MODEL();
 

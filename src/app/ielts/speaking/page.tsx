@@ -1,34 +1,23 @@
 import { SpeakingForm } from "@/components/ielts/speaking-form";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { lessonSequence } from "@/lib/ielts/plan";
 import { listSpeaking } from "@/server/ielts/speaking";
 
 export const dynamic = "force-dynamic";
 
-export default async function SpeakingPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ lessonId?: string | string[] }>;
-}) {
-  const [sessions, params] = await Promise.all([listSpeaking(), searchParams]);
-  const lessonId = Array.isArray(params?.lessonId)
-    ? params.lessonId[0]
-    : params?.lessonId;
-  const lesson = lessonId
-    ? lessonSequence().find((item) => item.id === lessonId)
-    : undefined;
+export default async function SpeakingPage() {
+  const sessions = await listSpeaking();
   return (
     <section className="space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Speaking</h1>
         <p className="text-sm text-muted-foreground">
           Sau buổi gia sư, ghi lại band, 1–3 lỗi ưu tiên và một việc cần làm
-          lại. Bài hôm nay sẽ tự hoàn thành sau khi lưu.
+          lại. Buổi này tính vào suất gia sư của tuần.
         </p>
       </header>
 
-      <SpeakingForm lesson={lesson} />
+      <SpeakingForm />
 
       <div className="space-y-2">
         <h2 className="text-sm font-medium text-muted-foreground">

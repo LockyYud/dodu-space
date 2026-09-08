@@ -1,10 +1,15 @@
 "use server";
 
-import { asc, desc, eq, lte } from "drizzle-orm";
+import { and, asc, desc, eq, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
-import type { ErrorCard, ReviewGrade } from "@/lib/ielts/schema";
+import {
+  type ErrorCard,
+  REVIEW_SESSION_MARKER,
+  REVIEW_SESSION_STATUS,
+  type ReviewGrade,
+} from "@/lib/ielts/schema";
 import { dueDateAfter, schedule, toISODate } from "@/lib/ielts/srs";
 
 /** Cards due today, stubborn (high lapses) first — the review queue order. */
@@ -68,11 +73,37 @@ export async function submitReview(
       newInterval: next.intervalDays,
     });
 
+    // One row per day, so a review-only day still counts as a study day for
+    // the streak and for reduced-load mode. Written in the same transaction
+    // as the card update so the two can never disagree.
+    const [existing] = await tx
+      .select({ id: schema.studySession.id })
+      .from(schema.studySession)
+      .where(
+        and(
+          eq(schema.studySession.date, today),
+          eq(schema.studySession.sourceUrl, REVIEW_SESSION_MARKER),
+        ),
+      )
+      .limit(1);
+    if (!existing) {
+      await tx.insert(schema.studySession).values({
+        date: today,
+        skill: "vocab",
+        slot: "srs",
+        sourceUrl: REVIEW_SESSION_MARKER,
+        status: REVIEW_SESSION_STATUS,
+        notes: "Phiên ôn lỗi (SRS).",
+      });
+    }
+
     return { newInterval: next.intervalDays, dueDate };
   });
 
   revalidatePath("/ielts/review");
   revalidatePath("/ielts");
+  revalidatePath("/ielts/today");
+  revalidatePath("/ielts/progress");
 
   return { cardId, newInterval, dueDate };
 }

@@ -7,50 +7,100 @@ import { db, schema } from "@/lib/ielts/db";
 import {
   type GradedBands,
   type GradedFeedback,
-  type GradeInput,
+  type GradingMode,
   type GradingResult,
   gradeWriting,
+  isBandResult,
   type SuggestedCard,
+  type TaskType,
 } from "@/lib/ielts/grading";
 import { topErrorThemes } from "@/lib/ielts/insights";
-import { findLesson } from "@/lib/ielts/plan";
 import { learnerProfile, targetSummary } from "@/lib/ielts/profile";
+import { promptById } from "@/lib/ielts/prompts";
 import { toISODate } from "@/lib/ielts/srs";
-import { completeLesson, currentLessonMeta } from "./lessons";
+import { loadProgress } from "./progress";
 
-/** Grade an essay without persisting anything (learner reviews before saving). */
-export async function gradeAction(input: GradeInput): Promise<GradingResult> {
+export interface GradeActionInput {
+  taskType: TaskType;
+  promptId?: string;
+  prompt?: string;
+  essay: string;
+  /** Minutes the slot budgets for writing, for the grader's context. */
+  writeMinutes?: number;
+}
+
+/**
+ * Grade without persisting. The mode comes from the current phase, not from
+ * the caller: the early phases exist to build a habit, and a band on a warm-up
+ * paragraph measures the wrong thing.
+ */
+export async function gradeAction(
+  input: GradeActionInput,
+): Promise<GradingResult> {
   await requireIeltsUser();
+  const [progress, profile, ruleHistory] = await Promise.all([
+    loadProgress(),
+    learnerProfile(),
+    ruleCounts(),
+  ]);
+
+  const mode: GradingMode = progress.phase.gradingMode;
+  const prompt = input.promptId
+    ? (promptById(input.promptId)?.text ?? input.prompt)
+    : input.prompt;
+
   return gradeWriting({
-    ...input,
+    mode,
+    taskType: input.taskType,
+    prompt,
+    essay: input.essay,
+    targetBand: profile.targetBands.writing,
+    taskContext: taskContext(input, progress.phase.label),
     learnerContext: await buildLearnerContext(),
+    ruleHistory,
   });
 }
 
-/** Full-length Task 2 minimum; Stage A writes short paragraphs instead. */
-const MIN_WORDS = { task1: 150, task2: 250 } as const;
-const MIN_WORDS_SHORT = 100;
+function taskContext(input: GradeActionInput, phaseLabel: string): string {
+  const budget = input.writeMinutes
+    ? `${input.writeMinutes} phút viết`
+    : "không giới hạn giờ";
+  return `${phaseLabel}; ${budget}. Judge it as this exercise, not as a full-length exam answer unless the budget says so.`;
+}
 
-/**
- * A previously graded original the learner can now rewrite. The rewrite loop
- * ("viết → chấm → viết lại") is what actually moves the band, so the app has
- * to hand the learner the exact essay and feedback rather than hoping they
- * remember to reopen it.
- */
+/** How often each rule has already produced a card — feeds card ranking. */
+async function ruleCounts(): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ rule: schema.errorCard.rule })
+    .from(schema.errorCard);
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    if (row.rule) counts[row.rule] = (counts[row.rule] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/* ────────────────────────────── rewrite source ────────────────────────────── */
+
 export interface RewriteSource {
   id: number;
-  taskType: "task1" | "task2";
+  taskType: TaskType;
   topic: string | null;
   prompt: string | null;
   essayText: string;
   createdAt: string;
+  wordCount: number | null;
+  errorDensity: number | null;
+  gradingMode: GradingMode | null;
   bands: GradedBands | null;
   feedback: GradedFeedback | null;
+  /** Rules broken in the original, so the rewrite can be diffed against them. */
+  rules: string[];
 }
 
-function toRewriteSource(
+async function toRewriteSource(
   row: typeof schema.writingSubmission.$inferSelect,
-): RewriteSource {
+): Promise<RewriteSource> {
   const bands =
     row.bandOverall == null
       ? null
@@ -69,6 +119,11 @@ function toRewriteSource(
       feedback = null;
     }
   }
+  const cards = await db
+    .select({ rule: schema.errorCard.rule })
+    .from(schema.errorCard)
+    .where(eq(schema.errorCard.sourceRef, `writing_submission:${row.id}`));
+
   return {
     id: row.id,
     taskType: row.taskType,
@@ -76,8 +131,12 @@ function toRewriteSource(
     prompt: row.prompt,
     essayText: row.essayText,
     createdAt: row.createdAt,
+    wordCount: row.wordCount,
+    errorDensity: row.errorDensity,
+    gradingMode: row.gradingMode,
     bands,
     feedback,
+    rules: cards.map((c) => c.rule).filter((r): r is string => Boolean(r)),
   };
 }
 
@@ -98,6 +157,15 @@ export async function latestRewritableSubmission(): Promise<RewriteSource | null
   return original ? toRewriteSource(original) : null;
 }
 
+/** Prompt ids already answered, newest last — feeds `pickPrompt`. */
+export async function usedPromptIds(): Promise<string[]> {
+  const rows = await db
+    .select({ promptId: schema.writingSubmission.promptId })
+    .from(schema.writingSubmission)
+    .orderBy(schema.writingSubmission.id);
+  return rows.map((r) => r.promptId).filter((id): id is string => Boolean(id));
+}
+
 export async function getRewriteSource(
   submissionId: number,
 ): Promise<RewriteSource | null> {
@@ -108,11 +176,12 @@ export async function getRewriteSource(
   return row ? toRewriteSource(row) : null;
 }
 
+/* ──────────────────────────────── saving ──────────────────────────────── */
+
 export interface SaveSubmissionInput {
-  lessonId?: string;
-  /** Set when this submission is a rewrite of an earlier graded essay. */
   parentSubmissionId?: number;
-  taskType: "task1" | "task2";
+  taskType: TaskType;
+  promptId?: string;
   topic?: string;
   prompt?: string;
   essay: string;
@@ -121,30 +190,45 @@ export interface SaveSubmissionInput {
   repairNote: string;
 }
 
-/** Persist a graded submission + the error cards the learner chose to keep. */
-export async function saveSubmission(input: SaveSubmissionInput): Promise<{
+export interface SaveSubmissionResult {
   submissionId: number;
   cardsAdded: number;
-  lessonCompleted: boolean;
-}> {
+  /** Rules that were in the original and are gone from the rewrite. */
+  rulesFixed: string[];
+  /** Rules still present in the rewrite. */
+  rulesRemaining: string[];
+}
+
+export async function saveSubmission(
+  input: SaveSubmissionInput,
+): Promise<SaveSubmissionResult> {
   await requireIeltsUser();
   const today = toISODate();
-  const lesson = await currentLessonMeta();
-  const shouldCompleteLesson = input.lessonId === lesson.lessonId;
-  const { bands } = input.result;
-  const wordCount = input.essay.trim().split(/\s+/).filter(Boolean).length;
-  const minimumWords = minimumWordsFor(input.taskType, input.lessonId);
-  if (wordCount < minimumWords) {
-    throw new Error(
-      `Bài ${input.taskType === "task1" ? "Task 1" : "Task 2"} cần ít nhất ${minimumWords} từ.`,
-    );
-  }
+  const isRewrite = input.parentSubmissionId != null;
+
   const repairNote = input.repairNote.trim();
-  if (repairNote.length < 20) {
+  if (!isRewrite && repairNote.length < 20) {
     throw new Error(
       "Hãy hoàn thành phần sửa ngay: viết lại một câu hoặc nêu điều bạn sẽ sửa (ít nhất 20 ký tự).",
     );
   }
+
+  const wordTarget = input.promptId
+    ? (promptById(input.promptId)?.words ?? 0)
+    : 0;
+  if (
+    wordTarget > 0 &&
+    input.result.word_count < Math.round(wordTarget * 0.8)
+  ) {
+    throw new Error(
+      `Bài này cần khoảng ${wordTarget} từ; hiện mới ${input.result.word_count} từ.`,
+    );
+  }
+
+  const bands = isBandResult(input.result) ? input.result.bands : null;
+  const parentRules = input.parentSubmissionId
+    ? ((await getRewriteSource(input.parentSubmissionId))?.rules ?? [])
+    : [];
 
   const { submissionId, cardsAdded } = await db.transaction(async (tx) => {
     const [session] = await tx
@@ -152,13 +236,13 @@ export async function saveSubmission(input: SaveSubmissionInput): Promise<{
       .values({
         date: today,
         skill: "writing",
-        lessonId: lesson.lessonId,
-        phase: lesson.phase,
-        week: lesson.week,
-        bandEstimate: bands.overall,
+        slot: isRewrite ? "rewrite" : "writing",
+        bandEstimate: bands?.overall ?? null,
+        durationMin: null,
         notes: [
           input.topic ? `Chủ đề: ${input.topic}` : null,
-          `Repair: ${repairNote}`,
+          `${input.result.error_count} lỗi / ${input.result.word_count} từ (${input.result.density}/100)`,
+          repairNote ? `Repair: ${repairNote}` : null,
         ]
           .filter(Boolean)
           .join("\n"),
@@ -172,31 +256,41 @@ export async function saveSubmission(input: SaveSubmissionInput): Promise<{
         sessionId: session.id,
         taskType: input.taskType,
         topic: input.topic ?? null,
+        promptId: input.promptId ?? null,
         prompt: input.prompt ?? null,
         essayText: input.essay,
-        wordCount,
-        bandTa: bands.task_response,
-        bandCc: bands.coherence,
-        bandLr: bands.lexical,
-        bandGra: bands.grammar,
-        bandOverall: bands.overall,
-        feedbackJson: JSON.stringify(input.result.feedback),
-        isRewrite: input.parentSubmissionId != null,
+        wordCount: input.result.word_count,
+        bandTa: bands?.task_response ?? null,
+        bandCc: bands?.coherence ?? null,
+        bandLr: bands?.lexical ?? null,
+        bandGra: bands?.grammar ?? null,
+        bandOverall: bands?.overall ?? null,
+        feedbackJson: isBandResult(input.result)
+          ? JSON.stringify(input.result.feedback)
+          : JSON.stringify({
+              strength: input.result.strength,
+              next_fix: input.result.next_fix,
+            }),
+        errorDensity: input.result.density,
+        gradingMode: input.result.mode,
+        graderSpread: isBandResult(input.result) ? input.result.spread : null,
+        isRewrite,
         parentSubmissionId: input.parentSubmissionId ?? null,
       })
       .returning({ id: schema.writingSubmission.id });
 
     if (input.selectedCards.length > 0) {
       await tx.insert(schema.errorCard).values(
-        input.selectedCards.map((c) => ({
+        input.selectedCards.map((card) => ({
           sourceType: "writing" as const,
           sourceRef: `writing_submission:${submission.id}`,
-          errorType: c.error_type,
-          front: c.front,
-          back: c.back,
-          explanation: c.explanation,
-          context: input.topic ?? `${input.taskType}`,
-          dueDate: today, // new cards are due immediately
+          errorType: card.error_type,
+          rule: card.rule,
+          front: card.front,
+          back: card.back,
+          explanation: card.explanation,
+          context: input.topic ?? input.taskType,
+          dueDate: today,
         })),
       );
     }
@@ -207,55 +301,32 @@ export async function saveSubmission(input: SaveSubmissionInput): Promise<{
     };
   });
 
-  if (shouldCompleteLesson && input.lessonId) {
-    await completeLesson(input.lessonId);
-  }
+  const nowRules = new Set(input.result.cards.map((c) => c.rule));
+  const rulesFixed = parentRules.filter((rule) => !nowRules.has(rule));
+  const rulesRemaining = parentRules.filter((rule) => nowRules.has(rule));
 
+  revalidatePath("/ielts/today");
   revalidatePath("/ielts/errors");
   revalidatePath("/ielts/review");
-  revalidatePath("/ielts");
+  revalidatePath("/ielts/progress");
 
-  return { submissionId, cardsAdded, lessonCompleted: shouldCompleteLesson };
-}
-
-/**
- * Stage A lessons are 25' paragraph drills, so holding them to a full 250-word
- * essay would make the daily habit impossible. Anything else keeps exam length.
- */
-export async function minimumWordsForLesson(
-  taskType: "task1" | "task2",
-  lessonId?: string,
-): Promise<number> {
-  return minimumWordsFor(taskType, lessonId);
-}
-
-function minimumWordsFor(
-  taskType: "task1" | "task2",
-  lessonId?: string,
-): number {
-  const lesson = lessonId ? findLesson(lessonId) : undefined;
-  if (lesson && lesson.activity.minutes < 40) return MIN_WORDS_SHORT;
-  return MIN_WORDS[taskType];
+  return {
+    submissionId,
+    cardsAdded,
+    rulesFixed: [...new Set(rulesFixed)],
+    rulesRemaining: [...new Set(rulesRemaining)],
+  };
 }
 
 async function buildLearnerContext(): Promise<string> {
   const profile = await learnerProfile();
   const cards = await db.select().from(schema.errorCard);
   const themes = topErrorThemes(cards, 5);
-  const stubborn = cards
-    .filter((c) => c.lapses >= 3)
-    .slice(0, 5)
-    .map((c) => `${c.errorType}: ${c.front} -> ${c.back}`);
 
   return [
     `Name: ${profile.name}. Goal: ${profile.examGoal} (${await targetSummary(profile)}).`,
     `Starting point: ${profile.startPoint}`,
-    `Strategy: ${profile.strategy}`,
-    `Daily constraint: ${profile.dailyMinutes} minutes/day.`,
-    `Current recurring error themes: ${themes.length ? themes.join(", ") : "not enough real history yet"}.`,
-    stubborn.length
-      ? `Stubborn mistakes to watch for: ${stubborn.join(" | ")}.`
-      : "No stubborn mistakes yet; extract reusable errors that would block Writing 6.5-7.0.",
-    "Give feedback as a coach for this learner: concrete, Vietnamese is preferred, focus on the smallest rewrite that improves band.",
+    `Writing target band: ${profile.targetBands.writing.toFixed(1)}.`,
+    `Recurring error themes: ${themes.length ? themes.join(", ") : "chưa đủ dữ liệu"}.`,
   ].join("\n");
 }

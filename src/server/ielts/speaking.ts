@@ -6,10 +6,8 @@ import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
 import type { SpeakingSession } from "@/lib/ielts/schema";
 import { toISODate } from "@/lib/ielts/srs";
-import { completeLesson, currentLessonMeta } from "./lessons";
 
 export interface AddSpeakingInput {
-  lessonId?: string;
   date?: string;
   durationMin?: number;
   tutorNotes?: string;
@@ -20,7 +18,7 @@ export interface AddSpeakingInput {
 
 export async function addSpeaking(
   input: AddSpeakingInput,
-): Promise<{ sessionId: number; lessonCompleted: boolean }> {
+): Promise<{ sessionId: number; cardsAdded: number }> {
   await requireIeltsUser();
   const tutorNotes = input.tutorNotes?.trim();
   if (
@@ -44,10 +42,7 @@ export async function addSpeaking(
     throw new Error("Band phải nằm trong khoảng 0–9.");
   }
   const today = input.date ?? toISODate();
-  const lesson = await currentLessonMeta();
-  const shouldCompleteLesson = input.lessonId === lesson.lessonId;
   const cards = (input.cards ?? []).filter((c) => c.front && c.back);
-
   const speakingSessionId = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(schema.speakingSession)
@@ -63,9 +58,7 @@ export async function addSpeaking(
     await tx.insert(schema.studySession).values({
       date: today,
       skill: "speaking",
-      lessonId: lesson.lessonId,
-      phase: lesson.phase,
-      week: lesson.week,
+      slot: "tutor",
       durationMin: input.durationMin,
       bandEstimate: input.bandEstimate ?? null,
       notes: tutorNotes,
@@ -90,18 +83,12 @@ export async function addSpeaking(
     return row.id;
   });
 
-  if (shouldCompleteLesson && input.lessonId) {
-    await completeLesson(input.lessonId);
-  }
-
   revalidatePath("/ielts");
   revalidatePath("/ielts/speaking");
   revalidatePath("/ielts/progress");
   revalidatePath("/ielts/review");
-  return {
-    sessionId: speakingSessionId,
-    lessonCompleted: shouldCompleteLesson,
-  };
+  revalidatePath("/ielts/today");
+  return { sessionId: speakingSessionId, cardsAdded: cards.length };
 }
 
 export async function listSpeaking(): Promise<SpeakingSession[]> {

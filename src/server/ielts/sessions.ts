@@ -7,14 +7,12 @@ import { db, schema } from "@/lib/ielts/db";
 import { computeStreak } from "@/lib/ielts/plan";
 import type { Skill, StudySession } from "@/lib/ielts/schema";
 import { toISODate } from "@/lib/ielts/srs";
-import { currentLessonMeta } from "./lessons";
 
 export interface LogSessionInput {
   skill: Skill;
   date?: string;
-  lessonId?: string;
-  phase?: number;
-  week?: number;
+  /** Roadmap v3 slot tag; see SlotId in src/lib/ielts/plan.ts. */
+  slot?: string;
   durationMin?: number;
   sourceUrl?: string;
   rawScore?: string;
@@ -24,19 +22,12 @@ export interface LogSessionInput {
 
 export async function logSession(input: LogSessionInput): Promise<number> {
   await requireIeltsUser();
-  const date = input.date ?? toISODate();
-  const needsQueueLookup =
-    input.lessonId == null || input.phase == null || input.week == null;
-  const queueLesson = needsQueueLookup ? await currentLessonMeta() : null;
-
   const [row] = await db
     .insert(schema.studySession)
     .values({
-      date,
+      date: input.date ?? toISODate(),
       skill: input.skill,
-      lessonId: input.lessonId ?? queueLesson?.lessonId,
-      phase: input.phase ?? queueLesson?.phase,
-      week: input.week ?? queueLesson?.week,
+      slot: input.slot ?? null,
       durationMin: input.durationMin ?? null,
       sourceUrl: input.sourceUrl ?? null,
       rawScore: input.rawScore ?? null,
@@ -45,9 +36,20 @@ export async function logSession(input: LogSessionInput): Promise<number> {
       status: "done",
     })
     .returning({ id: schema.studySession.id });
-  revalidatePath("/ielts");
+  revalidatePath("/ielts/today");
   revalidatePath("/ielts/progress");
   return row.id;
+}
+
+/**
+ * Every day that has at least one logged session, including review-only days.
+ * Feeds both the streak and the 14-day window that drives reduced-load mode.
+ */
+export async function listStudyDates(): Promise<string[]> {
+  const rows = await db
+    .select({ date: schema.studySession.date })
+    .from(schema.studySession);
+  return [...new Set(rows.map((row) => row.date))];
 }
 
 export async function listSessions(limit = 30): Promise<StudySession[]> {
@@ -59,8 +61,5 @@ export async function listSessions(limit = 30): Promise<StudySession[]> {
 }
 
 export async function getStreak(): Promise<number> {
-  const rows = await db
-    .select({ date: schema.studySession.date })
-    .from(schema.studySession);
-  return computeStreak(rows.map((r) => r.date));
+  return computeStreak(await listStudyDates());
 }
