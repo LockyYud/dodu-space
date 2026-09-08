@@ -9,6 +9,7 @@ import {
   REVIEW_SESSION_MARKER,
   REVIEW_SESSION_STATUS,
   type ReviewGrade,
+  VOCAB_CARD_MARKER,
 } from "@/lib/ielts/schema";
 import { dueDateAfter, schedule, toISODate } from "@/lib/ielts/srs";
 
@@ -112,4 +113,29 @@ export async function submitReview(
 export async function countDue(): Promise<number> {
   const rows = await getDueCards();
   return rows.length;
+}
+
+export interface DueSplit {
+  total: number;
+  /** Thẻ lỗi — thứ đang gỡ trần band Writing. */
+  errors: number;
+  /** Thẻ từ vựng bắt từ bài đọc. */
+  vocab: number;
+}
+
+/**
+ * Hàng đợi tách theo loại.
+ *
+ * Từ vựng và lỗi dùng chung một hàng đợi SM-2, nên chỉ hiện tổng thì không thấy
+ * được khi nào từ vựng đang lấn át thẻ lỗi — đúng cái mà trần thẻ mới mỗi ngày
+ * sinh ra để chặn.
+ */
+export async function countDueSplit(): Promise<DueSplit> {
+  const rows = await getDueCards();
+  // Theo marker, không theo `error_type`: một thẻ lỗi từ bài viết cũng có thể
+  // mang `collocation`, và nó thuộc vế "lỗi" chứ không phải vế "từ vựng".
+  const vocab = rows.filter(
+    (row) => row.sourceRef === VOCAB_CARD_MARKER,
+  ).length;
+  return { total: rows.length, errors: rows.length - vocab, vocab };
 }

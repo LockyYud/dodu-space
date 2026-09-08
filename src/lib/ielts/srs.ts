@@ -84,4 +84,17 @@ export function toISODate(d = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Dấu thời gian theo **giờ địa phương**, dạng "YYYY-MM-DD HH:MM:SS".
+ *
+ * SQLite mặc định `datetime('now')` là UTC, trong khi mọi cột ngày trong app
+ * dùng ngày địa phương qua `toISODate()`. Trộn hai loại thì một hàng tạo lúc
+ * 2 giờ sáng ở UTC+7 mang ngày UTC của hôm trước — đủ để một cái trần "mỗi
+ * ngày" đếm sai vào sáng sớm.
+ */
+export function toLocalTimestamp(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${toISODate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 export const isStubborn = (lapses: number) => lapses >= STUBBORN_LAPSES;

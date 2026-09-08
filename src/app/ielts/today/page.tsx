@@ -1,8 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DailyInput } from "@/components/ielts/daily-input";
+import { DictationLog } from "@/components/ielts/dictation-log";
 import { PhasePanel } from "@/components/ielts/phase-panel";
 import { SlotLog } from "@/components/ielts/slot-log";
+import { SpeakDrill } from "@/components/ielts/speak-drill";
+import { VocabCapture } from "@/components/ielts/vocab-capture";
 import { WeekLoadPicker } from "@/components/ielts/week-load-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +15,7 @@ import {
   isSelfLoggable,
   phaseById,
   type SlotId,
+  VOCAB_DAILY_TARGET,
   WEEKDAY_LABEL,
 } from "@/lib/ielts/plan";
 import type {
@@ -20,6 +24,7 @@ import type {
   WeekDayPlan,
   WeeklyItem,
 } from "@/lib/ielts/progress";
+import type { DueSplit } from "@/server/ielts/reviews";
 import { loadToday } from "@/server/ielts/today";
 
 export const dynamic = "force-dynamic";
@@ -59,8 +64,16 @@ interface Step {
 }
 
 export default async function TodayPage() {
-  const { progress, pace, suggestedExam, dueCount, streak, profile } =
-    await loadToday();
+  const {
+    progress,
+    pace,
+    hours,
+    suggestedExam,
+    due,
+    vocabToday,
+    streak,
+    profile,
+  } = await loadToday();
 
   const {
     phase,
@@ -87,16 +100,16 @@ export default async function TodayPage() {
     (a, b) => Number(b.key === "srs") - Number(a.key === "srs"),
   );
   const steps = [
-    ...ordered.map((item) => dailyStep(item, dueCount)),
+    ...ordered.map((item) => dailyStep(item, due, vocabToday)),
     ...todayWork.map(workStep),
   ];
   // A blocked step is not something the learner can act on, so it never
   // becomes "the next thing" and never counts against the day.
   const remaining = steps.filter((s) => !s.done && !s.blocked);
-  // Blocked steps are skipped in the numbering so the list still reads 1, 2, 3.
-  const numbering = new Map(
-    steps.filter((s) => !s.blocked).map((s, i) => [s.key, i + 1]),
-  );
+  // Chỉ đánh số việc còn phải làm. Việc đã xong mang dấu ✓, việc bị chặn mang
+  // dấu –, và nếu chúng vẫn chiếm số thì danh sách nhảy cóc 3 → 6 — đọc như thể
+  // có hai việc bị mất.
+  const numbering = new Map(remaining.map((s, i) => [s.key, i + 1]));
   const minutesLeft = remaining.reduce((sum, s) => sum + s.minutes, 0);
   const allDone = remaining.length === 0;
 
@@ -131,6 +144,33 @@ export default async function TodayPage() {
           )}
         </p>
       </header>
+
+      {!hours.fullyFunded && (
+        <Card
+          className={
+            hours.funded
+              ? "border-amber-500/40 bg-amber-500/5"
+              : "border-destructive/40 bg-destructive/5"
+          }
+        >
+          <CardContent className="space-y-2 py-4">
+            <p className="font-medium">
+              {hours.funded ? "Quỹ giờ sát mép" : "Quỹ giờ chưa đủ"}
+            </p>
+            <p className="text-sm text-muted-foreground">{hours.message}</p>
+            <p className="text-xs text-muted-foreground">
+              Ba cách xoay: học đều hơn mỗi tuần, lùi ngày thi, hoặc hạ mục
+              tiêu.{" "}
+              <Link
+                href="/ielts/settings"
+                className="text-primary underline underline-offset-2"
+              >
+                Sửa mục tiêu
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {pace.degraded && (
         <Card className="border-amber-500/40 bg-amber-500/5">
@@ -248,15 +288,37 @@ export default async function TodayPage() {
   );
 }
 
-function dailyStep(item: DailyItem, dueCount: number): Step {
+function dailyStep(item: DailyItem, due: DueSplit, vocabToday: number): Step {
+  if (item.key === "vocab") {
+    return {
+      key: item.key,
+      label: item.label,
+      hint: item.hint,
+      minutes: item.targetMinutes,
+      done: vocabToday >= VOCAB_DAILY_TARGET,
+      action: (
+        <VocabCapture todayCount={vocabToday} target={VOCAB_DAILY_TARGET} />
+      ),
+    };
+  }
+  if (item.key === "speak-drill") {
+    return {
+      key: item.key,
+      label: item.label,
+      hint: item.hint,
+      minutes: item.targetMinutes,
+      done: item.done,
+      action: <SpeakDrill minutes={item.targetMinutes} done={item.done} />,
+    };
+  }
   if (item.key === "srs") {
     return {
       key: item.key,
       label: item.label,
       hint:
-        dueCount > 0
-          ? `${dueCount} lỗi đến hạn. ${item.hint}`
-          : "Không có lỗi nào đến hạn hôm nay.",
+        due.total > 0
+          ? `${dueLabel(due)} đến hạn. ${item.hint}`
+          : "Không có thẻ nào đến hạn hôm nay.",
       minutes: item.targetMinutes,
       done: item.done,
       action: (
@@ -288,6 +350,14 @@ function dailyStep(item: DailyItem, dueCount: number): Step {
   };
 }
 
+/** "3 lỗi · 5 từ", hoặc chỉ một vế khi vế kia trống. */
+function dueLabel(due: DueSplit): string {
+  const parts: string[] = [];
+  if (due.errors > 0) parts.push(`${due.errors} lỗi`);
+  if (due.vocab > 0) parts.push(`${due.vocab} từ`);
+  return parts.join(" · ");
+}
+
 function workStep(item: TodayItem): Step {
   const href = item.blocked ? "/ielts/writing" : SLOT_HREF[item.slot];
   return {
@@ -297,15 +367,18 @@ function workStep(item: TodayItem): Step {
     minutes: item.minutes,
     done: item.done,
     blocked: item.blocked,
-    action: href ? (
-      <Link href={href} prefetch={false}>
-        <Button size="sm" variant={item.done ? "outline" : "default"}>
-          {item.blocked ? "Viết bài mới" : item.done ? "Làm thêm" : "Bắt đầu"}
-        </Button>
-      </Link>
-    ) : isSelfLoggable(item.slot) ? (
-      <SlotLog slot={item.slot} minutes={item.minutes} done={item.done} />
-    ) : null,
+    action:
+      item.slot === "dictation" ? (
+        <DictationLog done={item.done} />
+      ) : href ? (
+        <Link href={href} prefetch={false}>
+          <Button size="sm" variant={item.done ? "outline" : "default"}>
+            {item.blocked ? "Viết bài mới" : item.done ? "Làm thêm" : "Bắt đầu"}
+          </Button>
+        </Link>
+      ) : isSelfLoggable(item.slot) ? (
+        <SlotLog slot={item.slot} minutes={item.minutes} done={item.done} />
+      ) : null,
   };
 }
 

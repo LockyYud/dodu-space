@@ -84,6 +84,86 @@ export function paceStatus(input: PaceInput): PaceReport {
   };
 }
 
+/**
+ * Liệu quỹ giờ có mua nổi mục tiêu band hay không.
+ *
+ * `paceStatus` chỉ so số tuần với số tuần, nên một chuỗi tuần bận không hề làm
+ * mục tiêu lung lay trên màn hình. Chênh lệch giờ là thứ đến sát ngày thi mới
+ * lộ ra nếu không ai nói, và lúc đó thì không còn xoay được.
+ */
+export interface HoursInput {
+  /** Giờ tập trung đã học, không tính nghe thụ động. */
+  studied: number;
+  /** Giờ tập trung kế hoạch còn lại — `plannedGuidedHours()` trong ./plan.ts. */
+  planned: number;
+  /** Overall hiện tại (baseline thật nếu có, không thì ước tính). */
+  startOverall: number;
+  targetOverall: number;
+  hoursPerBand: [low: number, high: number];
+}
+
+export interface HoursOutlook {
+  studied: number;
+  planned: number;
+  /** Tổng giờ sẽ có tới ngày thi nếu giữ đúng nhịp hiện tại. */
+  projected: number;
+  bandsNeeded: number;
+  neededLow: number;
+  neededHigh: number;
+  /** Đủ cho mép lạc quan của khoảng. */
+  funded: boolean;
+  /** Đủ cho cả mép bi quan — mục tiêu được cấp vốn chắc chắn. */
+  fullyFunded: boolean;
+  message: string;
+}
+
+export function hoursOutlook(input: HoursInput): HoursOutlook {
+  const projected = round1(input.studied + input.planned);
+  const bandsNeeded = Math.max(0, input.targetOverall - input.startOverall);
+  const [low, high] = input.hoursPerBand;
+  const neededLow = Math.round(bandsNeeded * low);
+  const neededHigh = Math.round(bandsNeeded * high);
+
+  if (bandsNeeded === 0) {
+    return {
+      studied: round1(input.studied),
+      planned: round1(input.planned),
+      projected,
+      bandsNeeded,
+      neededLow,
+      neededHigh,
+      funded: true,
+      fullyFunded: true,
+      message: `Đã ở mục tiêu ${input.targetOverall.toFixed(1)}.`,
+    };
+  }
+
+  const funded = projected >= neededLow;
+  const fullyFunded = projected >= neededHigh;
+  const head = `Tới ngày thi bạn sẽ học khoảng ${Math.round(projected)} giờ tập trung (đã học ${Math.round(input.studied)}). Từ ${input.startOverall.toFixed(1)} lên ${input.targetOverall.toFixed(1)} thường cần ${neededLow}–${neededHigh} giờ.`;
+  const verdict = fullyFunded
+    ? "Quỹ giờ đủ."
+    : funded
+      ? "Chỉ đủ ở mép lạc quan — cần học đều, không được hụt tuần nào."
+      : "Quỹ giờ chưa đủ: nên tăng giờ mỗi tuần, lùi ngày thi, hoặc hạ mục tiêu.";
+
+  return {
+    studied: round1(input.studied),
+    planned: round1(input.planned),
+    projected,
+    bandsNeeded,
+    neededLow,
+    neededHigh,
+    funded,
+    fullyFunded,
+    message: `${head} ${verdict}`,
+  };
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 /** Whole weeks from `today` to `target` (YYYY-MM-DD), floored at the day level. */
 export function weeksBetween(today: Date, target: string): number {
   return Math.floor(daysUntil(today, target) / 7);

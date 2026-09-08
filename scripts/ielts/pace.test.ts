@@ -5,6 +5,7 @@ import {
   daysSince,
   daysUntil,
   earliestDate,
+  hoursOutlook,
   paceStatus,
   suggestedExamDate,
   weeksBetween,
@@ -138,6 +139,56 @@ check("the plan anchor is the earliest date, ignoring blanks", () => {
     daysSince(earliestDate("2026-09-08", "2026-08-01") ?? "", TODAY),
     38,
   );
+});
+
+check("quỹ giờ: chưa đủ, sát mép, và đủ hẳn", () => {
+  const base = {
+    startOverall: 5.5,
+    targetOverall: 7.0,
+    hoursPerBand: [120, 200] as [number, number],
+  };
+  // 1.5 band ⇒ cần 180–300 giờ.
+  const thin = hoursOutlook({ ...base, studied: 10, planned: 120 });
+  assert.equal(thin.neededLow, 180);
+  assert.equal(thin.neededHigh, 300);
+  assert.equal(thin.funded, false);
+  assert.match(thin.message, /chưa đủ/);
+
+  const edge = hoursOutlook({ ...base, studied: 10, planned: 185 });
+  assert.equal(edge.funded, true);
+  assert.equal(edge.fullyFunded, false);
+
+  const full = hoursOutlook({ ...base, studied: 10, planned: 300 });
+  assert.equal(full.fullyFunded, true);
+});
+
+check("quỹ giờ: đã ở mục tiêu thì không đòi thêm giờ nào", () => {
+  const done = hoursOutlook({
+    studied: 40,
+    planned: 0,
+    startOverall: 7.0,
+    targetOverall: 7.0,
+    hoursPerBand: [120, 200],
+  });
+  assert.equal(done.bandsNeeded, 0);
+  assert.equal(done.neededLow, 0);
+  assert.equal(done.fullyFunded, true);
+});
+
+check("quỹ giờ: hạ mục tiêu làm chênh lệch nhỏ lại", () => {
+  const args = { studied: 10, planned: 150, startOverall: 5.5 } as const;
+  const seven = hoursOutlook({
+    ...args,
+    targetOverall: 7.0,
+    hoursPerBand: [120, 200],
+  });
+  const sixFive = hoursOutlook({
+    ...args,
+    targetOverall: 6.5,
+    hoursPerBand: [120, 200],
+  });
+  assert.equal(seven.funded, false);
+  assert.equal(sixFive.funded, true); // 1.0 band ⇒ 120–200 giờ
 });
 
 console.log(`\n✓ Pace: ${passed}/${passed} checks passed`);

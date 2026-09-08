@@ -44,6 +44,16 @@ export type ReviewGrade = (typeof REVIEW_GRADES)[number];
  * app's own "just review for 10 minutes today" advice never counted.
  */
 export const REVIEW_SESSION_MARKER = "ielts:review";
+/**
+ * `error_card.source_ref` markers.
+ *
+ * Cần thiết vì `error_type` không đủ để phân biệt: một thẻ lỗi từ bài viết cũng
+ * mang `collocation`. Không có marker thì trần thẻ từ vựng mỗi ngày sẽ đếm nhầm
+ * cả thẻ lỗi, và tệ hơn, so trùng có thể sửa nhầm vào thẻ lỗi của bài viết.
+ */
+export const VOCAB_CARD_MARKER = "ielts:vocab";
+export const DICTATION_CARD_MARKER = "ielts:dictation";
+
 /** `study_session.status` for that row. */
 export const REVIEW_SESSION_STATUS = "review";
 

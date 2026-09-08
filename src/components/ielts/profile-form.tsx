@@ -68,7 +68,7 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
     setSaved(false);
     startSave(async () => {
       try {
-        await updateProfile({
+        const result = await updateProfile({
           name,
           examGoal,
           startPoint,
@@ -91,6 +91,10 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
           examDate: examDate || null,
           weeklyTarget: Number(weeklyTarget) || 0,
         });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
         setSaved(true);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Lưu thất bại.");

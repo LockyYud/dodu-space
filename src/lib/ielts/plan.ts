@@ -30,7 +30,12 @@ export type SlotId =
   | "timed-reading"
   | "mock"
   | "tutor"
-  | "grammar";
+  | "grammar"
+  // Ba bổ sung từ METHOD-REVIEW §4–6, và cũng chính là phần giờ tăng thêm mà
+  // quyết định quỹ giờ ở §3.3b cam kết.
+  | "vocab"
+  | "speak-drill"
+  | "dictation";
 
 /**
  * How much of the week's schedule the learner is taking on.
@@ -91,9 +96,9 @@ export interface ScheduledDay {
 }
 
 export interface DailyTarget {
-  slot: Extract<SlotId, "input" | "srs">;
+  slot: Extract<SlotId, "input" | "srs" | "vocab" | "speak-drill">;
   /** Distinguishes the two input targets, which share one slot tag. */
-  key: "input-listen" | "input-read" | "srs";
+  key: "input-listen" | "input-read" | "srs" | "vocab" | "speak-drill";
   label: string;
   minutes: number;
   hint: string;
@@ -162,32 +167,96 @@ export const MOCK_EVERY_N_WEEKS = 3;
 /** Weeks of question-type curriculum in the format phase. */
 export const FORMAT_WEEK_COUNT = 4;
 
+/* ─────────────────────── ngân sách giờ (METHOD-REVIEW §3) ─────────────────────── */
+
+/**
+ * Giờ học **tập trung** thường được dẫn cho mỗi band IELTS.
+ *
+ * Khoảng rộng là có ý: các nguồn đưa từ 120 đến 200 giờ, và con số đó là quy tắc
+ * ngón tay cái chứ không phải phép đo trên một người học cụ thể. Dùng để phát
+ * hiện chênh lệch cỡ lớn, đừng dùng để tính ngày thi tới từng tuần.
+ */
+export const HOURS_PER_BAND_LOW = 120;
+export const HOURS_PER_BAND_HIGH = 200;
+
+/**
+ * Overall ước tính lúc bắt đầu lại (TOEIC LR 700 / SW 220 → L5.5 R5.5 W5.0 S5.0,
+ * trung bình 5.25 → overall 5.5). Chỉ dùng khi `band_history` chưa có baseline
+ * thật; có baseline rồi thì lấy số thật.
+ */
+export const START_OVERALL_ESTIMATE = 5.5;
+
+/* ─────────────────── từ vựng (METHOD-REVIEW §4) ─────────────────── */
+
+/** Mục từ vựng nhắm bắt mỗi ngày học. Qua 26 tuần ≈ 400–500 mục. */
+export const VOCAB_DAILY_TARGET = 4;
+
+/**
+ * Trần **thẻ từ vựng mới** mỗi ngày.
+ *
+ * Bắt buộc phải có: thẻ từ vựng và thẻ lỗi dùng chung một hàng đợi SM-2, nên
+ * không chặn thì từ vựng sẽ nhấn chìm thẻ lỗi — mà thẻ lỗi mới là thứ đang gỡ
+ * trần band Writing.
+ */
+export const VOCAB_DAILY_CAP = 5;
+
 /* ─────────────────────────── daily targets ─────────────────────────── */
 
-function daily(listen: number, read: number, srs = 10): DailyTarget[] {
-  return [
+/**
+ * Phần hằng ngày của một giai đoạn.
+ *
+ * `speak` là ô 4/3/2 (METHOD-REVIEW §5) và chỉ mở từ giai đoạn 1 — giai đoạn 0
+ * ưu tiên giữ được nhịp trước đã. Ô từ vựng có ở mọi giai đoạn vì nó gắn liền
+ * với ô Đọc và gần như không tốn thêm thời gian.
+ */
+function daily(opts: {
+  listen: number;
+  read: number;
+  srs?: number;
+  /** Phút cho ô 4/3/2; bỏ trống là chưa mở ô này. */
+  speak?: number;
+}): DailyTarget[] {
+  const targets: DailyTarget[] = [
     {
       slot: "input",
       key: "input-listen",
       label: "Nghe",
-      minutes: listen,
+      minutes: opts.listen,
       hint: "Podcast hoặc video khi di chuyển. Không cần bấm giờ, không cần chấm.",
     },
     {
       slot: "input",
       key: "input-read",
       label: "Đọc",
-      minutes: read,
-      hint: "Một bài báo ngắn. Gạch 3–5 cụm từ mới nếu thấy hay.",
+      minutes: opts.read,
+      hint: "Một bài báo ngắn.",
+    },
+    {
+      slot: "vocab",
+      key: "vocab",
+      label: "Bắt từ mới",
+      minutes: 5,
+      hint: `${VOCAB_DAILY_TARGET} cụm từ từ bài vừa đọc, kèm câu chứa nó. Cách dùng mới là thứ cần nhớ, không phải nghĩa rời.`,
     },
     {
       slot: "srs",
       key: "srs",
       label: "Ôn lỗi",
-      minutes: srs,
+      minutes: opts.srs ?? 10,
       hint: "Làm đầu buổi, trước mọi việc khác.",
     },
   ];
+
+  if (opts.speak) {
+    targets.push({
+      slot: "speak-drill",
+      key: "speak-drill",
+      label: "Nói 4/3/2",
+      minutes: opts.speak,
+      hint: "Cùng một nội dung: nói 4 phút, rồi 3, rồi 2. Tự ghi âm, nghe lại lượt cuối.",
+    });
+  }
+  return targets;
 }
 
 /* ─────────────────────────── weekly slots ─────────────────────────── */
@@ -247,6 +316,22 @@ const TIMED_LISTENING: WeeklySlot = {
   tool: "track",
 };
 
+/**
+ * Chép chính tả — luyện giải mã âm (METHOD-REVIEW §6).
+ *
+ * Nghiên cứu về L2 listening tách top-down (đoán ý từ ngữ cảnh) khỏi bottom-up
+ * (giải mã âm, tách từ trong dòng nói liền), và phần bottom-up có tác dụng
+ * riêng, không thay thế được bằng cách nghe nhiều hơn. Thước đo dùng lại đúng
+ * `errorDensity()` của Writing: lỗi trên 100 từ.
+ */
+const DICTATION: WeeklySlot = {
+  slot: "dictation",
+  key: "dictation",
+  label: "Chép chính tả",
+  minutes: 10,
+  hint: "Nghe 60–90 giây, chép nguyên văn, rồi đối chiếu transcript. Nhập số từ và số chỗ sai.",
+};
+
 const MOCK: WeeklySlot = {
   slot: "mock",
   key: "mock",
@@ -267,7 +352,7 @@ export const PHASES: Phase[] = [
     goal: "Ngồi xuống mỗi ngày, và triệt năm nhóm lỗi ngữ pháp cơ bản. Chưa đo band.",
     gradingMode: "coach",
     plannedWeeks: 3,
-    daily: daily(20, 10),
+    daily: daily({ listen: 20, read: 10 }),
     weekly: [
       writingSlot(
         "writing-free",
@@ -312,7 +397,7 @@ export const PHASES: Phase[] = [
     goal: "Biết từng dạng câu hỏi, viết được essay đủ cấu trúc, rồi đo baseline thật.",
     gradingMode: "coach",
     plannedWeeks: 4,
-    daily: daily(20, 10),
+    daily: daily({ listen: 20, read: 10, speak: 10 }),
     weekly: [
       writingSlot(
         "writing-structured",
@@ -364,8 +449,11 @@ export const PHASES: Phase[] = [
     label: "Giai đoạn 2 — Nâng band",
     goal: "Đẩy Listening/Reading về 7.5, giữ Writing/Speaking ở 6.0, luyện sức bền.",
     gradingMode: "band",
-    plannedWeeks: 12,
-    daily: daily(25, 15),
+    // 12 → 16 tuần (2026-09-08): quỹ giờ của bản 22 tuần không đủ cho mục tiêu,
+    // xem METHOD-REVIEW §3. Bốn tuần thêm vào đúng giai đoạn đắt nhất — L/R phải
+    // lên +2.0 band — chứ không rải đều.
+    plannedWeeks: 16,
+    daily: daily({ listen: 25, read: 15, speak: 10 }),
     weekly: [
       writingSlot(
         "writing-task2",
@@ -385,14 +473,17 @@ export const PHASES: Phase[] = [
       },
       { ...TIMED_LISTENING, minutes: 45 },
       { ...TIMED_READING, minutes: 50 },
+      DICTATION,
       MOCK,
       TUTOR,
     ],
     schedule: [
       { day: 1, keys: ["writing-task2"], minLoad: "light" },
-      { day: 2, keys: ["timed-listening"], minLoad: "light" },
+      // Chép chính tả đi kèm hai ngày bấm giờ: 10 phút, và giữ cả trong tuần
+      // bận vì đó là phần rẻ nhất trong giai đoạn này.
+      { day: 2, keys: ["timed-listening", "dictation"], minLoad: "light" },
       { day: 3, keys: ["rewrite", "tutor"], minLoad: "light" },
-      { day: 4, keys: ["timed-reading"], minLoad: "light" },
+      { day: 4, keys: ["timed-reading", "dictation"], minLoad: "light" },
       { day: 5, keys: ["writing-task1", "tutor"], minLoad: "normal" },
       // The mock is a three-hour block, so it only lands on a week the learner
       // has said is free. Missing one costs a phase exit criterion, which is
@@ -415,7 +506,7 @@ export const PHASES: Phase[] = [
     goal: "Giảm tải, giữ phong độ, chỉ ôn lỗi tồn. Không nạp bài mới.",
     gradingMode: "band",
     plannedWeeks: 3,
-    daily: daily(15, 10),
+    daily: daily({ listen: 15, read: 10, speak: 10 }),
     weekly: [
       writingSlot(
         "writing-taper",
@@ -577,6 +668,50 @@ export function scheduledByWeekday(
     }
   }
   return seen;
+}
+
+/**
+ * Phút học **tập trung** trong một tuần: việc theo lịch tuần, cộng phần hằng
+ * ngày trừ đi nghe thụ động.
+ *
+ * Nghe podcast khi di chuyển là thật và đáng giữ, nhưng nó không phải "giờ học
+ * có hướng dẫn" theo nghĩa mà mốc 120–200 giờ mỗi band đang dùng. Gộp nó vào
+ * làm quỹ giờ trông đủ trong khi thực tế thiếu.
+ */
+export function guidedMinutesForWeek(
+  phase: Phase,
+  load: WeekLoad,
+  weekInPhase: number,
+): number {
+  const passive =
+    phase.daily.find((d) => d.key === "input-listen")?.minutes ?? 0;
+  const desk = phase.daily.reduce((sum, d) => sum + d.minutes, 0) - passive;
+  const days = studyDaysForWeek(phase, load, weekInPhase);
+  return weeklyMinutes(phase, load, weekInPhase) + desk * days;
+}
+
+/**
+ * Giờ tập trung kế hoạch còn lại: phần còn lại của giai đoạn hiện tại cộng mọi
+ * giai đoạn sau, tính ở mức tải `load`.
+ */
+export function plannedGuidedHours(
+  id: PhaseId,
+  weekInPhase: number,
+  load: WeekLoad,
+): number {
+  const index = PHASES.findIndex((p) => p.id === id);
+  if (index < 0) return 0;
+  let minutes = 0;
+  const current = PHASES[index];
+  for (let w = weekInPhase; w <= current.plannedWeeks; w++) {
+    minutes += guidedMinutesForWeek(current, load, w);
+  }
+  for (const later of PHASES.slice(index + 1)) {
+    for (let w = 1; w <= later.plannedWeeks; w++) {
+      minutes += guidedMinutesForWeek(later, load, w);
+    }
+  }
+  return minutes / 60;
 }
 
 /** Minutes of weekly work the schedule asks for, excluding the daily habit. */

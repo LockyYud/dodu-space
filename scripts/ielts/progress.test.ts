@@ -311,4 +311,37 @@ check("a rewrite with nothing to rewrite is blocked, not offered", () => {
   );
 });
 
+check("ô từ vựng là một mục hằng ngày, tính theo slot của nó", () => {
+  const empty = progressReport(input({}));
+  const vocab = empty.daily.find((d) => d.key === "vocab");
+  assert.ok(vocab, "giai đoạn 0 phải có ô từ vựng");
+  assert.equal(vocab?.done, false);
+
+  const logged = progressReport(
+    input({
+      sessions: [
+        { date: START, skill: "vocab", slot: "vocab", durationMin: 4 },
+      ],
+    }),
+  );
+  assert.equal(logged.daily.find((d) => d.key === "vocab")?.done, true);
+});
+
+check("chép chính tả là chỉ tiêu tuần của giai đoạn nâng band", () => {
+  const build = progressReport(
+    input({ state: { phase: "build", startedOn: START } }),
+  );
+  assert.equal(build.weekly.find((i) => i.slot === "dictation")?.target, 2);
+  // Giai đoạn 0 không có ô này, và cũng không có ô 4/3/2.
+  const start = progressReport(input({}));
+  assert.equal(
+    start.weekly.find((i) => i.slot === "dictation"),
+    undefined,
+  );
+  assert.equal(
+    start.daily.find((d) => d.key === "speak-drill"),
+    undefined,
+  );
+});
+
 console.log(`\n✓ Progress: ${passed}/${passed} checks passed`);

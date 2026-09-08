@@ -41,7 +41,8 @@ export function DailyInput({
     }
     start(async () => {
       try {
-        await logDailyInput(kind, value);
+        const result = await logDailyInput(kind, value);
+        if (!result.ok) setError(result.error);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Không ghi được.");
       }

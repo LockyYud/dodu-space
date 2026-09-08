@@ -1,8 +1,9 @@
 # Lộ trình IELTS 7.0 — bản v3 (xây từ trình độ thật)
 
 > Tài liệu nguồn cho lộ trình học của Duy và là spec nội dung cho app `/ielts` trong
-> `dodu-space`. **Bản v3 lập 2026-09-08**, thay thế v2. Code trong `src/lib/ielts/plan.ts`
-> hiện vẫn là v2; phần 9 liệt kê những gì phải đổi.
+> `dodu-space`. **Bản v3 lập 2026-09-08**, thay thế v2. Phần 9 đã triển khai xong trong
+> `src/lib/ielts/plan.ts`. Xem thêm [METHOD-REVIEW.md](./METHOD-REVIEW.md) — rà soát phương
+> pháp đối chiếu nghiên cứu, và **một chênh lệch quỹ giờ chưa được chốt**.
 
 ---
 
@@ -106,6 +107,37 @@ Tuần có mock nên để ở "Tuần rảnh": mock là khối ba giờ, chỉ 
 
 ---
 
+## 4.2 Quỹ giờ — quyết định 2026-09-08
+
+[METHOD-REVIEW.md](./METHOD-REVIEW.md) §3 chỉ ra bản 22 tuần chỉ cấp khoảng **130 giờ học tập
+trung**, trong khi mốc thường được dẫn là 120–200 giờ cho mỗi band, và mục tiêu 7.0 là +1.5 band.
+Duy chốt phương án kết hợp: **tăng giờ dần dần, và lùi ngày thi thêm khoảng một tháng.**
+
+Lùi thi thực hiện bằng cách kéo **Giai đoạn 2 từ 12 lên 16 tuần** — bốn tuần thêm vào đúng giai
+đoạn đắt nhất, nơi L/R phải lên +2.0 band, chứ không rải đều. Lộ trình thành **26 tuần**, ngày
+thi sớm nhất khoảng **23/03/2027**.
+
+Tăng giờ thì **không phải nhồi thêm bài cùng loại**. Ba bổ sung ở METHOD-REVIEW §4–6 chính là
+phần giờ tăng thêm, và chúng vào theo thứ tự để đường dốc lên từ từ:
+
+| Giai đoạn | Bổ sung | Giờ tập trung / tuần |
+|---|---|---|
+| 0 — Quay lại | thẻ từ vựng từ bài đọc | 4,3 → ~4,7 |
+| 1 — Học format | thêm ô 4/3/2 nói | 5,0 → ~6,3 |
+| 2 — Nâng band | thêm ô chép chính tả | 6,9 → ~8,5 |
+| 3 — Trước thi | bỏ chép chính tả, giữ phần còn lại | 4,8 → ~6,0 |
+
+Cộng lại: **khoảng 194 giờ tập trung trong 26 tuần**, so với 130 giờ của bản cũ. Đủ chắc cho 6.5,
+và chạm mép dưới của khoảng cần cho 7.0.
+
+**7.0 vẫn là mục tiêu có điều kiện**, chỉ chốt sau mock tuần 13 và chỉ khi L/R đã chạm 7.0. Trang
+Hôm nay nay hiện thẳng chênh lệch giờ thay vì để nó âm thầm trôi tới sát ngày thi.
+
+*Trạng thái: đã lên code đầy đủ. Quỹ giờ đo lại từ `plan.ts` là **193 giờ** ở mức tuần thường,
+đúng đường dốc trong bảng trên.*
+
+---
+
 ## 5. Bốn giai đoạn, chuyển theo năng lực
 
 Số tuần là dự kiến để khớp mốc tháng 2. Điều kiện ra mới là thứ quyết định.
@@ -143,7 +175,7 @@ cùng một Task 2 40 phút. Đây là mốc thay cho ước tính ở mục 2.
 
 **Điều kiện ra:** đã có baseline · essay 4 đoạn ≥ 250 từ · mật độ lỗi dưới 4 / 100 từ.
 
-### Giai đoạn 2 — Nâng band · tuần 8–19 · 27/10 → 18/01
+### Giai đoạn 2 — Nâng band · tuần 8–23 · 26/10 → 14/02
 
 Mục tiêu: đẩy L/R về 7.5, giữ W/S ở 6.0, luyện sức bền.
 
@@ -154,20 +186,20 @@ Mục tiêu: đẩy L/R về 7.5, giữ W/S ở 6.0, luyện sức bền.
 | Speaking | gia sư 2 buổi; ghi band mỗi tháng |
 | SRS | ưu tiên lỗi cứng đầu |
 
-**Mock mỗi 3 tuần:** tuần 10, 13, 16, 19. Khung 3 giờ cuối tuần, ngoài quỹ ngày.
+**Mock mỗi 3 tuần:** tuần 10, 13, 16, 19, 22. Khung 3 giờ cuối tuần, ngoài quỹ ngày.
 
-**Điểm quyết định, tuần 14 (08/12):** dựa trên mock tuần 13.
+**Điểm quyết định, tuần 14 (07/12):** dựa trên mock tuần 13.
 
 | Kết quả mock tuần 13 | Quyết định |
 |---|---|
-| L + R ≥ 14.0 và Writing ≥ 5.5 | đăng ký thi đầu tháng 2/2027 |
-| L + R từ 13.0 đến 13.5 | đăng ký tháng 4/2027, kéo Giai đoạn 2 thêm 8 tuần |
-| L + R dưới 13.0 | dời tháng 5/2027, xem lại chiến lược bù trừ |
+| L + R ≥ 14.0 và Writing ≥ 5.5 | đăng ký thi tháng 3/2027 |
+| L + R từ 13.0 đến 13.5 | đăng ký tháng 5/2027, kéo Giai đoạn 2 thêm 8 tuần |
+| L + R dưới 13.0 | dời tháng 6/2027, hạ mục tiêu về 6.5 |
 
-### Giai đoạn 3 — Trước thi · tuần 20–22 · 19/01 → 08/02
+### Giai đoạn 3 — Trước thi · tuần 24–26 · 15/02 → 07/03
 
-Một mock cuối ở tuần 20. Sau đó chỉ SRS và tiếp nhận nhẹ, **không nạp bài mới**. Thi khoảng
-07 đến 08/02/2027.
+Mock cuối ở tuần 22, ngay trước khi vào giai đoạn này. Sau đó chỉ SRS và tiếp nhận nhẹ,
+**không nạp bài mới**. Thi khoảng **08 đến 23/03/2027**.
 
 ---
 
@@ -178,7 +210,7 @@ Một mock cuối ở tuần 20. Sau đó chỉ SRS và tiếp nhận nhẹ, **k
 | Ước tính hiện tại | 5.5 | 5.5 | 5.0 | 5.0 | 21 |
 | Baseline thật, cuối tuần 7 | 6.0 | 6.0 | 5.5 | 5.5 | 23 |
 | Mock tuần 13, điểm quyết định | 6.5–7.0 | 6.5–7.0 | 5.5–6.0 | 6.0 | 24.5–26 |
-| Mock tuần 19 | 7.0–7.5 | 7.0–7.5 | 6.0 | 6.0 | 26–27 |
+| Mock tuần 22 | 7.0–7.5 | 7.0–7.5 | 6.0 | 6.0 | 26–27 |
 
 Writing trong Giai đoạn 0 và 1 **không đo bằng band** mà bằng mật độ lỗi / 100 từ. Band chỉ
 xuất hiện từ tuần 6.

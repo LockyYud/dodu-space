@@ -4,12 +4,15 @@ import {
   FORMAT_WEEK_COUNT,
   FORMAT_WEEKS,
   formatWeek,
+  guidedMinutesForWeek,
   isSelfLoggable,
   mondayOf,
   nextPhaseId,
   PHASES,
+  type PhaseId,
   PLANNED_WEEKS_TOTAL,
   phaseById,
+  plannedGuidedHours,
   plannedWeeksRemaining,
   scheduledByWeekday,
   selfLoggableSlots,
@@ -18,6 +21,7 @@ import {
   WEEK_LOADS,
   WEEKDAY_SHORT,
   weekdayOf,
+  weeklyMinutes,
   weeklyTargets,
 } from "../../src/lib/ielts/plan";
 import { pickPrompt, promptsFor } from "../../src/lib/ielts/prompts";
@@ -36,7 +40,8 @@ check("four phases, ordered, ending at the taper", () => {
   );
   assert.equal(nextPhaseId("return"), "format");
   assert.equal(nextPhaseId("taper"), null);
-  assert.equal(PLANNED_WEEKS_TOTAL, 22); // fits an early-Feb exam
+  // 26 tuần: bản 22 tuần không đủ quỹ giờ, xem METHOD-REVIEW §3.
+  assert.equal(PLANNED_WEEKS_TOTAL, 26);
 });
 
 check("early phases coach, later phases grade", () => {
@@ -46,17 +51,44 @@ check("early phases coach, later phases grade", () => {
   assert.equal(phaseById("taper").gradingMode, "band");
 });
 
-check("every phase has a daily input+SRS habit", () => {
+check("every phase has a daily input + vocab + SRS habit", () => {
   for (const phase of PHASES) {
-    const keys = phase.daily.map((d) => d.key).sort();
-    assert.deepEqual(
-      keys,
-      ["input-listen", "input-read", "srs"],
-      `${phase.id} daily targets`,
-    );
+    const keys = phase.daily.map((d) => d.key);
+    for (const required of [
+      "input-listen",
+      "input-read",
+      "vocab",
+      "srs",
+    ] as const) {
+      assert.ok(keys.includes(required), `${phase.id} thiếu ${required}`);
+    }
     const total = phase.daily.reduce((sum, d) => sum + d.minutes, 0);
-    assert.ok(total <= 50, `${phase.id}: daily load ${total}' is too heavy`);
+    assert.ok(total <= 75, `${phase.id}: daily load ${total}' is too heavy`);
   }
+});
+
+check("ô 4/3/2 mở từ giai đoạn 1, không phải giai đoạn 0", () => {
+  // Giai đoạn 0 chỉ có một việc: giữ được nhịp. Chất thêm vào đó là cách v1 chết.
+  const has = (id: PhaseId) =>
+    phaseById(id).daily.some((d) => d.key === "speak-drill");
+  assert.equal(has("return"), false);
+  for (const id of ["format", "build", "taper"] as const) {
+    assert.equal(has(id), true, `${id} phải có ô 4/3/2`);
+  }
+});
+
+check("chép chính tả chỉ có ở giai đoạn nâng band", () => {
+  const has = (id: PhaseId) =>
+    phaseById(id).weekly.some((s) => s.slot === "dictation");
+  assert.equal(has("build"), true);
+  for (const id of ["return", "format", "taper"] as const) {
+    assert.equal(has(id), false, `${id} không nên có chép chính tả`);
+  }
+  // Hai lần mỗi tuần, giữ cả trong tuần bận vì nó rẻ.
+  assert.equal(
+    weeklyTargets(phaseById("build"), "light", 1).get("dictation"),
+    2,
+  );
 });
 
 check("every phase has a weekly tutor slot", () => {
@@ -275,6 +307,37 @@ check("weekdays and week starts are Monday-based", () => {
   assert.equal(weekdayOf("2026-09-13"), 7); // the Sunday after
   assert.equal(mondayOf("2026-09-13"), "2026-09-07");
   assert.equal(mondayOf("2026-09-07"), "2026-09-07");
+});
+
+check("quỹ giờ tập trung không tính nghe thụ động", () => {
+  const phase = phaseById("build");
+  const passive =
+    phase.daily.find((d) => d.key === "input-listen")?.minutes ?? 0;
+  const desk = phase.daily.reduce((s, d) => s + d.minutes, 0) - passive;
+  const days = studyDaysForWeek(phase, "normal", 1);
+  assert.equal(
+    guidedMinutesForWeek(phase, "normal", 1),
+    weeklyMinutes(phase, "normal", 1) + desk * days,
+  );
+  // Nghe thụ động phải bị loại, nếu không quỹ giờ trông đủ trong khi thiếu.
+  assert.ok(
+    guidedMinutesForWeek(phase, "normal", 1) <
+      weeklyMinutes(phase, "normal", 1) +
+        phase.daily.reduce((s, d) => s + d.minutes, 0) * days,
+  );
+});
+
+check("giờ kế hoạch còn lại giảm dần và tăng theo mức tải", () => {
+  const week1 = plannedGuidedHours("return", 1, "normal");
+  const later = plannedGuidedHours("build", 5, "normal");
+  assert.ok(week1 > later, "còn lại phải giảm khi đi sâu vào lộ trình");
+  assert.ok(
+    plannedGuidedHours("return", 1, "full") > week1,
+    "tuần rảnh phải cấp nhiều giờ hơn tuần thường",
+  );
+  // Bản 26 tuần ở mức thường phải vượt 150 giờ tập trung, nếu không thì chính
+  // quyết định lùi thi + tăng giờ ở METHOD-REVIEW §3.3 đã không được thực hiện.
+  assert.ok(week1 > 150, `chỉ có ${week1.toFixed(0)}h`);
 });
 
 console.log(`\n✓ Plan: ${passed}/${passed} checks passed`);

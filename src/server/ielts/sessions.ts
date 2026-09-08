@@ -52,6 +52,26 @@ export async function listStudyDates(): Promise<string[]> {
   return [...new Set(rows.map((row) => row.date))];
 }
 
+/**
+ * Giờ học **tập trung** đã tích luỹ, không tính nghe thụ động.
+ *
+ * Ô "Nghe" hằng ngày là podcast khi di chuyển. Nó đáng giữ, nhưng cộng nó vào
+ * quỹ giờ làm con số trông đủ trong khi thực tế thiếu — xem METHOD-REVIEW §3.
+ */
+export async function guidedHoursStudied(): Promise<number> {
+  const rows = await db
+    .select({
+      skill: schema.studySession.skill,
+      slot: schema.studySession.slot,
+      durationMin: schema.studySession.durationMin,
+    })
+    .from(schema.studySession);
+  const minutes = rows
+    .filter((r) => !(r.slot === "input" && r.skill === "listening"))
+    .reduce((sum, r) => sum + (r.durationMin ?? 0), 0);
+  return minutes / 60;
+}
+
 export async function listSessions(limit = 30): Promise<StudySession[]> {
   return db
     .select()

@@ -25,7 +25,8 @@ export function SlotLog({
     setError(null);
     start(async () => {
       try {
-        await logSlot(slot, minutes);
+        const result = await logSlot(slot, minutes);
+        if (!result.ok) setError(result.error);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Không ghi được.");
       }

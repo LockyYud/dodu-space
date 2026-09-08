@@ -6,6 +6,7 @@ import {
   newCardState,
   schedule,
   toISODate,
+  toLocalTimestamp,
 } from "../../src/lib/ielts/srs";
 
 let passed = 0;
@@ -82,6 +83,14 @@ check("dueDateAfter offsets by N days", () => {
   assert.equal(toISODate(base), "2026-07-19");
   assert.equal(dueDateAfter(6, base), "2026-07-25");
   assert.equal(dueDateAfter(0, base), "2026-07-19");
+});
+
+check("dấu thời gian địa phương khớp ngày địa phương", () => {
+  // SQLite mặc định là UTC. Ở UTC+7, một hàng tạo lúc 2 giờ sáng sẽ mang ngày
+  // UTC của hôm trước — đủ để một cái trần "mỗi ngày" đếm sai vào sáng sớm.
+  const at2am = new Date(2026, 8, 8, 2, 5, 9);
+  assert.equal(toLocalTimestamp(at2am), "2026-09-08 02:05:09");
+  assert.equal(toLocalTimestamp(at2am).slice(0, 10), toISODate(at2am));
 });
 
 console.log(`\n✓ SRS: ${passed}/${passed} checks passed`);

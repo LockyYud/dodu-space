@@ -256,7 +256,10 @@ function dailyItems(
   const todays = sessions.filter((s) => s.date === today);
   return phase.daily.map((target) => {
     const matches = todays.filter((s) => {
-      if (target.key === "srs") return s.slot === "srs";
+      // Only the two input targets share a slot tag, so everything else can
+      // match on the tag alone. Adding a daily target must not mean adding a
+      // branch here.
+      if (target.slot !== "input") return s.slot === target.slot;
       if (s.slot !== "input") return false;
       return target.key === "input-listen"
         ? s.skill === "listening"
