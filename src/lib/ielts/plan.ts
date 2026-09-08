@@ -412,6 +412,28 @@ export function slotsForWeek(phase: Phase, weekInPhase: number): WeeklySlot[] {
   });
 }
 
+/**
+ * Slots with no tool behind them, which the learner therefore ticks by hand.
+ * Derived rather than listed so it stays correct when slots change: anything
+ * that has a tool must be logged by saving real work in that tool, otherwise
+ * a mock could be ticked off without ever producing the bands it exists for.
+ */
+export function selfLoggableSlots(): SlotId[] {
+  const withTool = new Set<SlotId>();
+  const all = new Set<SlotId>();
+  for (const phase of PHASES) {
+    for (const slot of phase.weekly) {
+      all.add(slot.slot);
+      if (slot.tool) withTool.add(slot.slot);
+    }
+  }
+  return [...all].filter((slot) => !withTool.has(slot));
+}
+
+export function isSelfLoggable(slot: string): slot is SlotId {
+  return (selfLoggableSlots() as string[]).includes(slot);
+}
+
 /* ────────────────── question-type curriculum (format phase) ────────────────── */
 
 export interface FormatWeek {

@@ -54,6 +54,31 @@ check("a shorter plan makes the same date comfortable again", () => {
   assert.equal(late.status, "on-track");
 });
 
+check("a brand-new plan is never told it has been studying too little", () => {
+  // Day one: zero study days in the window, but the window does not exist yet.
+  const dayOne = paceStatus({
+    ...base,
+    studyDaysLast14: 0,
+    daysSincePlanStart: 0,
+  });
+  assert.equal(dayOne.degraded, false);
+
+  const day13 = paceStatus({
+    ...base,
+    studyDaysLast14: 0,
+    daysSincePlanStart: 13,
+  });
+  assert.equal(day13.degraded, false);
+
+  // Once a full window exists, an empty one really is reduced load.
+  const day14 = paceStatus({
+    ...base,
+    studyDaysLast14: 0,
+    daysSincePlanStart: 14,
+  });
+  assert.equal(day14.degraded, true);
+});
+
 check("degraded flips below the 14-day study-day threshold", () => {
   assert.equal(
     paceStatus({ ...base, studyDaysLast14: DEGRADED_SESSION_THRESHOLD })

@@ -8,7 +8,7 @@ import { logout } from "@/server/ielts/auth";
 const LINKS = [
   { href: "/ielts/today", label: "Hôm nay" },
   { href: "/ielts/review", label: "Ôn lỗi" },
-  { href: "/ielts/journey", label: "Hành trình" },
+  { href: "/ielts/history", label: "Hành trình" },
   { href: "/ielts/analytics", label: "Phân tích" },
 ] as const;
 

@@ -25,6 +25,7 @@ function input(over: Partial<ProgressInput> = {}): ProgressInput {
     sessions: [],
     submissions: [],
     bands: [],
+    dueCount: 3,
     today: new Date(2026, 8, 8),
     ...over,
   };
@@ -78,6 +79,17 @@ check("SRS is done when a review session exists today", () => {
     }),
   );
   assert.equal(report.daily.find((d) => d.key === "srs")?.done, true);
+});
+
+check("SRS is satisfied on a day with nothing due", () => {
+  const nothingDue = progressReport(input({ dueCount: 0 }));
+  const srs = nothingDue.daily.find((d) => d.key === "srs");
+  // Nothing to review means nothing can be logged, so requiring a review
+  // would cap the day at 2 of 3 no matter what the learner did.
+  assert.equal(srs?.done, true);
+
+  const somethingDue = progressReport(input({ dueCount: 3 }));
+  assert.equal(somethingDue.daily.find((d) => d.key === "srs")?.done, false);
 });
 
 check("weekly slots count only this week's sessions", () => {

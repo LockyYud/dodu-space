@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { DailyInput } from "@/components/ielts/daily-input";
 import { PhasePanel } from "@/components/ielts/phase-panel";
+import { SlotLog } from "@/components/ielts/slot-log";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatWeek, phaseById, type SlotId } from "@/lib/ielts/plan";
+import {
+  formatWeek,
+  isSelfLoggable,
+  phaseById,
+  type SlotId,
+} from "@/lib/ielts/plan";
 import type { WeeklyItem } from "@/lib/ielts/progress";
 import { loadToday } from "@/server/ielts/today";
 
@@ -27,13 +33,15 @@ const SLOT_HREF: Partial<Record<SlotId, string>> = {
 };
 
 export default async function TodayPage() {
-  const { progress, pace, dueCount, streak, profile } = await loadToday();
+  const { progress, pace, suggestedExam, dueCount, streak, profile } =
+    await loadToday();
 
   const { phase, daily, weekly, exit, canAdvance, nextPhase, weekInPhase } =
     progress;
   const degraded = pace.degraded;
   const curriculum = phase.id === "format" ? formatWeek(weekInPhase) : null;
   const dailyDone = daily.filter((d) => d.done).length;
+  const metCount = exit.filter((e) => e.met).length;
 
   return (
     <section className="mx-auto max-w-3xl space-y-6">
@@ -49,7 +57,20 @@ export default async function TodayPage() {
             : "Hôm nay, làm gì?"}
         </h1>
         <p className="text-sm text-muted-foreground">{phase.goal}</p>
-        <p className={`text-xs ${PACE_TONE[pace.status]}`}>{pace.message}</p>
+        <p className={`text-xs ${PACE_TONE[pace.status]}`}>
+          {pace.message}
+          {!profile.examDate && (
+            <>
+              {` Sớm nhất nên là ${suggestedExam}. `}
+              <Link
+                href="/ielts/settings"
+                className="text-primary underline underline-offset-2"
+              >
+                Đặt ngày thi
+              </Link>
+            </>
+          )}
+        </p>
       </header>
 
       {degraded && (
@@ -135,20 +156,27 @@ export default async function TodayPage() {
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            Điều kiện sang giai đoạn sau
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Giai đoạn chuyển khi bạn làm được, không phải khi hết tuần.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <PhasePanel
-            exit={exit}
-            canAdvance={canAdvance}
-            nextLabel={nextPhase ? phaseById(nextPhase).label : null}
-          />
+        <CardContent className="py-4">
+          <details open={metCount > 0}>
+            <summary className="cursor-pointer list-none">
+              <span className="text-base font-semibold">
+                Điều kiện sang giai đoạn sau
+              </span>
+              <span className="ml-2 text-sm text-muted-foreground">
+                {metCount}/{exit.length} đã đạt
+              </span>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Giai đoạn chuyển khi bạn làm được, không phải khi hết tuần.
+              </p>
+            </summary>
+            <div className="mt-4">
+              <PhasePanel
+                exit={exit}
+                canAdvance={canAdvance}
+                nextLabel={nextPhase ? phaseById(nextPhase).label : null}
+              />
+            </div>
+          </details>
         </CardContent>
       </Card>
 
@@ -185,13 +213,17 @@ function WeeklyRow({ item }: { item: WeeklyItem }) {
         </p>
         <p className="text-xs text-muted-foreground">{item.hint}</p>
       </div>
-      {href && !complete && (
-        <Link href={href} prefetch={false}>
-          <Button size="sm" variant="outline">
-            Bắt đầu
-          </Button>
-        </Link>
-      )}
+      {href ? (
+        !complete && (
+          <Link href={href} prefetch={false}>
+            <Button size="sm" variant="outline">
+              Bắt đầu
+            </Button>
+          </Link>
+        )
+      ) : isSelfLoggable(item.slot) ? (
+        <SlotLog slot={item.slot} minutes={item.minutes} done={complete} />
+      ) : null}
     </div>
   );
 }

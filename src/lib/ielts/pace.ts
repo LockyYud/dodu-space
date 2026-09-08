@@ -21,6 +21,12 @@ export interface PaceInput {
   /** From `plannedWeeksRemaining()` in ./plan.ts. */
   plannedWeeksRemaining: number;
   studyDaysLast14: number;
+  /**
+   * Days since the roadmap started. Reduced-load mode compares the last 14
+   * days, so it is meaningless before 14 days exist: without this a plan that
+   * began today reported "the last 14 days are too sparse" on day one.
+   */
+  daysSincePlanStart?: number;
   examDate?: string | null;
   today?: Date;
 }
@@ -39,7 +45,10 @@ export interface PaceReport {
 export function paceStatus(input: PaceInput): PaceReport {
   const today = input.today ?? new Date();
   const planned = Math.max(0, input.plannedWeeksRemaining);
-  const degraded = input.studyDaysLast14 < DEGRADED_SESSION_THRESHOLD;
+  const windowIsMeaningful =
+    (input.daysSincePlanStart ?? DEGRADED_WINDOW_DAYS) >= DEGRADED_WINDOW_DAYS;
+  const degraded =
+    windowIsMeaningful && input.studyDaysLast14 < DEGRADED_SESSION_THRESHOLD;
 
   if (!input.examDate) {
     return {
@@ -114,6 +123,11 @@ export function suggestedExamDate(
   const date = new Date(today);
   date.setDate(date.getDate() + (Math.max(0, plannedWeeksRemaining) + 2) * 7);
   return toISODate(date);
+}
+
+/** Whole days from `from` (YYYY-MM-DD) up to and including `today`. */
+export function daysSince(from: string, today = new Date()): number {
+  return -daysUntil(today, from);
 }
 
 /** Study days inside the current calendar week window of `days` length. */

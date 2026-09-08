@@ -92,6 +92,8 @@ export interface ProgressInput {
   sessions: SessionRow[];
   submissions: SubmissionRow[];
   bands: BandRow[];
+  /** Cards due today. Zero due means the SRS habit has nothing left to do. */
+  dueCount?: number;
   examDate?: string | null;
   today?: Date;
 }
@@ -136,7 +138,7 @@ export function buildProgress(input: ProgressInput): ProgressReport {
     startedOn,
     weekInPhase,
     daysInPhase,
-    daily: dailyItems(phase, input.sessions, today),
+    daily: dailyItems(phase, input.sessions, today, input.dueCount ?? 0),
     weekly: weeklyItems(phase, weekInPhase, sinceStart, startedOn, today),
     exit: exitStatuses({
       phase,
@@ -166,6 +168,7 @@ function dailyItems(
   phase: Phase,
   sessions: SessionRow[],
   today: string,
+  dueCount: number,
 ): DailyItem[] {
   const todays = sessions.filter((s) => s.date === today);
   return phase.daily.map((target) => {
@@ -180,6 +183,9 @@ function dailyItems(
       (sum, s) => sum + (s.durationMin ?? 0),
       0,
     );
+    // An empty review queue is a finished one: on a day with nothing due there
+    // is no way to log a review, so requiring one capped the day at 2 of 3.
+    const nothingToReview = target.key === "srs" && dueCount === 0;
     return {
       key: target.key,
       label: target.label,
@@ -187,7 +193,7 @@ function dailyItems(
       doneMinutes,
       // Any logged attempt counts as done; the minutes are for the learner,
       // not a gate. Reduced-load days must still be able to close out.
-      done: matches.length > 0,
+      done: matches.length > 0 || nothingToReview,
       hint: target.hint,
     };
   });

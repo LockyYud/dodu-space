@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
+import { isSelfLoggable } from "@/lib/ielts/plan";
 import { toISODate } from "@/lib/ielts/srs";
 
 /**
@@ -63,4 +64,38 @@ export async function logDailyInput(
   revalidatePath("/ielts/today");
   revalidatePath("/ielts/progress");
   return { totalMinutes: total };
+}
+
+/**
+ * Tick off a weekly slot that has no tool behind it, such as the grammar drill.
+ * Slots that do have a tool are deliberately refused: they are completed by
+ * saving real work, so a mock can never be ticked without its bands.
+ */
+export async function logSlot(
+  slot: string,
+  minutes: number,
+): Promise<{ date: string }> {
+  await requireIeltsUser();
+  if (!isSelfLoggable(slot)) {
+    throw new Error(
+      `Suất "${slot}" phải được hoàn thành bằng cách lưu kết quả trong công cụ tương ứng.`,
+    );
+  }
+  if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 600) {
+    throw new Error("Số phút phải nằm trong khoảng 1 đến 600.");
+  }
+  const date = toISODate();
+
+  await db.insert(schema.studySession).values({
+    date,
+    skill: "vocab",
+    slot,
+    durationMin: Math.round(minutes),
+    status: "done",
+    notes: "Drill ngữ pháp",
+  });
+
+  revalidatePath("/ielts/today");
+  revalidatePath("/ielts/progress");
+  return { date };
 }

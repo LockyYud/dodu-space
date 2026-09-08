@@ -2,6 +2,7 @@
 
 import {
   countRecentSessions,
+  daysSince,
   type PaceReport,
   paceStatus,
   suggestedExamDate,
@@ -34,6 +35,7 @@ export async function getPaceOverview(): Promise<PaceOverview> {
   const report = paceStatus({
     plannedWeeksRemaining: planned,
     studyDaysLast14: countRecentSessions(studyDates),
+    daysSincePlanStart: daysSince(profile.planStart),
     examDate: profile.examDate,
   });
 

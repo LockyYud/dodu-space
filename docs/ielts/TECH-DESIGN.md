@@ -496,3 +496,35 @@ README trong thư mục đó nói rõ lấy ở đâu. Chế độ `--consistenc
 bài bất kỳ và đo đúng thứ đã hỏng trước đây: chấm lại cùng một bài có ra cùng band không.
 
 **Test:** `npm run ielts:test` chạy 5 bộ, 52 check — SRS, Plan, Pace, Progress, Grading.
+
+---
+
+## 12. Bốn lỗi sau khi dùng thật (2026-09-08)
+
+Nhìn UI v3 chạy trên dữ liệu thật lộ ra bốn chỗ hụt. Tất cả đã sửa và có test.
+
+1. **Chế độ hạ tải bật ngay ngày đầu.** Cơ chế đếm số ngày học trong 14 ngày gần nhất;
+   kế hoạch mới bắt đầu thì con số đó tất nhiên bằng không, nên thứ nổi bật nhất trên
+   trang là một lời chê. `paceStatus()` nay nhận `daysSincePlanStart` và chỉ bật hạ tải
+   khi cửa sổ 14 ngày thực sự tồn tại.
+2. **Suất không có công cụ không thể hoàn thành.** "Drill ngữ pháp" không có nút và không
+   có đường nào ghi được slot đó, nên nó đứng ở 0/3 vĩnh viễn — đúng cái suất nhắm vào
+   năm nhóm lỗi của người học. Thêm `logSlot()` cùng `selfLoggableSlots()`: slot **không**
+   có tool thì tick tay được, slot **có** tool thì bắt buộc lưu kết quả thật, nên không ai
+   tick được một mock mà bỏ qua band mà mock tồn tại để tạo ra.
+3. **Mục ôn lỗi không thể xong khi không có thẻ đến hạn.** Hàng đợi rỗng là hàng đợi đã
+   xong: `dueCount === 0` nay tính là hoàn thành, thay vì kẹt checklist ở 2/3.
+4. **Không có lối đặt ngày thi.** App đã tính ngày thi gợi ý nhưng không hiển thị. Dòng
+   pace nay nêu ngày sớm nhất kèm link sang Hồ sơ học.
+
+Ngoài ra, khối điều kiện chuyển giai đoạn được thu vào `<details>` với dòng tóm tắt
+"n/m đã đạt", chỉ tự mở khi đã đạt ít nhất một tiêu chí. Ngày đầu tiên không nên là một
+bức tường số 0, vì đó đúng là cảm giác mà v3 muốn tránh.
+
+**Bẫy Next.js đã sửa cùng dịp:** `/ielts/journey` chỉ có một dòng `redirect()` và không đọc
+dữ liệu, nên bị prerender lúc build. Điều hướng phía client nhận HTTP 200 kèm payload của
+error boundary thay vì lệnh chuyển hướng, và app crash trong trình duyệt. Đã chuyển vào
+`redirects()` của `next.config.ts`, nơi React không tham gia. Route chỉ để chuyển hướng thì
+phải nằm ở config, hoặc mang `export const dynamic = "force-dynamic"`.
+
+**Test:** `npm run ielts:test` — 5 bộ, 55 check.

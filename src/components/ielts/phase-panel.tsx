@@ -58,7 +58,9 @@ export function PhasePanel({
               className="shrink-0 text-[10px] tabular-nums"
             >
               {criterion.lowerIsBetter
-                ? `${criterion.current || "—"} / dưới ${criterion.target}`
+                ? criterion.current
+                  ? `${criterion.current} · cần dưới ${criterion.target}`
+                  : "chưa có dữ liệu"
                 : `${criterion.current} / ${criterion.target}`}
             </Badge>
           </li>

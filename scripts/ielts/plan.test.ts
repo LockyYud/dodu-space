@@ -3,11 +3,13 @@ import {
   FORMAT_WEEK_COUNT,
   FORMAT_WEEKS,
   formatWeek,
+  isSelfLoggable,
   nextPhaseId,
   PHASES,
   PLANNED_WEEKS_TOTAL,
   phaseById,
   plannedWeeksRemaining,
+  selfLoggableSlots,
   slotsForWeek,
 } from "../../src/lib/ielts/plan";
 import { pickPrompt, promptsFor } from "../../src/lib/ielts/prompts";
@@ -106,6 +108,21 @@ check("Task 1 alternates weeks in the build phase", () => {
   const week2 = slotsForWeek(build, 2).filter((s) => s.slot === "writing");
   assert.equal(week1.length, 1); // Task 2 only
   assert.equal(week2.length, 2); // Task 2 + Task 1
+});
+
+check("only tool-less slots may be ticked by hand", () => {
+  const selfLoggable = selfLoggableSlots();
+  // The grammar drill has no tool, so without this it could never be completed.
+  assert.ok(selfLoggable.includes("grammar"));
+  // Anything with a tool must be completed by saving real work: ticking a mock
+  // by hand would skip the bands the mock exists to produce.
+  for (const slot of ["writing", "rewrite", "mock", "tutor", "timed-reading"]) {
+    assert.equal(
+      isSelfLoggable(slot),
+      false,
+      `${slot} must not be self-loggable`,
+    );
+  }
 });
 
 check("every phase can be exited by a measurable criterion", () => {
