@@ -92,9 +92,35 @@ qua một tuần bận:
 | Tuần thường | 5 | nhịp mặc định |
 | Tuần rảnh | 6 | tuần trống, chạy hết lịch |
 
-Lịch giai đoạn 0: **T2** viết tự do · **T3** viết lại + drill · **T4** gia sư · **T5** viết tự do
-· **T6** viết lại + drill · **T7** gia sư + drill · **CN** nghỉ. Bốn ngày đầu là phần lõi, T6 và
-T7 rụng khi tuần bận. Không giai đoạn nào xếp việc vào Chủ nhật.
+### Ràng buộc thật: tối ngày thường 30–60 phút, cuối tuần rộng hơn
+
+Bản lịch đầu rải đều T2–T6 và bỏ trống cuối tuần — tức đặt việc nặng đúng vào lúc không có
+thời gian. Đo lại thì giai đoạn 2 có **bốn trong năm ngày vượt 60 phút**, ngày nặng nhất 100.
+Nguyên nhân: lịch xếp theo "mỗi kỹ năng cần bao nhiêu" mà chưa bao giờ nhân với "người học có
+bao nhiêu".
+
+Lịch nay theo đúng nhịp sống: **T2–T6 nhẹ, thứ Sáu nghỉ, việc dài dồn về T7 và CN.**
+
+| Giai đoạn | Nền phải ngồi | T2 | T3 | T4 | T7 | CN |
+|---|---|---|---|---|---|---|
+| 0 — Quay lại | 25' | 45' | 35' | 45' | 50' + gia sư | 60' + gia sư |
+| 1 — Học format | 35' | 60' | 45' | 60' | 90' + gia sư | 100' + gia sư |
+| 2 — Nâng band | 40' | 60' | 50' | 50' | 135' + gia sư | 100' + gia sư |
+| 3 — Trước thi | 30' | 60' | 30' + gia sư | 60' | 70' + gia sư | — |
+
+Ba luật đi kèm:
+
+- **Không ngày thường nào vượt 60 phút ngồi.** Có test khẳng định, chạy trên mọi giai đoạn,
+  mọi mức tải, mọi tuần. Gia sư và mock không tính vào quỹ này: một buổi là hẹn với người thật,
+  một buổi là khối ba giờ cuối tuần.
+- **Mock chiếm trọn ngày của nó.** Tuần có mock thì thứ Bảy chỉ có mock, hai bài bấm giờ nhường
+  chỗ — chính mock đã đo cả Listening và Reading.
+- **Một buổi bấm giờ tính luôn là phần tiếp nhận của ngày đó.** 50 phút Reading bấm giờ *là*
+  đọc; đòi thêm một bài báo 15 phút trong cùng ngày là bắt làm hai lần một việc.
+
+Trang Hôm nay còn cắt danh sách theo **quỹ mỗi tối** trong Hồ sơ học (mặc định 60 phút): việc
+vượt quỹ tụt xuống dưới, ghi "nếu còn thời gian", và không tính vào số việc còn lại của ngày.
+Cuối tuần không cắt.
 
 Hai quy tắc giữ cho lịch cố định không biến thành sổ nợ:
 
@@ -122,13 +148,17 @@ phần giờ tăng thêm, và chúng vào theo thứ tự để đường dốc 
 
 | Giai đoạn | Bổ sung | Giờ tập trung / tuần |
 |---|---|---|
-| 0 — Quay lại | thẻ từ vựng từ bài đọc | 4,3 → ~4,7 |
-| 1 — Học format | thêm ô 4/3/2 nói | 5,0 → ~6,3 |
-| 2 — Nâng band | thêm ô chép chính tả | 6,9 → ~8,5 |
-| 3 — Trước thi | bỏ chép chính tả, giữ phần còn lại | 4,8 → ~6,0 |
+| 0 — Quay lại | thẻ từ vựng từ bài đọc | 5,4 |
+| 1 — Học format | thêm ô 4/3/2 nói | 7,4 |
+| 2 — Nâng band | thêm ô chép chính tả | 8,5 |
+| 3 — Trước thi | bỏ từ vựng và chép chính tả | 6,4 |
 
-Cộng lại: **khoảng 194 giờ tập trung trong 26 tuần**, so với 130 giờ của bản cũ. Đủ chắc cho 6.5,
-và chạm mép dưới của khoảng cần cho 7.0.
+Cộng lại, đo từ chính lịch tuần: **180 giờ ở tuần bận · 201 giờ ở tuần thường · 222 giờ ở tuần
+rảnh**, so với 130 giờ của bản 22 tuần. Đáng chú ý là ngay cả **tuần bận cũng đạt 180 giờ** —
+vì việc dài nằm ở cuối tuần, nơi tuần bận không cắt vào.
+
+Nghĩa là: **6.5 được cấp vốn chắc chắn** (cần 120–200 giờ), và **7.0 chạm được mép dưới** của
+khoảng 180–300. 7.0 vì thế vẫn là mục tiêu có điều kiện, không phải mục tiêu mặc định.
 
 **7.0 vẫn là mục tiêu có điều kiện**, chỉ chốt sau mock tuần 13 và chỉ khi L/R đã chạm 7.0. Trang
 Hôm nay nay hiện thẳng chênh lệch giờ thay vì để nó âm thầm trôi tới sát ngày thi.

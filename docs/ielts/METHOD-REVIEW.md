@@ -321,3 +321,75 @@ năng chia nhau một thước đo thay vì mỗi bên một kiểu.
 **Lưu ý về mức độ chắc chắn:** các con số giờ ở mục 3 là quy tắc ngón tay cái được dẫn rộng rãi,
 không phải kết quả đo trên một người học cụ thể. Dùng chúng để **phát hiện chênh lệch cỡ lớn** —
 mà ở đây chênh lệch là cỡ gấp đôi — chứ đừng dùng để tính ngày thi tới từng tuần.
+
+---
+
+## 10. Xếp lại lịch theo quỹ thời gian thật (2026-09-08)
+
+Phản hồi sau khi dùng bản đầy đủ: *"tôi chỉ dành được 30–60 phút thôi"*, và làm rõ thêm:
+**ngày thường phải đi làm, chỉ rảnh buổi tối; cuối tuần thì nhiều thời gian hơn.**
+
+### 10.1 Lỗi thiết kế
+
+Tôi xếp lịch theo "mỗi kỹ năng cần bao nhiêu" mà **chưa bao giờ nhân với "người học có bao
+nhiêu"**. Đo phút phải ngồi xuống, đã trừ podcast khi di chuyển, gia sư và mock:
+
+| Giai đoạn | Ngày nặng nhất (bản cũ) |
+|---|---|
+| 0 — Quay lại | 55' |
+| 1 — Học format | 70' |
+| 2 — Nâng band | **100'** |
+| 3 — Trước thi | 75' |
+
+Giai đoạn 2 có bốn trong năm ngày vượt 60 phút. Không phải sát mép — gấp đôi.
+
+Tệ hơn, lịch cũ rải đều T2–T6 và **bỏ trống cuối tuần**: đặt việc nặng đúng vào lúc không có
+thời gian, và bỏ không hai ngày duy nhất có thời gian. Trường `learner_profile.daily_minutes`
+đã tồn tại, có ô nhập trên trang Hồ sơ, nhãn ghi đúng "số phút rảnh mỗi ngày — và **không chỗ
+nào trong app đọc nó**.
+
+### 10.2 Hình dạng mới
+
+**T2–T6 nhẹ · thứ Sáu nghỉ · việc dài dồn về T7 và CN.** Thứ Sáu nghỉ hẳn vì tối thứ Sáu sau
+một tuần làm việc là buổi ít khả thi nhất; bản cũ chọn Chủ nhật làm ngày nghỉ, đúng ngược.
+
+Bốn luật mới, mỗi luật có test:
+
+1. **`WEEKDAY_DESK_CAP = 60`.** `deskMinutesForDay()` đo phút phải ngồi của một ngày cụ thể, và
+   test chạy qua mọi giai đoạn × mọi mức tải × mọi tuần × T2–T6.
+2. **`isOutsideDesk()`** loại gia sư và mock khỏi quỹ đó: một buổi là hẹn với người thật, một
+   buổi là khối ba giờ cuối tuần. Cả hai không cạnh tranh với buổi tối ngày thường.
+3. **`WeeklySlot.exclusive`** — mock chiếm trọn ngày của nó. Trước đó tuần có mock sẽ xếp mock
+   *cộng* hai bài bấm giờ lên cùng một thứ Bảy, tức tái tạo đúng vấn đề đang sửa. Và nhường chỗ
+   là đúng về nội dung: mock đã đo cả Listening và Reading.
+4. **Buổi bấm giờ tính luôn là phần tiếp nhận của ngày.** `dailyItems()` nay khớp theo kỹ năng
+   thay vì theo slot `input`: 50 phút Reading bấm giờ **là** đọc.
+
+Hai thay đổi nội dung đi kèm: giai đoạn 2 rút bản viết lại từ 30 xuống **20 phút** (nó chỉ nhắm
+tối đa năm nhóm lỗi đã chọn), và giai đoạn 3 **tắt ô bắt từ mới** — "không nạp bài mới" là nghĩa
+đúng của giai đoạn taper, mà bắt từ mới chính là nạp bài mới.
+
+### 10.3 Trang Hôm nay đọc quỹ thật
+
+`profile.dailyMinutes` cuối cùng cũng được dùng: danh sách bị cắt theo nó vào T2–T6, việc vượt
+quỹ tụt xuống dưới với dấu `+` và chữ "nếu còn thời gian", không tính vào số việc còn lại. Cuối
+tuần không cắt. Podcast không ăn vào quỹ — trang loại nó giống hệt cách phần tính giờ loại nó,
+bằng không trang sẽ cắt mất việc mà lịch coi là vẫn trong quỹ. Tiêu đề đổi thành
+"~N phút **ngồi**".
+
+### 10.4 Kết quả
+
+| Mức tải | Ngày nặng nhất trong tuần thường | Tổng 26 tuần |
+|---|---|---|
+| Tuần bận (4 buổi) | 60' | **180 giờ** |
+| Tuần thường (5 buổi) | 60' | **201 giờ** |
+| Tuần rảnh (6 buổi) | 60' | **222 giờ** |
+
+Quỹ giờ **tăng** so với bản trước (193 → 201) dù mỗi ngày thường nhẹ hơn, vì việc dài chuyển
+sang cuối tuần thay vì bị nhồi vào buổi tối. Và ngay cả tuần bận cũng đạt 180 giờ — mép dưới
+của khoảng cần cho 7.0 — vì cuối tuần không bị cắt khi tuần bận.
+
+Cuối tuần đổi lại phải nặng thật: giai đoạn 2 có thứ Bảy 135 phút ngồi cộng một buổi gia sư.
+Nếu chỗ này không khả thi thì phải cắt khối lượng hoặc lùi thi, không có đường thứ ba.
+
+**Test:** `npm run ielts:test` — 6 bộ, 92 check.
