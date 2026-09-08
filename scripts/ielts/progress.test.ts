@@ -225,36 +225,46 @@ check("errors per 100 words rounds to one decimal", () => {
 });
 
 check("today's work is the day the schedule names, not a bag of counts", () => {
-  // 2026-09-08 is a Tuesday: the return phase asks for rewrite + grammar.
+  // 2026-09-08 là thứ Ba: tối ngày thường chỉ có một việc ngắn.
   const report = progressReport(input({}));
   assert.equal(report.weekday, 2);
   assert.deepEqual(
     report.todayWork.map((i) => i.key),
-    ["rewrite", "grammar"],
+    ["grammar"],
   );
   assert.equal(report.restDay, false);
-  assert.equal(report.studyDaysThisWeek, 5); // normal week
+  assert.equal(report.studyDaysThisWeek, 5); // tuần thường
+});
+
+check("thứ Sáu luôn nghỉ, ở mọi mức tải", () => {
+  const friday = new Date(2026, 8, 11);
+  for (const load of ["light", "normal", "full"] as const) {
+    const report = progressReport(input({ today: friday, load }));
+    assert.equal(report.restDay, true, load);
+    assert.deepEqual(report.todayWork, []);
+  }
 });
 
 check("a busy week drops the optional days entirely", () => {
-  const friday = new Date(2026, 8, 11); // weekday 5, scheduled only when normal+
-  const light = progressReport(input({ today: friday, load: "light" }));
+  const thursday = new Date(2026, 8, 10); // weekday 4, chỉ có khi tuần rảnh
+  const light = progressReport(input({ today: thursday, load: "light" }));
   assert.equal(light.restDay, true);
   assert.deepEqual(light.todayWork, []);
   assert.equal(light.studyDaysThisWeek, 4);
 
-  const normal = progressReport(input({ today: friday, load: "normal" }));
-  assert.equal(normal.restDay, false);
+  const full = progressReport(input({ today: thursday, load: "full" }));
+  assert.equal(full.restDay, false);
   assert.deepEqual(
-    normal.todayWork.map((i) => i.key),
-    ["rewrite", "grammar"],
+    full.todayWork.map((i) => i.key),
+    ["grammar"],
   );
+  assert.equal(full.studyDaysThisWeek, 6);
 });
 
 check("doing an assigned day late still clears it", () => {
-  // Thursday carries the week's second writing session, so it is owed only
-  // once two writing sessions exist — whichever days they happened on.
-  const thursday = new Date(2026, 8, 10);
+  // Chủ nhật mang bài viết thứ hai của tuần, nên nó chỉ bị đòi khi đã có hai
+  // buổi viết — bất kể chúng rơi vào thứ nào.
+  const thursday = new Date(2026, 8, 13); // Chủ nhật 13/09
   const writing = (date: string) => ({
     date,
     skill: "writing",
@@ -283,21 +293,25 @@ check("weekly targets follow the load", () => {
     r.weekly.find((i) => i.slot === slot)?.target;
   assert.equal(target(light, "grammar"), 1);
   assert.equal(target(full, "grammar"), 3);
-  assert.equal(target(light, "tutor"), 1);
+  // Gia sư giữ nguyên hai buổi ở mọi mức tải: cả hai nằm ở cuối tuần, nơi
+  // tuần bận không cắt vào.
+  assert.equal(target(light, "tutor"), 2);
   assert.equal(target(full, "tutor"), 2);
 });
 
 check("a rewrite with nothing to rewrite is blocked, not offered", () => {
-  // Tuesday asks for a rewrite, but the week's writing day was skipped.
-  const empty = progressReport(input({}));
+  // Thứ Hai đòi bản viết lại của bài viết cuối tuần trước.
+  const monday = new Date(2026, 8, 14);
+  const empty = progressReport(input({ today: monday }));
   const rewrite = empty.todayWork.find((i) => i.slot === "rewrite");
   assert.ok(rewrite?.blocked, "rewrite should be blocked with no essay");
 
   const written = progressReport(
     input({
+      today: monday,
       submissions: [
         {
-          createdAt: "2026-09-08",
+          createdAt: "2026-09-13",
           wordCount: 140,
           errorDensity: 6,
           isRewrite: false,
@@ -342,6 +356,25 @@ check("chép chính tả là chỉ tiêu tuần của giai đoạn nâng band", 
     start.daily.find((d) => d.key === "speak-drill"),
     undefined,
   );
+});
+
+check("một buổi bấm giờ tính luôn là phần tiếp nhận của ngày đó", () => {
+  // 50 phút Reading bấm giờ **là** đọc. Đòi thêm một bài báo 15 phút trong cùng
+  // ngày là bắt làm hai lần một việc, và đó là cách quỹ 60 phút bị vỡ.
+  const report = progressReport(
+    input({
+      sessions: [
+        {
+          date: START,
+          skill: "reading",
+          slot: "timed-reading",
+          durationMin: 50,
+        },
+      ],
+    }),
+  );
+  assert.equal(report.daily.find((d) => d.key === "input-read")?.done, true);
+  assert.equal(report.daily.find((d) => d.key === "input-listen")?.done, false);
 });
 
 console.log(`\n✓ Progress: ${passed}/${passed} checks passed`);

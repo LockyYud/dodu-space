@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import {
   daysForWeek,
+  deskMinutesForDay,
   FORMAT_WEEK_COUNT,
   FORMAT_WEEKS,
   formatWeek,
   guidedMinutesForWeek,
+  isOutsideDesk,
   isSelfLoggable,
   mondayOf,
   nextPhaseId,
@@ -19,6 +21,7 @@ import {
   slotsForWeek,
   studyDaysForWeek,
   WEEK_LOADS,
+  WEEKDAY_DESK_CAP,
   WEEKDAY_SHORT,
   weekdayOf,
   weeklyMinutes,
@@ -51,20 +54,26 @@ check("early phases coach, later phases grade", () => {
   assert.equal(phaseById("taper").gradingMode, "band");
 });
 
-check("every phase has a daily input + vocab + SRS habit", () => {
+check("every phase has a daily input + SRS habit", () => {
   for (const phase of PHASES) {
     const keys = phase.daily.map((d) => d.key);
-    for (const required of [
-      "input-listen",
-      "input-read",
-      "vocab",
-      "srs",
-    ] as const) {
+    for (const required of ["input-listen", "input-read", "srs"] as const) {
       assert.ok(keys.includes(required), `${phase.id} thiếu ${required}`);
     }
     const total = phase.daily.reduce((sum, d) => sum + d.minutes, 0);
     assert.ok(total <= 75, `${phase.id}: daily load ${total}' is too heavy`);
   }
+});
+
+check("bắt từ mới có ở mọi giai đoạn trừ giai đoạn trước thi", () => {
+  // "Không nạp bài mới" là nghĩa đúng của giai đoạn taper, và bắt từ mới
+  // chính là nạp bài mới.
+  const has = (id: PhaseId) =>
+    phaseById(id).daily.some((d) => d.key === "vocab");
+  for (const id of ["return", "format", "build"] as const) {
+    assert.equal(has(id), true, `${id} phải có ô từ vựng`);
+  }
+  assert.equal(has("taper"), false);
 });
 
 check("ô 4/3/2 mở từ giai đoạn 1, không phải giai đoạn 0", () => {
@@ -84,21 +93,27 @@ check("chép chính tả chỉ có ở giai đoạn nâng band", () => {
   for (const id of ["return", "format", "taper"] as const) {
     assert.equal(has(id), false, `${id} không nên có chép chính tả`);
   }
-  // Hai lần mỗi tuần, giữ cả trong tuần bận vì nó rẻ.
-  assert.equal(
-    weeklyTargets(phaseById("build"), "light", 1).get("dictation"),
-    2,
-  );
+  // Ba lần mỗi tuần khi rảnh, tụt còn một khi bận — nó là việc 10 phút, đúng
+  // loại việc vừa với một buổi tối ngày thường.
+  const build = phaseById("build");
+  assert.equal(weeklyTargets(build, "light", 1).get("dictation"), 1);
+  assert.equal(weeklyTargets(build, "normal", 1).get("dictation"), 2);
+  assert.equal(weeklyTargets(build, "full", 1).get("dictation"), 3);
 });
 
 check("every phase has a weekly tutor slot", () => {
   for (const phase of PHASES) {
     const tutor = phase.weekly.filter((s) => s.slot === "tutor");
     assert.equal(tutor.length, 1, `${phase.id} tutor slot`);
-    // Two on a full week; a busy week must still keep one, because the tutor
-    // is an appointment with another person, not a slot to silently drop.
-    assert.equal(weeklyTargets(phase, "full", 1).get("tutor"), 2);
-    assert.equal(weeklyTargets(phase, "light", 1).get("tutor"), 1);
+    // Đúng hai buổi ở mọi mức tải: gia sư là hẹn với người thật, không phải
+    // suất để âm thầm bỏ khi tuần bận. Cả hai nằm ở cuối tuần.
+    for (const load of WEEK_LOADS) {
+      assert.equal(
+        weeklyTargets(phase, load, 1).get("tutor"),
+        2,
+        `${phase.id} ${load} tutor`,
+      );
+    }
   }
 });
 
@@ -233,11 +248,14 @@ check("the fixed week is 4 / 5 / 6 study days by load", () => {
   }
 });
 
-check("no phase ever schedules a Sunday", () => {
+check("ngày nghỉ là thứ Sáu, không phải Chủ nhật", () => {
+  // Đảo lại so với bản trước: cuối tuần là hai ngày duy nhất người học có
+  // nhiều thời gian, còn tối thứ Sáu sau một tuần làm việc là buổi ít khả thi
+  // nhất. Bỏ trống cuối tuần đồng nghĩa đặt việc nặng vào đúng lúc không có giờ.
   for (const phase of PHASES) {
     for (const load of WEEK_LOADS) {
       for (const day of daysForWeek(phase, load, 1)) {
-        assert.notEqual(day.day, 7, `${phase.id} ${load} ${WEEKDAY_SHORT[7]}`);
+        assert.notEqual(day.day, 5, `${phase.id} ${load} ${WEEKDAY_SHORT[5]}`);
       }
     }
   }
@@ -294,12 +312,16 @@ check("weekly minutes grow with the load, never shrink", () => {
   }
 });
 
-check("a slot is only owed once its scheduled day has arrived", () => {
+check("một suất chỉ bị đòi khi ngày của nó đã tới", () => {
   const phase = phaseById("return");
-  // Writing is scheduled Monday and Thursday on a light week.
-  assert.equal(scheduledByWeekday(phase, "light", 1, 1, "writing"), 1);
-  assert.equal(scheduledByWeekday(phase, "light", 1, 3, "writing"), 1);
-  assert.equal(scheduledByWeekday(phase, "light", 1, 4, "writing"), 2);
+  // Viết lại nằm ở T2 và T4; bài viết mới nằm ở T7 và CN.
+  assert.equal(scheduledByWeekday(phase, "light", 1, 1, "rewrite"), 1);
+  assert.equal(scheduledByWeekday(phase, "light", 1, 2, "rewrite"), 1);
+  assert.equal(scheduledByWeekday(phase, "light", 1, 3, "rewrite"), 2);
+  // Đầu tuần chưa đòi bài viết nào: nó là việc của cuối tuần.
+  assert.equal(scheduledByWeekday(phase, "light", 1, 4, "writing"), 0);
+  assert.equal(scheduledByWeekday(phase, "light", 1, 6, "writing"), 1);
+  assert.equal(scheduledByWeekday(phase, "light", 1, 7, "writing"), 2);
 });
 
 check("weekdays and week starts are Monday-based", () => {
@@ -338,6 +360,52 @@ check("giờ kế hoạch còn lại giảm dần và tăng theo mức tải", (
   // Bản 26 tuần ở mức thường phải vượt 150 giờ tập trung, nếu không thì chính
   // quyết định lùi thi + tăng giờ ở METHOD-REVIEW §3.3 đã không được thực hiện.
   assert.ok(week1 > 150, `chỉ có ${week1.toFixed(0)}h`);
+});
+
+check("không buổi tối ngày thường nào vượt quỹ 60 phút", () => {
+  // Ràng buộc thật của người học: T2–T6 là buổi tối sau khi đi làm. Lịch v3
+  // ban đầu có ngày lên tới 100 phút vì nó chưa bao giờ nhân với quỹ này.
+  for (const phase of PHASES) {
+    for (const load of WEEK_LOADS) {
+      for (let w = 1; w <= phase.plannedWeeks; w++) {
+        for (const day of [1, 2, 3, 4, 5] as const) {
+          const desk = deskMinutesForDay(phase, load, w, day);
+          assert.ok(
+            desk <= WEEKDAY_DESK_CAP,
+            `${phase.id} ${load} tuần ${w} ${WEEKDAY_SHORT[day]}: ${desk}' > ${WEEKDAY_DESK_CAP}'`,
+          );
+        }
+      }
+    }
+  }
+});
+
+check("việc dài nằm ở cuối tuần, và thứ Sáu luôn nghỉ", () => {
+  for (const phase of PHASES) {
+    const days = daysForWeek(phase, "full", 1).map((d) => d.day);
+    assert.ok(!days.includes(5), `${phase.id} xếp việc vào thứ Sáu`);
+    assert.ok(
+      days.includes(6) || days.includes(7),
+      `${phase.id} không dùng cuối tuần`,
+    );
+  }
+});
+
+check("gia sư và mock không tính vào quỹ ngồi xuống", () => {
+  assert.equal(isOutsideDesk("tutor"), true);
+  assert.equal(isOutsideDesk("mock"), true);
+  assert.equal(isOutsideDesk("writing"), false);
+  assert.equal(isOutsideDesk("dictation"), false);
+});
+
+check("tuần có mock thì mock chiếm trọn ngày của nó", () => {
+  const build = phaseById("build");
+  const mockDay = daysForWeek(build, "full", 3).find((d) => d.day === 6);
+  // Mock đã đo cả Listening và Reading, nên hai bài bấm giờ nhường chỗ.
+  assert.deepEqual(mockDay?.keys, ["mock"]);
+  const plain = daysForWeek(build, "full", 1).find((d) => d.day === 6);
+  assert.ok(plain?.keys.includes("timed-listening"));
+  assert.ok(!plain?.keys.includes("mock"));
 });
 
 console.log(`\n✓ Plan: ${passed}/${passed} checks passed`);

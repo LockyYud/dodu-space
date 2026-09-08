@@ -260,7 +260,9 @@ function dailyItems(
       // match on the tag alone. Adding a daily target must not mean adding a
       // branch here.
       if (target.slot !== "input") return s.slot === target.slot;
-      if (s.slot !== "input") return false;
+      // Bất kỳ buổi nào của cùng kỹ năng cũng tính, không riêng slot "input":
+      // 50 phút Reading bấm giờ **là** đọc, nên đòi thêm một bài báo 15 phút
+      // trong cùng ngày là bắt làm hai lần một việc.
       return target.key === "input-listen"
         ? s.skill === "listening"
         : s.skill === "reading";
