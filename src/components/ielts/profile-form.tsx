@@ -137,7 +137,7 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
             id="profile-daily-minutes"
-            label="Số phút rảnh mỗi ngày (không phải độ dài bài)"
+            label="Quỹ mỗi tối ngày thường (phút)"
           >
             <Input
               id="profile-daily-minutes"
@@ -145,6 +145,10 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
               value={dailyMinutes}
               onChange={(e) => setDailyMinutes(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Trang Hôm nay cắt danh sách theo số này vào T2–T6. Cuối tuần không
+              cắt, vì lịch đã dồn việc dài về đó.
+            </p>
           </Field>
           <Field id="profile-target-overall" label="Overall target">
             <Input

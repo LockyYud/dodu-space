@@ -17,6 +17,7 @@ import {
   type SlotId,
   VOCAB_DAILY_TARGET,
   WEEKDAY_LABEL,
+  WEEKDAY_MAX,
 } from "@/lib/ielts/plan";
 import type {
   DailyItem,
@@ -60,6 +61,14 @@ interface Step {
   minutes: number;
   done: boolean;
   blocked?: string;
+  /** Vượt quỹ thời gian của buổi tối: làm được thì tốt, không thì để mai. */
+  optional?: boolean;
+  /**
+   * Không ăn vào quỹ buổi tối — podcast nghe khi di chuyển. Cả phần tính giờ
+   * của lộ trình cũng loại nó ra, nên trang phải loại giống hệt, bằng không nó
+   * sẽ cắt mất việc mà lịch coi là vẫn trong quỹ.
+   */
+  offBudget?: boolean;
   action: ReactNode;
 }
 
@@ -106,11 +115,39 @@ export default async function TodayPage() {
   // A blocked step is not something the learner can act on, so it never
   // becomes "the next thing" and never counts against the day.
   const remaining = steps.filter((s) => !s.done && !s.blocked);
+  // Quỹ thời gian thật. `dailyMinutes` là buổi tối ngày thường sau khi đi làm;
+  // cuối tuần rộng hơn nên không cắt. Trước đây trường này nằm trong hồ sơ mà
+  // không chỗ nào đọc, nên lịch có thể đòi 100 phút mà app vẫn im lặng.
+  const budget = weekday <= WEEKDAY_MAX ? profile.dailyMinutes : null;
+  let spent = 0;
+  const withinBudget = new Set<string>();
+  for (const step of steps) {
+    if (step.done || step.blocked || step.offBudget) continue;
+    if (budget !== null && spent > 0 && spent + step.minutes > budget) continue;
+    spent += step.minutes;
+    withinBudget.add(step.key);
+  }
+  for (const step of steps) {
+    if (
+      !step.done &&
+      !step.blocked &&
+      !step.offBudget &&
+      !withinBudget.has(step.key)
+    ) {
+      step.optional = true;
+    }
+  }
+
+  const core = remaining.filter((s) => !s.optional);
+  const overflow = remaining.filter((s) => s.optional);
+  const coreMinutes = core
+    .filter((s) => !s.offBudget)
+    .reduce((sum, s) => sum + s.minutes, 0);
+
   // Chỉ đánh số việc còn phải làm. Việc đã xong mang dấu ✓, việc bị chặn mang
   // dấu –, và nếu chúng vẫn chiếm số thì danh sách nhảy cóc 3 → 6 — đọc như thể
   // có hai việc bị mất.
-  const numbering = new Map(remaining.map((s, i) => [s.key, i + 1]));
-  const minutesLeft = remaining.reduce((sum, s) => sum + s.minutes, 0);
+  const numbering = new Map(core.map((s, i) => [s.key, i + 1]));
   const allDone = remaining.length === 0;
 
   return (
@@ -193,12 +230,18 @@ export default async function TodayPage() {
             <span className="text-sm text-muted-foreground">
               {allDone
                 ? `${steps.length} việc`
-                : `còn ${remaining.length} việc · ~${minutesLeft} phút`}
+                : `còn ${core.length} việc · ~${coreMinutes} phút ngồi`}
             </span>
           </div>
           {restDay && !allDone && (
             <p className="text-sm text-muted-foreground">
               Lịch tuần không xếp buổi nào hôm nay. Chỉ cần phần hằng ngày.
+            </p>
+          )}
+          {overflow.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Cắt theo quỹ {profile.dailyMinutes} phút mỗi tối của bạn.{" "}
+              {overflow.length} việc dưới cùng để dành, làm được thì tốt.
             </p>
           )}
         </CardHeader>
@@ -208,7 +251,7 @@ export default async function TodayPage() {
               key={step.key}
               step={step}
               index={numbering.get(step.key) ?? 0}
-              next={remaining[0]?.key === step.key}
+              next={core[0]?.key === step.key}
             />
           ))}
         </CardContent>
@@ -336,6 +379,7 @@ function dailyStep(item: DailyItem, due: DueSplit, vocabToday: number): Step {
     hint: item.hint,
     minutes: item.targetMinutes,
     done: item.done,
+    offBudget: item.key === "input-listen",
     action: (
       <DailyInput
         kind={item.key === "input-listen" ? "listening" : "reading"}
@@ -396,7 +440,7 @@ function StepRow({
       className={`flex flex-wrap items-center gap-3 rounded-lg border p-3 ${
         step.done
           ? "border-emerald-500/40 bg-emerald-500/5"
-          : step.blocked
+          : step.blocked || step.optional
             ? "border-dashed"
             : next
               ? "border-primary/50 bg-primary/5"
@@ -410,13 +454,14 @@ function StepRow({
             : "bg-muted text-muted-foreground"
         }`}
       >
-        {step.done ? "✓" : step.blocked ? "–" : index}
+        {step.done ? "✓" : step.blocked ? "–" : step.optional ? "+" : index}
       </span>
       <div className="min-w-40 flex-1">
         <p className="text-sm font-medium">
           {step.label}
           <span className="ml-2 text-xs font-normal text-muted-foreground">
             ~{step.minutes} phút
+            {step.optional ? " · nếu còn thời gian" : ""}
           </span>
         </p>
         <p className="text-xs text-muted-foreground">{step.hint}</p>
