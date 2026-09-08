@@ -1,7 +1,9 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { DailyInput } from "@/components/ielts/daily-input";
 import { PhasePanel } from "@/components/ielts/phase-panel";
 import { SlotLog } from "@/components/ielts/slot-log";
+import { WeekLoadPicker } from "@/components/ielts/week-load-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +12,14 @@ import {
   isSelfLoggable,
   phaseById,
   type SlotId,
+  WEEKDAY_LABEL,
 } from "@/lib/ielts/plan";
-import type { WeeklyItem } from "@/lib/ielts/progress";
+import type {
+  DailyItem,
+  TodayItem,
+  WeekDayPlan,
+  WeeklyItem,
+} from "@/lib/ielts/progress";
 import { loadToday } from "@/server/ielts/today";
 
 export const dynamic = "force-dynamic";
@@ -32,16 +40,65 @@ const SLOT_HREF: Partial<Record<SlotId, string>> = {
   tutor: "/ielts/speaking",
 };
 
+/**
+ * One line of today's run sheet.
+ *
+ * The page used to show a daily card and a weekly card of counters and let the
+ * learner work out which of them was today's. That is the one decision the app
+ * exists to make, so today is now a single ordered list and everything else is
+ * folded away underneath it.
+ */
+interface Step {
+  key: string;
+  label: string;
+  hint: string;
+  minutes: number;
+  done: boolean;
+  blocked?: string;
+  action: ReactNode;
+}
+
 export default async function TodayPage() {
   const { progress, pace, suggestedExam, dueCount, streak, profile } =
     await loadToday();
 
-  const { phase, daily, weekly, exit, canAdvance, nextPhase, weekInPhase } =
-    progress;
-  const degraded = pace.degraded;
+  const {
+    phase,
+    daily,
+    weekly,
+    exit,
+    canAdvance,
+    nextPhase,
+    weekInPhase,
+    weekday,
+    load,
+    todayWork,
+    restDay,
+    week,
+    studyDaysThisWeek,
+  } = progress;
+
   const curriculum = phase.id === "format" ? formatWeek(weekInPhase) : null;
-  const dailyDone = daily.filter((d) => d.done).length;
   const metCount = exit.filter((e) => e.met).length;
+
+  // SRS leads the session on purpose — its own instruction is "before
+  // anything else" — and the daily habit comes before the week's assignment.
+  const ordered = [...daily].sort(
+    (a, b) => Number(b.key === "srs") - Number(a.key === "srs"),
+  );
+  const steps = [
+    ...ordered.map((item) => dailyStep(item, dueCount)),
+    ...todayWork.map(workStep),
+  ];
+  // A blocked step is not something the learner can act on, so it never
+  // becomes "the next thing" and never counts against the day.
+  const remaining = steps.filter((s) => !s.done && !s.blocked);
+  // Blocked steps are skipped in the numbering so the list still reads 1, 2, 3.
+  const numbering = new Map(
+    steps.filter((s) => !s.blocked).map((s, i) => [s.key, i + 1]),
+  );
+  const minutesLeft = remaining.reduce((sum, s) => sum + s.minutes, 0);
+  const allDone = remaining.length === 0;
 
   return (
     <section className="mx-auto max-w-3xl space-y-6">
@@ -52,9 +109,11 @@ export default async function TodayPage() {
           {streak > 0 && <Badge variant="outline">🔥 {streak} ngày</Badge>}
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">
-          {dailyDone === daily.length
+          {allDone
             ? "Hôm nay xong rồi."
-            : "Hôm nay, làm gì?"}
+            : restDay
+              ? `${WEEKDAY_LABEL[weekday]} — ngày nhẹ`
+              : WEEKDAY_LABEL[weekday]}
         </h1>
         <p className="text-sm text-muted-foreground">{phase.goal}</p>
         <p className={`text-xs ${PACE_TONE[pace.status]}`}>
@@ -73,13 +132,13 @@ export default async function TodayPage() {
         </p>
       </header>
 
-      {degraded && (
+      {pace.degraded && (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="space-y-2 py-4">
             <p className="font-medium">Chế độ giữ nhịp</p>
             <p className="text-sm text-muted-foreground">
-              14 ngày qua học quá thưa. Hôm nay chỉ cần phần hằng ngày bên dưới,
-              phần tuần để đó. Một ngày ngắn vẫn là một ngày.
+              14 ngày qua học quá thưa. Hạ tuần này xuống “Tuần bận” và chỉ giữ
+              bốn buổi lõi. Một ngày ngắn vẫn là một ngày.
             </p>
           </CardContent>
         </Card>
@@ -87,60 +146,42 @@ export default async function TodayPage() {
 
       <Card className="border-primary/40">
         <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-lg">Mỗi ngày</CardTitle>
-            <Badge
-              variant={dailyDone === daily.length ? "secondary" : "outline"}
-            >
-              {dailyDone}/{daily.length}
-            </Badge>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <CardTitle className="text-lg">
+              {allDone ? "Đã xong hết" : "Làm theo thứ tự này"}
+            </CardTitle>
+            <span className="text-sm text-muted-foreground">
+              {allDone
+                ? `${steps.length} việc`
+                : `còn ${remaining.length} việc · ~${minutesLeft} phút`}
+            </span>
           </div>
+          {restDay && !allDone && (
+            <p className="text-sm text-muted-foreground">
+              Lịch tuần không xếp buổi nào hôm nay. Chỉ cần phần hằng ngày.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="space-y-2">
-          {daily.map((item) =>
-            item.key === "srs" ? (
-              <div
-                key={item.key}
-                className={`flex flex-wrap items-center gap-3 rounded-lg border p-3 ${
-                  item.done ? "border-emerald-500/40 bg-emerald-500/5" : ""
-                }`}
-              >
-                <div className="min-w-40 flex-1">
-                  <p className="text-sm font-medium">
-                    {item.done ? "✓ " : ""}
-                    {item.label}
-                    <span className="ml-2 text-xs font-normal text-muted-foreground">
-                      {dueCount > 0
-                        ? `${dueCount} lỗi đến hạn`
-                        : "không có lỗi đến hạn"}
-                    </span>
-                  </p>
-                  <p className="text-xs text-muted-foreground">{item.hint}</p>
-                </div>
-                <Link href="/ielts/review" prefetch={false}>
-                  <Button size="sm" variant={item.done ? "outline" : "default"}>
-                    {item.done ? "Ôn thêm" : "Ôn lỗi"}
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <DailyInput
-                key={item.key}
-                kind={item.key === "input-listen" ? "listening" : "reading"}
-                label={item.label}
-                targetMinutes={item.targetMinutes}
-                doneMinutes={item.doneMinutes}
-                done={item.done}
-                hint={item.hint}
-              />
-            ),
-          )}
+          {steps.map((step) => (
+            <StepRow
+              key={step.key}
+              step={step}
+              index={numbering.get(step.key) ?? 0}
+              next={remaining[0]?.key === step.key}
+            />
+          ))}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Trong tuần này</CardTitle>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <CardTitle className="text-lg">Tuần này</CardTitle>
+            <span className="text-sm text-muted-foreground">
+              {studyDaysThisWeek} buổi
+            </span>
+          </div>
           {curriculum && (
             <p className="text-sm text-muted-foreground">
               Dạng câu hỏi tuần {curriculum.week}: Reading {curriculum.reading}{" "}
@@ -148,10 +189,23 @@ export default async function TodayPage() {
             </p>
           )}
         </CardHeader>
-        <CardContent className="space-y-2">
-          {weekly.map((item) => (
-            <WeeklyRow key={item.slot} item={item} />
-          ))}
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-7 gap-1">
+            {week.map((day) => (
+              <DayCell key={day.day} day={day} />
+            ))}
+          </div>
+          <WeekLoadPicker current={load} />
+          <details>
+            <summary className="cursor-pointer text-sm text-muted-foreground">
+              Đếm theo tuần
+            </summary>
+            <div className="mt-3 space-y-2">
+              {weekly.map((item) => (
+                <WeeklyRow key={item.slot} item={item} />
+              ))}
+            </div>
+          </details>
         </CardContent>
       </Card>
 
@@ -194,36 +248,155 @@ export default async function TodayPage() {
   );
 }
 
-function WeeklyRow({ item }: { item: WeeklyItem }) {
-  const complete = item.done >= item.target;
-  const href = SLOT_HREF[item.slot];
+function dailyStep(item: DailyItem, dueCount: number): Step {
+  if (item.key === "srs") {
+    return {
+      key: item.key,
+      label: item.label,
+      hint:
+        dueCount > 0
+          ? `${dueCount} lỗi đến hạn. ${item.hint}`
+          : "Không có lỗi nào đến hạn hôm nay.",
+      minutes: item.targetMinutes,
+      done: item.done,
+      action: (
+        <Link href="/ielts/review" prefetch={false}>
+          <Button size="sm" variant={item.done ? "outline" : "default"}>
+            {item.done ? "Ôn thêm" : "Ôn lỗi"}
+          </Button>
+        </Link>
+      ),
+    };
+  }
+  return {
+    key: item.key,
+    label: item.label,
+    hint: item.hint,
+    minutes: item.targetMinutes,
+    done: item.done,
+    action: (
+      <DailyInput
+        kind={item.key === "input-listen" ? "listening" : "reading"}
+        label={item.label}
+        targetMinutes={item.targetMinutes}
+        doneMinutes={item.doneMinutes}
+        done={item.done}
+        hint={item.hint}
+        compact
+      />
+    ),
+  };
+}
+
+function workStep(item: TodayItem): Step {
+  const href = item.blocked ? "/ielts/writing" : SLOT_HREF[item.slot];
+  return {
+    key: item.key,
+    label: item.label,
+    hint: item.blocked ?? item.hint,
+    minutes: item.minutes,
+    done: item.done,
+    blocked: item.blocked,
+    action: href ? (
+      <Link href={href} prefetch={false}>
+        <Button size="sm" variant={item.done ? "outline" : "default"}>
+          {item.blocked ? "Viết bài mới" : item.done ? "Làm thêm" : "Bắt đầu"}
+        </Button>
+      </Link>
+    ) : isSelfLoggable(item.slot) ? (
+      <SlotLog slot={item.slot} minutes={item.minutes} done={item.done} />
+    ) : null,
+  };
+}
+
+function StepRow({
+  step,
+  index,
+  next,
+}: {
+  step: Step;
+  index: number;
+  next: boolean;
+}) {
   return (
     <div
       className={`flex flex-wrap items-center gap-3 rounded-lg border p-3 ${
-        complete ? "border-emerald-500/40 bg-emerald-500/5" : ""
+        step.done
+          ? "border-emerald-500/40 bg-emerald-500/5"
+          : step.blocked
+            ? "border-dashed"
+            : next
+              ? "border-primary/50 bg-primary/5"
+              : ""
       }`}
     >
-      <div className="min-w-48 flex-1">
+      <span
+        className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
+          step.done
+            ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400"
+            : "bg-muted text-muted-foreground"
+        }`}
+      >
+        {step.done ? "✓" : step.blocked ? "–" : index}
+      </span>
+      <div className="min-w-40 flex-1">
         <p className="text-sm font-medium">
-          {complete ? "✓ " : ""}
-          {item.label}
+          {step.label}
           <span className="ml-2 text-xs font-normal text-muted-foreground">
-            {item.done}/{item.target} · ~{item.minutes} phút
+            ~{step.minutes} phút
           </span>
         </p>
-        <p className="text-xs text-muted-foreground">{item.hint}</p>
+        <p className="text-xs text-muted-foreground">{step.hint}</p>
       </div>
-      {href ? (
-        !complete && (
-          <Link href={href} prefetch={false}>
-            <Button size="sm" variant="outline">
-              Bắt đầu
-            </Button>
-          </Link>
-        )
-      ) : isSelfLoggable(item.slot) ? (
-        <SlotLog slot={item.slot} minutes={item.minutes} done={complete} />
-      ) : null}
+      {step.action}
+    </div>
+  );
+}
+
+function DayCell({ day }: { day: WeekDayPlan }) {
+  const rest = day.items.length === 0;
+  const tone = day.done
+    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+    : day.isToday
+      ? "border-primary bg-primary/10 font-medium"
+      : rest
+        ? "border-dashed text-muted-foreground/60"
+        : "text-muted-foreground";
+  return (
+    <div
+      title={
+        rest ? `${day.label}: nghỉ` : `${day.label}: ${labelsOf(day.items)}`
+      }
+      className={`rounded-md border px-1 py-2 text-center text-xs ${tone}`}
+    >
+      <div>{day.short}</div>
+      <div className="mt-0.5 text-[10px] leading-tight">
+        {rest ? "—" : day.done ? "✓" : `${day.items.length} việc`}
+      </div>
+    </div>
+  );
+}
+
+function labelsOf(items: TodayItem[]): string {
+  return items.map((i) => i.label).join(", ");
+}
+
+function WeeklyRow({ item }: { item: WeeklyItem }) {
+  const complete = item.done >= item.target;
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className={complete ? "text-muted-foreground" : ""}>
+        {item.label}
+      </span>
+      <span
+        className={
+          complete
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-muted-foreground"
+        }
+      >
+        {item.done}/{item.target}
+      </span>
     </div>
   );
 }

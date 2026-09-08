@@ -1,13 +1,25 @@
 import {
+  dayForWeekday,
   type ExitCriterion,
   FORMAT_WEEK_COUNT,
+  mondayOf,
   nextPhaseId,
   type Phase,
   type PhaseId,
   phaseById,
+  type ScheduledDay,
   type SlotId,
-  slotsForWeek,
+  scheduledByWeekday,
+  studyDaysForWeek,
+  WEEK_LOAD_DEFAULT,
+  WEEKDAY_LABEL,
+  WEEKDAY_SHORT,
+  type Weekday,
+  type WeekLoad,
   type WeeklySlot,
+  weekdayOf,
+  weeklySlotByKey,
+  weeklyTargets,
 } from "./plan";
 import { toISODate } from "./srs";
 
@@ -64,6 +76,34 @@ export interface WeeklyItem {
   tool?: WeeklySlot["tool"];
 }
 
+/** One assigned piece of weekly work, on the day the schedule asks for it. */
+export interface TodayItem {
+  key: string;
+  slot: SlotId;
+  label: string;
+  hint: string;
+  minutes: number;
+  done: boolean;
+  tool?: WeeklySlot["tool"] /**
+   * Why this cannot be done yet, if it cannot. A rewrite needs an essay to
+   * rewrite, so on a week where the writing day was skipped the schedule
+   * would otherwise send the learner to an empty page.
+   */;
+  blocked?: string;
+}
+
+/** One day of the training week, for the week strip on the Today page. */
+export interface WeekDayPlan {
+  day: Weekday;
+  short: string;
+  label: string;
+  /** Empty on a rest day, or on a day this week's load does not reach. */
+  items: TodayItem[];
+  done: boolean;
+  isToday: boolean;
+  isPast: boolean;
+}
+
 export interface ExitStatus {
   id: ExitCriterion["id"];
   label: string;
@@ -80,6 +120,17 @@ export interface ProgressReport {
   weekInPhase: number;
   daily: DailyItem[];
   weekly: WeeklyItem[];
+  /** The week load in force, which decides how many days are scheduled. */
+  load: WeekLoad;
+  weekday: Weekday;
+  /** Weekly work assigned to today. Empty on a rest day. */
+  todayWork: TodayItem[];
+  /** True when the schedule asks for nothing today beyond the daily habit. */
+  restDay: boolean;
+  /** Study days the schedule asks for this week, at the current load. */
+  studyDaysThisWeek: number;
+  /** All seven days of the current week, in order. */
+  week: WeekDayPlan[];
   exit: ExitStatus[];
   canAdvance: boolean;
   nextPhase: PhaseId | null;
@@ -94,6 +145,8 @@ export interface ProgressInput {
   bands: BandRow[];
   /** Cards due today. Zero due means the SRS habit has nothing left to do. */
   dueCount?: number;
+  /** How heavy the learner said this week is. Defaults to a normal week. */
+  load?: WeekLoad;
   examDate?: string | null;
   today?: Date;
 }
@@ -109,9 +162,14 @@ function dayDiff(from: string, to: string): number {
   );
 }
 
-/** 1-based week of the phase that `date` falls in. */
+/**
+ * 1-based week of the phase that `date` falls in, counted in Monday-to-Sunday
+ * calendar weeks. Week 1 is the week the phase opened in, however far into it
+ * the phase started — the schedule is written in weekdays, so a week has to
+ * mean the same thing to the plan and to the learner's calendar.
+ */
 export function weekInPhaseOf(startedOn: string, date: string): number {
-  const offset = dayDiff(startedOn, date);
+  const offset = dayDiff(mondayOf(startedOn), date);
   return offset < 0 ? 0 : Math.floor(offset / 7) + 1;
 }
 
@@ -125,12 +183,24 @@ export function buildProgress(input: ProgressInput): ProgressReport {
   const startedOn = input.state.startedOn;
   const daysInPhase = Math.max(1, dayDiff(startedOn, today) + 1);
   const weekInPhase = Math.max(1, weekInPhaseOf(startedOn, today));
+  const weekday = weekdayOf(today);
+  const load = input.load ?? WEEK_LOAD_DEFAULT;
 
   const sinceStart = input.sessions.filter(
     (s) => s.date >= startedOn && s.date <= today,
   );
   const submissionsSince = input.submissions.filter(
     (s) => isoDay(s.createdAt) >= startedOn,
+  );
+  // An essay can only be rewritten once, so the surplus of originals over
+  // rewrites is how many rewrites are actually available to do.
+  const rewritable = Math.max(
+    0,
+    submissionsSince.filter((x) => !x.isRewrite).length -
+      submissionsSince.filter((x) => x.isRewrite).length,
+  );
+  const weekThrough = sinceStart.filter(
+    (s) => weekInPhaseOf(startedOn, s.date) === weekInPhase && s.date <= today,
   );
 
   return {
@@ -139,7 +209,20 @@ export function buildProgress(input: ProgressInput): ProgressReport {
     weekInPhase,
     daysInPhase,
     daily: dailyItems(phase, input.sessions, today, input.dueCount ?? 0),
-    weekly: weeklyItems(phase, weekInPhase, sinceStart, startedOn, today),
+    weekly: weeklyItems(phase, weekInPhase, sinceStart, startedOn, today, load),
+    load,
+    weekday,
+    todayWork: todayWork(
+      phase,
+      weekInPhase,
+      weekday,
+      load,
+      weekThrough,
+      rewritable,
+    ),
+    restDay: dayForWeekday(phase, load, weekInPhase, weekday) === null,
+    studyDaysThisWeek: studyDaysForWeek(phase, load, weekInPhase),
+    week: weekPlan(phase, weekInPhase, weekday, load, weekThrough, rewritable),
     exit: exitStatuses({
       phase,
       startedOn,
@@ -205,17 +288,19 @@ function weeklyItems(
   sessions: SessionRow[],
   startedOn: string,
   today: string,
+  load: WeekLoad,
 ): WeeklyItem[] {
-  const active = slotsForWeek(phase, weekInPhase);
+  const targets = weeklyTargets(phase, load, weekInPhase);
   const thisWeek = sessions.filter(
     (s) => weekInPhaseOf(startedOn, s.date) === weekInPhase && s.date <= today,
   );
 
   const grouped = new Map<SlotId, WeeklyItem>();
-  for (const slot of active) {
+  for (const slot of phase.weekly) {
+    const target = targets.get(slot.slot);
+    if (!target) continue; // not scheduled at this load, or off-cadence
     const existing = grouped.get(slot.slot);
     if (existing) {
-      existing.target += slot.count;
       existing.label = `${existing.label} · ${slot.label}`;
       existing.hint = `${existing.hint} ${slot.hint}`;
       continue;
@@ -225,7 +310,7 @@ function weeklyItems(
       label: slot.label,
       hint: slot.hint,
       minutes: slot.minutes,
-      target: slot.count,
+      target,
       done: 0,
       tool: slot.tool,
     });
@@ -235,6 +320,91 @@ function weeklyItems(
     item.done = thisWeek.filter((s) => s.slot === item.slot).length;
   }
   return [...grouped.values()];
+}
+
+/**
+ * The weekly work assigned to today, with each item's done state.
+ *
+ * An item is done once the week already holds as many sessions of its slot as
+ * the schedule asks for on or before today. That is what keeps a fixed
+ * schedule from turning into a debt ledger: doing Tuesday's writing on
+ * Wednesday clears Tuesday, and only the week's total ever has to balance.
+ */
+function todayWork(
+  phase: Phase,
+  weekInPhase: number,
+  weekday: Weekday,
+  load: WeekLoad,
+  weekThrough: SessionRow[],
+  rewritable: number,
+): TodayItem[] {
+  const day: ScheduledDay | null = dayForWeekday(
+    phase,
+    load,
+    weekInPhase,
+    weekday,
+  );
+  if (!day) return [];
+
+  const items: TodayItem[] = [];
+  for (const key of day.keys) {
+    const slot = weeklySlotByKey(phase, key);
+    if (!slot) continue;
+    const needed = scheduledByWeekday(
+      phase,
+      load,
+      weekInPhase,
+      weekday,
+      slot.slot,
+    );
+    const doneSoFar = weekThrough.filter((s) => s.slot === slot.slot).length;
+    const done = doneSoFar >= needed;
+    items.push({
+      key,
+      slot: slot.slot,
+      label: slot.label,
+      hint: slot.hint,
+      minutes: slot.minutes,
+      done,
+      tool: slot.tool,
+      blocked:
+        slot.slot === "rewrite" && !done && rewritable <= 0
+          ? "Chưa có bài nào để viết lại — viết một bài mới trước."
+          : undefined,
+    });
+  }
+  return items;
+}
+
+function weekPlan(
+  phase: Phase,
+  weekInPhase: number,
+  weekday: Weekday,
+  load: WeekLoad,
+  weekThrough: SessionRow[],
+  rewritable: number,
+): WeekDayPlan[] {
+  const days: WeekDayPlan[] = [];
+  for (let d = 1 as Weekday; d <= 7; d = (d + 1) as Weekday) {
+    const items = todayWork(
+      phase,
+      weekInPhase,
+      d,
+      load,
+      weekThrough,
+      rewritable,
+    );
+    days.push({
+      day: d,
+      short: WEEKDAY_SHORT[d],
+      label: WEEKDAY_LABEL[d],
+      items,
+      done: items.length > 0 && items.every((i) => i.done),
+      isToday: d === weekday,
+      isPast: d < weekday,
+    });
+  }
+  return days;
 }
 
 function exitStatuses(args: {

@@ -78,6 +78,32 @@ với v2.
 **Một ngày bình thường** = tiếp nhận + SRS, khoảng 25 đến 30 phút, phần lớn khi di chuyển.
 **Hai ngày trong tuần** nặng hơn vì có viết. Chủ nhật chỉ nghe thụ động.
 
+### 4.1 Tuần cố định theo thứ, ba mức tải
+
+Bản v3 lúc đầu chỉ khai báo chỉ tiêu tuần mà không gắn vào thứ nào, nên câu hỏi "hôm nay làm
+gì?" vẫn để người học tự trả lời mỗi sáng. Đó đúng là việc mà app tồn tại để làm. Nay mỗi giai
+đoạn có một **lịch cố định theo thứ**, và một **mức tải tuần** để lịch cố định vẫn sống được
+qua một tuần bận:
+
+| Mức tải | Số buổi | Dùng khi |
+|---|---|---|
+| Tuần bận | 4 | tuần nhiều việc, chỉ giữ phần lõi |
+| Tuần thường | 5 | nhịp mặc định |
+| Tuần rảnh | 6 | tuần trống, chạy hết lịch |
+
+Lịch giai đoạn 0: **T2** viết tự do · **T3** viết lại + drill · **T4** gia sư · **T5** viết tự do
+· **T6** viết lại + drill · **T7** gia sư + drill · **CN** nghỉ. Bốn ngày đầu là phần lõi, T6 và
+T7 rụng khi tuần bận. Không giai đoạn nào xếp việc vào Chủ nhật.
+
+Hai quy tắc giữ cho lịch cố định không biến thành sổ nợ:
+
+1. **Chỉ tiêu tuần suy ra từ lịch**, không khai báo hai lần, nên lịch và bộ đếm không thể lệch.
+2. **Làm muộn vẫn tính.** Một việc gắn vào thứ Ba coi như xong khi trong tuần đã có đủ số buổi
+   của loại đó, bất kể chúng rơi vào thứ nào. Trượt một ngày chỉ dời việc sang hôm sau trong
+   cùng tuần, không tạo ra ngày "trễ".
+
+Tuần có mock nên để ở "Tuần rảnh": mock là khối ba giờ, chỉ nằm trong lịch của tuần rảnh.
+
 ---
 
 ## 5. Bốn giai đoạn, chuyển theo năng lực
@@ -164,6 +190,10 @@ xuất hiện từ tuần 6.
 Giữ từ v2, có sửa: kích hoạt khi 14 ngày gần nhất có dưới 6 ngày học; hành vi là chỉ yêu cầu
 tiếp nhận 10 phút + SRS; **một ngày chỉ ôn SRS vẫn là một ngày học**; thoát khi cửa sổ 14 ngày
 đủ 6 ngày trở lại.
+
+Từ 2026-09-08 chế độ này chỉ báo, không tự đổi lịch: nó khuyên hạ tuần xuống **Tuần bận**, và
+việc hạ là quyết định của người học. Nó cũng chỉ bật sau 14 ngày kể từ lúc bắt đầu lộ trình,
+vì trước đó cửa sổ 14 ngày chưa có nghĩa.
 
 ---
 

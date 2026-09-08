@@ -32,6 +32,64 @@ export type SlotId =
   | "tutor"
   | "grammar";
 
+/**
+ * How much of the week's schedule the learner is taking on.
+ *
+ * Roadmap v3 first modelled the week as a bag of counts with no days attached,
+ * which left "what do I do today?" unanswered — the learner had to schedule
+ * themselves every morning. The week now has fixed weekdays, and this is the
+ * dial that makes a fixed schedule survive a busy week: a light week keeps the
+ * core four days, a full week runs all six. Nothing is ever "late" — the
+ * counters still close on Sunday, not on the assigned day.
+ */
+export type WeekLoad = "light" | "normal" | "full";
+export const WEEK_LOADS: WeekLoad[] = ["light", "normal", "full"];
+export const WEEK_LOAD_DEFAULT: WeekLoad = "normal";
+export const WEEK_LOAD_LABEL: Record<WeekLoad, string> = {
+  light: "Tuần bận",
+  normal: "Tuần thường",
+  full: "Tuần rảnh",
+};
+export const WEEK_LOAD_HINT: Record<WeekLoad, string> = {
+  light: "Giữ bốn buổi lõi. Đủ để không mất đà.",
+  normal: "Năm buổi. Nhịp mặc định của lộ trình.",
+  full: "Sáu buổi, chạy hết lịch tuần.",
+};
+
+const LOAD_RANK: Record<WeekLoad, number> = { light: 0, normal: 1, full: 2 };
+
+/** ISO-8601 weekday: 1 = Monday … 7 = Sunday. */
+export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+export const WEEKDAY_LABEL: Record<Weekday, string> = {
+  1: "Thứ Hai",
+  2: "Thứ Ba",
+  3: "Thứ Tư",
+  4: "Thứ Năm",
+  5: "Thứ Sáu",
+  6: "Thứ Bảy",
+  7: "Chủ nhật",
+};
+
+export const WEEKDAY_SHORT: Record<Weekday, string> = {
+  1: "T2",
+  2: "T3",
+  3: "T4",
+  4: "T5",
+  5: "T6",
+  6: "T7",
+  7: "CN",
+};
+
+/** A fixed day of the training week. */
+export interface ScheduledDay {
+  day: Weekday;
+  /** Weekly slot keys done on this day, in the order they should be done. */
+  keys: string[];
+  /** The lightest week load at which this day still happens. */
+  minLoad: WeekLoad;
+}
+
 export interface DailyTarget {
   slot: Extract<SlotId, "input" | "srs">;
   /** Distinguishes the two input targets, which share one slot tag. */
@@ -45,8 +103,6 @@ export interface WeeklySlot {
   slot: SlotId;
   key: string;
   label: string;
-  /** Occurrences expected in a week where the slot is active. */
-  count: number;
   minutes: number;
   hint: string;
   tool?: "writing" | "track" | "speaking";
@@ -80,6 +136,12 @@ export interface Phase {
   plannedWeeks: number;
   daily: DailyTarget[];
   weekly: WeeklySlot[];
+  /**
+   * The fixed training week. Weekly targets are DERIVED from this (see
+   * `weeklyTargets`) rather than authored twice, so the schedule the learner
+   * follows and the counters they are judged against can never disagree.
+   */
+  schedule: ScheduledDay[];
   exit: ExitCriterion[];
 }
 
@@ -134,7 +196,6 @@ const TUTOR: WeeklySlot = {
   slot: "tutor",
   key: "tutor",
   label: "Buổi gia sư",
-  count: 2,
   minutes: 45,
   hint: "Ghi band ước tính và 1–3 lỗi gia sư sửa. Nhờ gia sư để ý cùng nhóm lỗi bạn hay sai khi viết.",
   tool: "speaking",
@@ -144,7 +205,6 @@ const GRAMMAR: WeeklySlot = {
   slot: "grammar",
   key: "grammar",
   label: "Drill ngữ pháp",
-  count: 3,
   minutes: 10,
   hint: "Đánh vào nhóm lỗi lặp nhiều nhất trong kho lỗi của bạn.",
 };
@@ -152,19 +212,17 @@ const GRAMMAR: WeeklySlot = {
 function writingSlot(
   key: string,
   label: string,
-  count: number,
   minutes: number,
   hint: string,
 ): WeeklySlot {
-  return { slot: "writing", key, label, count, minutes, hint, tool: "writing" };
+  return { slot: "writing", key, label, minutes, hint, tool: "writing" };
 }
 
-function rewriteSlot(count: number, minutes: number): WeeklySlot {
+function rewriteSlot(minutes: number): WeeklySlot {
   return {
     slot: "rewrite",
     key: "rewrite",
     label: "Viết lại bài đã sửa",
-    count,
     minutes,
     hint: "Làm vào ngày hôm sau, không làm ngay sau khi nhận feedback.",
     tool: "writing",
@@ -175,7 +233,6 @@ const TIMED_READING: WeeklySlot = {
   slot: "timed-reading",
   key: "timed-reading",
   label: "Reading bấm giờ",
-  count: 1,
   minutes: 25,
   hint: "Một passage, đúng giờ. Mỗi câu sai ghi một dòng vì sao sai.",
   tool: "track",
@@ -185,7 +242,6 @@ const TIMED_LISTENING: WeeklySlot = {
   slot: "timed-listening",
   key: "timed-listening",
   label: "Listening bấm giờ",
-  count: 1,
   minutes: 25,
   hint: "Một section, đúng giờ. Nghe lại phần sai kèm transcript.",
   tool: "track",
@@ -195,7 +251,6 @@ const MOCK: WeeklySlot = {
   slot: "mock",
   key: "mock",
   label: "Mock Listening + Reading",
-  count: 1,
   minutes: 180,
   hint: "Khung 3 giờ cuối tuần, ngoài quỹ ngày. Nhập cả band Listening và Reading.",
   tool: "track",
@@ -217,13 +272,20 @@ export const PHASES: Phase[] = [
       writingSlot(
         "writing-free",
         "Viết tự do",
-        2,
         25,
         "120–150 từ theo gợi ý đời thường. Viết cho chạy tay, không cần chuẩn IELTS.",
       ),
-      rewriteSlot(2, 20),
+      rewriteSlot(20),
       GRAMMAR,
       TUTOR,
+    ],
+    schedule: [
+      { day: 1, keys: ["writing-free"], minLoad: "light" },
+      { day: 2, keys: ["rewrite", "grammar"], minLoad: "light" },
+      { day: 3, keys: ["tutor"], minLoad: "light" },
+      { day: 4, keys: ["writing-free"], minLoad: "light" },
+      { day: 5, keys: ["rewrite", "grammar"], minLoad: "normal" },
+      { day: 6, keys: ["tutor", "grammar"], minLoad: "full" },
     ],
     exit: [
       {
@@ -255,15 +317,22 @@ export const PHASES: Phase[] = [
       writingSlot(
         "writing-structured",
         "Viết theo đề Task 2",
-        2,
         30,
         "Tuần 1–2 viết một đến hai đoạn body. Tuần 3–4 viết essay 4 đoạn, chưa bấm giờ.",
       ),
-      rewriteSlot(2, 25),
+      rewriteSlot(25),
       TIMED_READING,
       TIMED_LISTENING,
       GRAMMAR,
       TUTOR,
+    ],
+    schedule: [
+      { day: 1, keys: ["writing-structured"], minLoad: "light" },
+      { day: 2, keys: ["rewrite", "grammar"], minLoad: "light" },
+      { day: 3, keys: ["timed-listening", "tutor"], minLoad: "light" },
+      { day: 4, keys: ["writing-structured"], minLoad: "light" },
+      { day: 5, keys: ["rewrite", "grammar"], minLoad: "normal" },
+      { day: 6, keys: ["timed-reading", "grammar", "tutor"], minLoad: "full" },
     ],
     exit: [
       {
@@ -301,16 +370,14 @@ export const PHASES: Phase[] = [
       writingSlot(
         "writing-task2",
         "Task 2 đúng 40 phút",
-        1,
         60,
         "Chuẩn phòng thi: 40 phút viết, 20 phút đọc feedback và chọn lỗi.",
       ),
-      rewriteSlot(1, 30),
+      rewriteSlot(30),
       {
         ...writingSlot(
           "writing-task1",
           "Task 1",
-          1,
           30,
           "Mỗi hai tuần một bài, ưu tiên dạng biểu đồ bạn hay sai.",
         ),
@@ -320,6 +387,17 @@ export const PHASES: Phase[] = [
       { ...TIMED_READING, minutes: 50 },
       MOCK,
       TUTOR,
+    ],
+    schedule: [
+      { day: 1, keys: ["writing-task2"], minLoad: "light" },
+      { day: 2, keys: ["timed-listening"], minLoad: "light" },
+      { day: 3, keys: ["rewrite", "tutor"], minLoad: "light" },
+      { day: 4, keys: ["timed-reading"], minLoad: "light" },
+      { day: 5, keys: ["writing-task1", "tutor"], minLoad: "normal" },
+      // The mock is a three-hour block, so it only lands on a week the learner
+      // has said is free. Missing one costs a phase exit criterion, which is
+      // why the Today page nudges a mock week towards "Tuần rảnh".
+      { day: 6, keys: ["mock"], minLoad: "full" },
     ],
     exit: [
       {
@@ -342,13 +420,19 @@ export const PHASES: Phase[] = [
       writingSlot(
         "writing-taper",
         "Một bài giữ tay",
-        1,
         40,
         "Không đề mới lạ. Viết lại một đề đã làm để thấy mình chắc hơn.",
       ),
       { ...TIMED_LISTENING, minutes: 30 },
       { ...TIMED_READING, minutes: 30 },
       TUTOR,
+    ],
+    schedule: [
+      { day: 1, keys: ["writing-taper"], minLoad: "light" },
+      { day: 2, keys: ["timed-listening"], minLoad: "light" },
+      { day: 3, keys: ["tutor"], minLoad: "light" },
+      { day: 4, keys: ["timed-reading"], minLoad: "light" },
+      { day: 5, keys: ["tutor"], minLoad: "normal" },
     ],
     exit: [{ id: "exam-date", label: "Đến ngày thi", target: 1 }],
   },
@@ -410,6 +494,121 @@ export function slotsForWeek(phase: Phase, weekInPhase: number): WeeklySlot[] {
     const every = slot.everyNWeeks ?? 1;
     return every === 1 || weekInPhase % every === 0;
   });
+}
+
+/** True when `load` is at least as heavy as `minLoad`. */
+function loadIncludes(load: WeekLoad, minLoad: WeekLoad): boolean {
+  return LOAD_RANK[load] >= LOAD_RANK[minLoad];
+}
+
+function slotByKey(phase: Phase, key: string): WeeklySlot | undefined {
+  return phase.weekly.find((slot) => slot.key === key);
+}
+
+/**
+ * The days actually scheduled for a given week: those the load reaches, with
+ * keys whose slot is off-cadence this week (`everyNWeeks`) removed. A day left
+ * with no keys is dropped rather than shown empty.
+ */
+export function daysForWeek(
+  phase: Phase,
+  load: WeekLoad,
+  weekInPhase: number,
+): ScheduledDay[] {
+  const active = new Set(slotsForWeek(phase, weekInPhase).map((s) => s.key));
+  return phase.schedule
+    .filter((day) => loadIncludes(load, day.minLoad))
+    .map((day) => ({ ...day, keys: day.keys.filter((k) => active.has(k)) }))
+    .filter((day) => day.keys.length > 0);
+}
+
+/** Study days the schedule asks for in this week — the "4-5 buổi" figure. */
+export function studyDaysForWeek(
+  phase: Phase,
+  load: WeekLoad,
+  weekInPhase: number,
+): number {
+  return daysForWeek(phase, load, weekInPhase).length;
+}
+
+/**
+ * Weekly target per slot, counted off the schedule.
+ *
+ * Sessions record a `SlotId`, not a schedule key, and one slot can appear
+ * under several keys in a week (Task 2 and Task 1 are both `writing`), so the
+ * occurrences of every key collapse onto their slot here.
+ */
+export function weeklyTargets(
+  phase: Phase,
+  load: WeekLoad,
+  weekInPhase: number,
+): Map<SlotId, number> {
+  const targets = new Map<SlotId, number>();
+  for (const day of daysForWeek(phase, load, weekInPhase)) {
+    for (const key of day.keys) {
+      const slot = slotByKey(phase, key);
+      if (!slot) continue;
+      targets.set(slot.slot, (targets.get(slot.slot) ?? 0) + 1);
+    }
+  }
+  return targets;
+}
+
+/**
+ * How many times `slot` is scheduled on or before `weekday`.
+ *
+ * This is what makes a fixed schedule forgiving: an item assigned to Tuesday
+ * counts as done once the week holds that many sessions of the slot, whoever
+ * day they actually happened on. Slipping a day never creates a debt, it just
+ * moves the work later in the same week.
+ */
+export function scheduledByWeekday(
+  phase: Phase,
+  load: WeekLoad,
+  weekInPhase: number,
+  weekday: Weekday,
+  slot: SlotId,
+): number {
+  let seen = 0;
+  for (const day of daysForWeek(phase, load, weekInPhase)) {
+    if (day.day > weekday) continue;
+    for (const key of day.keys) {
+      if (slotByKey(phase, key)?.slot === slot) seen++;
+    }
+  }
+  return seen;
+}
+
+/** Minutes of weekly work the schedule asks for, excluding the daily habit. */
+export function weeklyMinutes(
+  phase: Phase,
+  load: WeekLoad,
+  weekInPhase: number,
+): number {
+  let total = 0;
+  for (const day of daysForWeek(phase, load, weekInPhase)) {
+    for (const key of day.keys) total += slotByKey(phase, key)?.minutes ?? 0;
+  }
+  return total;
+}
+
+/** The training day for `weekday`, or null when the schedule rests. */
+export function dayForWeekday(
+  phase: Phase,
+  load: WeekLoad,
+  weekInPhase: number,
+  weekday: Weekday,
+): ScheduledDay | null {
+  return (
+    daysForWeek(phase, load, weekInPhase).find((d) => d.day === weekday) ?? null
+  );
+}
+
+export function weeklySlotByKey(
+  phase: Phase,
+  key: string,
+): WeeklySlot | undefined {
+  return slotByKey(phase, key);
 }
 
 /**
@@ -475,6 +674,31 @@ export function formatWeek(weekInPhase: number): FormatWeek | null {
 }
 
 /* ─────────────────────────── misc helpers ─────────────────────────── */
+
+const DAY_MS = 86_400_000;
+
+function utcOf(date: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return Date.UTC(y, (m ?? 1) - 1, d ?? 1);
+}
+
+/** ISO weekday of `date` (YYYY-MM-DD): 1 = Monday … 7 = Sunday. */
+export function weekdayOf(date: string): Weekday {
+  const dow = new Date(utcOf(date)).getUTCDay();
+  return (dow === 0 ? 7 : dow) as Weekday;
+}
+
+/**
+ * The Monday on or before `date`.
+ *
+ * Weeks are Monday-to-Sunday because the schedule is written in weekdays. If
+ * weeks were counted as 7-day blocks from whenever the phase happened to open,
+ * "Thứ Ba" would drift to a different position in the week every phase.
+ */
+export function mondayOf(date: string): string {
+  const shifted = new Date(utcOf(date) - (weekdayOf(date) - 1) * DAY_MS);
+  return shifted.toISOString().slice(0, 10);
+}
 
 /** Consecutive days (ending today or yesterday) that have >=1 study date. */
 export function computeStreak(studyDates: string[], now = new Date()): number {

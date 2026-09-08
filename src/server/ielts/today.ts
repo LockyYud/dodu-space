@@ -3,6 +3,7 @@
 import {
   countRecentSessions,
   daysSince,
+  earliestDate,
   type PaceReport,
   paceStatus,
   suggestedExamDate,
@@ -10,6 +11,7 @@ import {
 import { computeStreak, plannedWeeksRemaining } from "@/lib/ielts/plan";
 import { type LearnerProfile, learnerProfile } from "@/lib/ielts/profile";
 import type { ProgressReport } from "@/lib/ielts/progress";
+import { planAnchorDate } from "./plan-state";
 import { loadProgress } from "./progress";
 import { countDue } from "./reviews";
 import { listStudyDates } from "./sessions";
@@ -36,6 +38,9 @@ export async function loadToday(): Promise<TodayData> {
     countDue(),
   ]);
 
+  // Read after loadProgress(): that call is what opens the first phase row.
+  const anchor = await planAnchorDate();
+
   const planned = plannedWeeksRemaining(
     progress.phase.id,
     progress.weekInPhase,
@@ -43,7 +48,9 @@ export async function loadToday(): Promise<TodayData> {
   const pace = paceStatus({
     plannedWeeksRemaining: planned,
     studyDaysLast14: countRecentSessions(studyDates),
-    daysSincePlanStart: daysSince(profile.planStart),
+    daysSincePlanStart: daysSince(
+      earliestDate(profile.planStart, anchor) ?? profile.planStart,
+    ),
     examDate: profile.examDate,
   });
 

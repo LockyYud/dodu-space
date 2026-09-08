@@ -205,6 +205,18 @@ export const phaseState = sqliteTable(
   ],
 );
 
+/**
+ * How heavy the learner declared a given week to be.
+ *
+ * Keyed by the week's Monday, so a busy week stays busy in hindsight and the
+ * weekly counters can be read back honestly later. Absent row = a normal week.
+ */
+export const weekLoad = sqliteTable("week_load", {
+  weekStart: text("week_start").primaryKey(), // YYYY-MM-DD, always a Monday
+  load: text("load").notNull(), // WeekLoad
+  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+});
+
 export type StudySession = typeof studySession.$inferSelect;
 export type WritingSubmission = typeof writingSubmission.$inferSelect;
 export type ErrorCard = typeof errorCard.$inferSelect;
@@ -213,3 +225,4 @@ export type BandHistory = typeof bandHistory.$inferSelect;
 export type SpeakingSession = typeof speakingSession.$inferSelect;
 export type PhaseStateRow = typeof phaseState.$inferSelect;
 export type LearnerProfileRow = typeof learnerProfile.$inferSelect;
+export type WeekLoadRow = typeof weekLoad.$inferSelect;

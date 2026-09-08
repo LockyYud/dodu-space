@@ -6,17 +6,19 @@ import { learnerProfile } from "@/lib/ielts/profile";
 import { type ProgressReport, progressReport } from "@/lib/ielts/progress";
 import { currentPhase } from "./plan-state";
 import { countDue } from "./reviews";
+import { getWeekLoad } from "./week-load";
 
 /**
  * Loads everything `progressReport()` needs in one round-trip and evaluates
  * the current phase against it.
  */
 export async function loadProgress(): Promise<ProgressReport> {
-  const [state, profile, dueCount, sessions, submissions, bands] =
+  const [state, profile, dueCount, load, sessions, submissions, bands] =
     await Promise.all([
       currentPhase(),
       learnerProfile(),
       countDue(),
+      getWeekLoad(),
       db
         .select({
           date: schema.studySession.date,
@@ -50,6 +52,7 @@ export async function loadProgress(): Promise<ProgressReport> {
     submissions,
     bands,
     dueCount,
+    load,
     examDate: profile.examDate,
   });
 }

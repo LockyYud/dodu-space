@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import {
   countRecentSessions,
   DEGRADED_SESSION_THRESHOLD,
+  daysSince,
   daysUntil,
+  earliestDate,
   paceStatus,
   suggestedExamDate,
   weeksBetween,
@@ -123,6 +125,19 @@ check("recent study days are counted once per day in the window", () => {
 check("suggested exam date leaves two weeks of buffer", () => {
   assert.equal(suggestedExamDate(22, TODAY), "2027-02-23");
   assert.equal(suggestedExamDate(0, TODAY), "2026-09-22");
+});
+
+check("the plan anchor is the earliest date, ignoring blanks", () => {
+  // The profile falls back to "today" until it is saved, so the phase row's
+  // date must win; otherwise the anchor slides forward every day and
+  // reduced-load mode can never come due.
+  assert.equal(earliestDate("2026-09-08", "2026-07-19"), "2026-07-19");
+  assert.equal(earliestDate("2026-09-08", null), "2026-09-08");
+  assert.equal(earliestDate(null, undefined), null);
+  assert.equal(
+    daysSince(earliestDate("2026-09-08", "2026-08-01") ?? "", TODAY),
+    38,
+  );
 });
 
 console.log(`\n✓ Pace: ${passed}/${passed} checks passed`);

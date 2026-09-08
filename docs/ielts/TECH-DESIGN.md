@@ -528,3 +528,75 @@ error boundary thay vì lệnh chuyển hướng, và app crash trong trình duy
 phải nằm ở config, hoặc mang `export const dynamic = "force-dynamic"`.
 
 **Test:** `npm run ielts:test` — 5 bộ, 55 check.
+
+## 13. Mốc neo lộ trình không được là "hôm nay"
+
+Báo lỗi "trang settings bị lỗi" không tái hiện được: cả tải trực tiếp lẫn điều hướng phía
+client vào `/ielts/settings` trên production đều trả 200 và render đủ form, mọi chunk đều
+200, không có `pageerror` nào trong headless Chromium. Nhưng lúc dò tìm thì lộ ra một lỗi
+thật khác, cùng khu vực.
+
+`learner_profile` trên Turso **không có hàng nào** — bảng chỉ được tạo khi ai đó bấm Lưu hồ
+sơ. Nên `learnerProfile()` trả về `envDefaults()`, và `planStart` rơi về
+`process.env.IELTS_PLAN_START ?? toISODate()`. Vercel không đặt biến đó, nên **mốc bắt đầu
+lộ trình chính là hôm nay, tính lại ở mỗi request**. Hệ quả: `daysSincePlanStart` luôn bằng
+0, và cổng 14 ngày vừa thêm ở §12 khiến chế độ giữ nhịp **không bao giờ** kích hoạt được
+trên production. Một mặc định "hôm nay" trông vô hại nhưng nó làm mọi phép đo theo thời gian
+trượt theo, và trượt trong im lặng.
+
+Mốc neo duy nhất được ghi bền là `phase_state.started_on` của giai đoạn đầu tiên:
+`currentPhase()` ghi nó một lần rồi không đổi nữa. Thêm `planAnchorDate()` đọc hàng đó, và
+`daysSincePlanStart` nay tính từ `earliestDate(profile.planStart, anchor)` — lấy ngày sớm
+hơn, nên hồ sơ đã lưu với ngày sớm hơn vẫn được tôn trọng, còn mặc định "hôm nay" thì luôn
+bị hàng phase ghi đè. Đọc anchor **sau** `loadProgress()` vì chính lời gọi đó mở hàng phase
+đầu tiên.
+
+**Test:** `npm run ielts:test` — 5 bộ, 56 check.
+
+## 14. Tuần cố định theo thứ (2026-09-08)
+
+Phản hồi của người học về trang Hôm nay bản v3: *"thực sự nhìn như này tôi không biết là hôm
+nay tôi phải làm gì cả"*. Đúng. Trang hỏi "Hôm nay, làm gì?" rồi trả lời bằng một thẻ hằng ngày
+và một thẻ tuần gồm bốn dòng `0/2` — một bản kiểm kê, không phải một chỉ dẫn. Phần tuần không
+nói dòng nào là của hôm nay, nên không dòng nào là của hôm nay cả. Quyết định đó lại chính là
+thứ duy nhất app tồn tại để làm thay.
+
+### 14.1 Mô hình
+
+`Phase` có thêm `schedule: ScheduledDay[]`, mỗi ngày gồm `day` (1 = thứ Hai, ISO-8601), danh
+sách `keys` của các slot tuần, và `minLoad` — mức tải nhẹ nhất mà ngày đó vẫn diễn ra. Ba mức
+`WeekLoad` là `light` / `normal` / `full`, cho 4 / 5 / 6 buổi mỗi tuần.
+
+Điểm quan trọng: **`count` trên `WeeklySlot` đã bị xoá**. Chỉ tiêu tuần nay được `weeklyTargets()`
+đếm ra từ lịch. Khai báo hai lần thì sớm muộn cũng lệch — đây là cùng nguyên tắc với
+`selfLoggableSlots()` ở §12. Test khẳng định mọi slot đều được xếp vào một ngày nào đó, mọi key
+trong lịch đều trỏ tới một slot có thật, tuần nhẹ là tập con của tuần nặng, và không giai đoạn
+nào xếp việc vào Chủ nhật.
+
+Tuần chuyển sang **Thứ Hai đến Chủ nhật**: `weekInPhaseOf()` nay tính từ thứ Hai của tuần mà
+giai đoạn mở ra. Nếu vẫn đếm theo khối 7 ngày kể từ ngày giai đoạn tình cờ bắt đầu thì "thứ Ba"
+sẽ trôi sang một vị trí khác trong tuần ở mỗi giai đoạn.
+
+### 14.2 Lịch cố định mà không sinh ra nợ
+
+`scheduledByWeekday()` đếm số lần một slot được xếp **vào hoặc trước** một thứ. Một việc của thứ
+Ba coi như xong khi trong tuần đã có đủ chừng đó buổi của slot đó, bất kể chúng rơi vào thứ nào.
+Làm bài viết của thứ Ba vào thứ Tư là xong thứ Ba; chỉ tổng của tuần mới phải cân. Đây là thứ
+giữ cho lịch cố định không lặp lại sai lầm của v1, nơi lỡ một ngày là mang nợ một ngày.
+
+`week_load` (migration 0004) lưu mức tải theo **thứ Hai của tuần**, không lưu trên hồ sơ: một
+tuần bận là một sự thật về tuần đó, và bộ đếm tuần phải còn đọc lại được trung thực sau nhiều
+tháng. Không có hàng nghĩa là tuần thường.
+
+### 14.3 Trang Hôm nay
+
+Một danh sách có thứ tự thay cho hai thẻ đếm: SRS trước (chính hint của nó nói "làm đầu buổi"),
+rồi tiếp nhận, rồi phần việc lịch xếp cho hôm nay. Tiêu đề là thứ trong tuần, phụ đề là số việc
+còn lại và tổng số phút. Dải bảy ngày T2–CN cho thấy cả tuần, kèm ba nút đổi mức tải. Bộ đếm
+tuần lùi vào một `<details>`.
+
+**Một xung đột logic sửa cùng lúc:** lịch xếp "viết lại" vào ngày sau ngày viết, nên trong tuần
+mà ngày viết bị bỏ thì việc viết lại là không thể làm. `TodayItem.blocked` nay nói rõ lý do, đổi
+nút thành "Viết bài mới", không đánh số, và không tính vào số việc còn lại của ngày.
+
+**Test:** `npm run ielts:test` — 5 bộ, 70 check.

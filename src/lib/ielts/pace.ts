@@ -125,6 +125,27 @@ export function suggestedExamDate(
   return toISODate(date);
 }
 
+/**
+ * The earliest of the given ISO dates, ignoring blanks. ISO dates sort
+ * lexicographically, so string comparison is the date comparison.
+ *
+ * The plan anchor comes from two places that can disagree: the learner
+ * profile, whose `plan_start` falls back to "today" while no profile row has
+ * been saved, and the first phase row, which is written once and never moves.
+ * Taking the earlier of the two keeps the anchor from sliding forward a day
+ * at a time on a deployment where nobody has opened the profile form yet.
+ */
+export function earliestDate(
+  ...dates: (string | null | undefined)[]
+): string | null {
+  let earliest: string | null = null;
+  for (const date of dates) {
+    if (!date) continue;
+    if (earliest === null || date < earliest) earliest = date;
+  }
+  return earliest;
+}
+
 /** Whole days from `from` (YYYY-MM-DD) up to and including `today`. */
 export function daysSince(from: string, today = new Date()): number {
   return -daysUntil(today, from);

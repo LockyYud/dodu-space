@@ -1,16 +1,24 @@
 import assert from "node:assert/strict";
 import {
+  daysForWeek,
   FORMAT_WEEK_COUNT,
   FORMAT_WEEKS,
   formatWeek,
   isSelfLoggable,
+  mondayOf,
   nextPhaseId,
   PHASES,
   PLANNED_WEEKS_TOTAL,
   phaseById,
   plannedWeeksRemaining,
+  scheduledByWeekday,
   selfLoggableSlots,
   slotsForWeek,
+  studyDaysForWeek,
+  WEEK_LOADS,
+  WEEKDAY_SHORT,
+  weekdayOf,
+  weeklyTargets,
 } from "../../src/lib/ielts/plan";
 import { pickPrompt, promptsFor } from "../../src/lib/ielts/prompts";
 
@@ -55,7 +63,10 @@ check("every phase has a weekly tutor slot", () => {
   for (const phase of PHASES) {
     const tutor = phase.weekly.filter((s) => s.slot === "tutor");
     assert.equal(tutor.length, 1, `${phase.id} tutor slot`);
-    assert.equal(tutor[0].count, 2);
+    // Two on a full week; a busy week must still keep one, because the tutor
+    // is an appointment with another person, not a slot to silently drop.
+    assert.equal(weeklyTargets(phase, "full", 1).get("tutor"), 2);
+    assert.equal(weeklyTargets(phase, "light", 1).get("tutor"), 1);
   }
 });
 
@@ -176,6 +187,94 @@ check("every prompt carries a word target the grader can use", () => {
       assert.ok(prompt.text.length > 40, `${prompt.id} text`);
     }
   }
+});
+
+check("the fixed week is 4 / 5 / 6 study days by load", () => {
+  for (const phase of PHASES) {
+    const light = studyDaysForWeek(phase, "light", 1);
+    const normal = studyDaysForWeek(phase, "normal", 1);
+    const full = studyDaysForWeek(phase, "full", 1);
+    assert.equal(light, 4, `${phase.id} light`);
+    assert.ok(normal >= light, `${phase.id}: normal must not shrink`);
+    assert.ok(full >= normal, `${phase.id}: full must not shrink`);
+    assert.ok(full <= 6, `${phase.id}: ${full} days is more than six`);
+  }
+});
+
+check("no phase ever schedules a Sunday", () => {
+  for (const phase of PHASES) {
+    for (const load of WEEK_LOADS) {
+      for (const day of daysForWeek(phase, load, 1)) {
+        assert.notEqual(day.day, 7, `${phase.id} ${load} ${WEEKDAY_SHORT[7]}`);
+      }
+    }
+  }
+});
+
+check("every scheduled key names a real weekly slot", () => {
+  for (const phase of PHASES) {
+    const keys = new Set(phase.weekly.map((s) => s.key));
+    for (const day of phase.schedule) {
+      assert.ok(day.keys.length > 0, `${phase.id} day ${day.day} is empty`);
+      for (const key of day.keys) {
+        assert.ok(keys.has(key), `${phase.id}: no slot "${key}"`);
+      }
+    }
+  }
+});
+
+check("every weekly slot is actually scheduled somewhere", () => {
+  // A slot with no day would show as a target the learner is never told when
+  // to do — exactly the failure this schedule exists to remove.
+  for (const phase of PHASES) {
+    const scheduled = new Set(phase.schedule.flatMap((d) => d.keys));
+    for (const slot of phase.weekly) {
+      assert.ok(
+        scheduled.has(slot.key),
+        `${phase.id}: ${slot.key} unscheduled`,
+      );
+    }
+  }
+});
+
+check("a lighter week is a subset of a heavier one", () => {
+  for (const phase of PHASES) {
+    const light = daysForWeek(phase, "light", 1).map((d) => d.day);
+    const full = daysForWeek(phase, "full", 1).map((d) => d.day);
+    for (const day of light) {
+      assert.ok(full.includes(day), `${phase.id}: day ${day} lost when full`);
+    }
+  }
+});
+
+check("the mock only lands on a mock week", () => {
+  const build = phaseById("build");
+  assert.equal(weeklyTargets(build, "full", 1).get("mock"), undefined);
+  assert.equal(weeklyTargets(build, "full", 3).get("mock"), 1);
+});
+
+check("weekly minutes grow with the load, never shrink", () => {
+  const phase = phaseById("return");
+  const light = weeklyTargets(phase, "light", 1);
+  const full = weeklyTargets(phase, "full", 1);
+  for (const [slot, count] of light) {
+    assert.ok((full.get(slot) ?? 0) >= count, `${slot} shrank when full`);
+  }
+});
+
+check("a slot is only owed once its scheduled day has arrived", () => {
+  const phase = phaseById("return");
+  // Writing is scheduled Monday and Thursday on a light week.
+  assert.equal(scheduledByWeekday(phase, "light", 1, 1, "writing"), 1);
+  assert.equal(scheduledByWeekday(phase, "light", 1, 3, "writing"), 1);
+  assert.equal(scheduledByWeekday(phase, "light", 1, 4, "writing"), 2);
+});
+
+check("weekdays and week starts are Monday-based", () => {
+  assert.equal(weekdayOf("2026-09-08"), 2); // a Tuesday
+  assert.equal(weekdayOf("2026-09-13"), 7); // the Sunday after
+  assert.equal(mondayOf("2026-09-13"), "2026-09-07");
+  assert.equal(mondayOf("2026-09-07"), "2026-09-07");
 });
 
 console.log(`\n✓ Plan: ${passed}/${passed} checks passed`);

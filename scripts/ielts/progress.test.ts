@@ -31,11 +31,14 @@ function input(over: Partial<ProgressInput> = {}): ProgressInput {
   };
 }
 
-check("week in phase is 1-based from the start date", () => {
+check("weeks run Monday to Sunday, starting the week the phase opened", () => {
+  // The phase opens Tuesday 2026-09-08, so week 1 is the week of Monday the
+  // 7th and ends that Sunday. Weekday-based schedules need weeks to line up
+  // with the calendar, otherwise "Thứ Ba" drifts across the week.
   assert.equal(weekInPhaseOf(START, START), 1);
-  assert.equal(weekInPhaseOf(START, day(6)), 1);
-  assert.equal(weekInPhaseOf(START, day(7)), 2);
-  assert.equal(weekInPhaseOf(START, day(20)), 3);
+  assert.equal(weekInPhaseOf(START, day(5)), 1); // Sunday 09-13
+  assert.equal(weekInPhaseOf(START, day(6)), 2); // Monday 09-14
+  assert.equal(weekInPhaseOf(START, day(20)), 4); // Monday 09-28
 });
 
 check("daily items are done by attempt, not by hitting the minutes", () => {
@@ -219,6 +222,93 @@ check("errors per 100 words rounds to one decimal", () => {
   assert.equal(errorDensity(13, 102), 12.7);
   assert.equal(errorDensity(0, 100), 0);
   assert.equal(errorDensity(5, 0), 0);
+});
+
+check("today's work is the day the schedule names, not a bag of counts", () => {
+  // 2026-09-08 is a Tuesday: the return phase asks for rewrite + grammar.
+  const report = progressReport(input({}));
+  assert.equal(report.weekday, 2);
+  assert.deepEqual(
+    report.todayWork.map((i) => i.key),
+    ["rewrite", "grammar"],
+  );
+  assert.equal(report.restDay, false);
+  assert.equal(report.studyDaysThisWeek, 5); // normal week
+});
+
+check("a busy week drops the optional days entirely", () => {
+  const friday = new Date(2026, 8, 11); // weekday 5, scheduled only when normal+
+  const light = progressReport(input({ today: friday, load: "light" }));
+  assert.equal(light.restDay, true);
+  assert.deepEqual(light.todayWork, []);
+  assert.equal(light.studyDaysThisWeek, 4);
+
+  const normal = progressReport(input({ today: friday, load: "normal" }));
+  assert.equal(normal.restDay, false);
+  assert.deepEqual(
+    normal.todayWork.map((i) => i.key),
+    ["rewrite", "grammar"],
+  );
+});
+
+check("doing an assigned day late still clears it", () => {
+  // Thursday carries the week's second writing session, so it is owed only
+  // once two writing sessions exist — whichever days they happened on.
+  const thursday = new Date(2026, 8, 10);
+  const writing = (date: string) => ({
+    date,
+    skill: "writing",
+    slot: "writing",
+    durationMin: 25,
+  });
+
+  const one = progressReport(
+    input({ today: thursday, sessions: [writing("2026-09-08")] }),
+  );
+  assert.equal(one.todayWork.find((i) => i.slot === "writing")?.done, false);
+
+  const two = progressReport(
+    input({
+      today: thursday,
+      sessions: [writing("2026-09-08"), writing("2026-09-09")],
+    }),
+  );
+  assert.equal(two.todayWork.find((i) => i.slot === "writing")?.done, true);
+});
+
+check("weekly targets follow the load", () => {
+  const light = progressReport(input({ load: "light" }));
+  const full = progressReport(input({ load: "full" }));
+  const target = (r: typeof light, slot: string) =>
+    r.weekly.find((i) => i.slot === slot)?.target;
+  assert.equal(target(light, "grammar"), 1);
+  assert.equal(target(full, "grammar"), 3);
+  assert.equal(target(light, "tutor"), 1);
+  assert.equal(target(full, "tutor"), 2);
+});
+
+check("a rewrite with nothing to rewrite is blocked, not offered", () => {
+  // Tuesday asks for a rewrite, but the week's writing day was skipped.
+  const empty = progressReport(input({}));
+  const rewrite = empty.todayWork.find((i) => i.slot === "rewrite");
+  assert.ok(rewrite?.blocked, "rewrite should be blocked with no essay");
+
+  const written = progressReport(
+    input({
+      submissions: [
+        {
+          createdAt: "2026-09-08",
+          wordCount: 140,
+          errorDensity: 6,
+          isRewrite: false,
+        },
+      ],
+    }),
+  );
+  assert.equal(
+    written.todayWork.find((i) => i.slot === "rewrite")?.blocked,
+    undefined,
+  );
 });
 
 console.log(`\n✓ Progress: ${passed}/${passed} checks passed`);

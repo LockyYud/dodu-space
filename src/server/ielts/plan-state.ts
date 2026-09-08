@@ -56,6 +56,23 @@ export async function currentPhase(): Promise<PhaseState> {
   });
 }
 
+/**
+ * The date the roadmap itself started: when the very first phase opened.
+ *
+ * This is the only plan anchor that is actually persisted. `learner_profile`
+ * is created lazily by the profile form, so until it is saved `plan_start`
+ * resolves to `toISODate()` — today, recomputed on every request — and
+ * anything measured from it (reduced-load mode) can never come due.
+ */
+export async function planAnchorDate(): Promise<string | null> {
+  const [first] = await db
+    .select({ startedOn: schema.phaseState.startedOn })
+    .from(schema.phaseState)
+    .orderBy(schema.phaseState.id)
+    .limit(1);
+  return first?.startedOn ?? null;
+}
+
 export interface PhaseHistoryRow {
   phase: PhaseId;
   label: string;
