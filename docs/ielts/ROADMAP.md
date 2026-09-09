@@ -261,6 +261,11 @@ vì trước đó cửa sổ 14 ngày chưa có nghĩa.
 
 ## 8. Nguồn học
 
+> Bảng này nay đã **nằm trong app**: mỗi ô trên trang Hôm nay có phần "Cách làm" gồm các bước
+> cụ thể và link nguồn lọc theo giai đoạn. Xem `src/lib/ielts/howto.ts` và METHOD-REVIEW §11.
+> Nguồn nằm trong tài liệu là nguồn không tồn tại với người đang mở app lên để học.
+
+
 | Loại | Nguồn |
 |---|---|
 | Nghe thụ động | BBC 6 Minute English (GĐ 0–1) · TED Talks, BBC Learning English "Lingohack" (GĐ 2) |

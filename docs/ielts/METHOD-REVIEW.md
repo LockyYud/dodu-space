@@ -393,3 +393,61 @@ Cuối tuần đổi lại phải nặng thật: giai đoạn 2 có thứ Bảy 
 Nếu chỗ này không khả thi thì phải cắt khối lượng hoặc lùi thi, không có đường thứ ba.
 
 **Test:** `npm run ielts:test` — 6 bộ, 92 check.
+
+---
+
+## 11. App là sổ ghi chép, không phải hướng dẫn (2026-09-08)
+
+Phản hồi sau khi dùng bản đã xếp lại lịch: *"tôi thực sự không hiểu là học như nào"*.
+
+Đây là lỗ hổng nặng nhất trong cả loạt rà soát, và nó nằm ở tầng khác với mọi lỗi trước đó.
+Những lần trước sai về *khối lượng* và *thời điểm*. Lần này sai về việc app **không dạy gì cả**:
+mỗi dòng nói "làm 10 phút" rồi dừng.
+
+Đọc lại từng dòng bằng mắt người chưa biết cách học:
+
+| Ô | App nói | Người học còn thiếu |
+|---|---|---|
+| Nghe | "Podcast hoặc video khi di chuyển" | podcast nào, mức nào, nghe rồi làm gì |
+| Đọc | "Một bài báo ngắn" | bài ở đâu, đọc kiểu gì, có tra từ không |
+| Bắt từ mới | "4 cụm từ từ bài vừa đọc" | chọn cụm nào, theo tiêu chí gì |
+| Drill ngữ pháp | "Đánh vào nhóm lỗi lặp nhiều nhất" | **nhóm nào**, và drill bằng bài tập gì |
+
+Ô drill là tệ nhất: app bảo drill, **không cung cấp bài tập nào**, rồi mời bấm "Đã làm".
+
+Nguồn học vốn có trong ROADMAP §8. Nhưng nó nằm trong tài liệu, tức nằm ngoài app, tức **không
+tồn tại** với người đang mở trang lên để học.
+
+### 11.1 `src/lib/ielts/howto.ts`
+
+Mỗi ô — mọi ô hằng ngày và mọi suất tuần của cả bốn giai đoạn — có một `HowTo` gồm:
+
+- `steps`: các bước đúng thứ tự, đủ cụ thể để làm ngay mà không phải hỏi thêm.
+- `sources`: link thật, **lọc theo giai đoạn** (BBC 6 Minute English ở giai đoạn 0–1, TED ở
+  giai đoạn 2 — không thể dùng chung một nguồn cho cả lộ trình).
+- `pitfall`: cái bẫy hay gặp nhất của đúng ô đó.
+
+Bốn bất biến có test: không ô nào của bất kỳ giai đoạn nào bị thiếu hướng dẫn; hướng dẫn nào
+cũng có ít nhất ba bước và không bước nào cụt dưới 20 ký tự; mọi nguồn là `https://` thật; và
+các bước là **văn bản thuần** — `HowToBlock` không parse markdown, nên `**đậm**` trong dữ liệu
+sẽ hiện ra nguyên dấu sao (đã mắc đúng lỗi này lần đầu, giờ có test chặn).
+
+Hiển thị bằng `<details>` server-rendered, mặc định đóng: mở ra không tốn JS, và danh sách vẫn
+đọc được như một bản kế hoạch với người đã quen.
+
+### 11.2 Ô drill có vật liệu thật
+
+Dữ liệu để trả lời "nhóm nào" nằm ngay trong bảng thẻ. `topErrorRule()` đếm `error_card.rule`
+và bỏ qua `other` — đó là thùng chứa phần không phân loại được, không phải một nhóm để luyện,
+và trỏ người học vào đó thì không có unit ngữ pháp nào để mở.
+
+Ô drill nay nói thẳng: *"Nhóm bạn lặp nhiều nhất: Danh từ số nhiều thiếu -s (2 thẻ) · Mở đúng
+nhóm này · Tra: Murphy Unit 68–70"*. Link trỏ tới `/ielts/errors?rule=plural-s` — bộ lọc mới,
+vì không có nó thì lời khuyên "đánh vào nhóm lỗi lặp nhiều nhất" là không làm theo được.
+
+Bài tập là **chính những câu người học đã sai**: che phần sửa, tự viết lại, rồi so. Không cần
+soạn nội dung, và nó đúng nguyên tắc retrieval practice trên vật liệu cá nhân hoá.
+`RULE_STUDY_HINT` map từng nhóm lỗi sang đúng unit Murphy; test khẳng định cả năm nhóm nền tảng
+của giai đoạn 0 đều tra được.
+
+**Test:** `npm run ielts:test` — 7 bộ, 98 check.

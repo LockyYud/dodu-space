@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { DailyInput } from "@/components/ielts/daily-input";
 import { DictationLog } from "@/components/ielts/dictation-log";
+import { HowToBlock } from "@/components/ielts/how-to";
 import { PhasePanel } from "@/components/ielts/phase-panel";
 import { SlotLog } from "@/components/ielts/slot-log";
 import { SpeakDrill } from "@/components/ielts/speak-drill";
@@ -10,9 +11,12 @@ import { WeekLoadPicker } from "@/components/ielts/week-load-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ERROR_RULES, isErrorRule } from "@/lib/ielts/error-rules";
+import { howToFor, RULE_STUDY_HINT, sourcesFor } from "@/lib/ielts/howto";
 import {
   formatWeek,
   isSelfLoggable,
+  type PhaseId,
   phaseById,
   type SlotId,
   VOCAB_DAILY_TARGET,
@@ -70,6 +74,8 @@ interface Step {
    */
   offBudget?: boolean;
   action: ReactNode;
+  /** "Cách làm" của ô này. Không ô nào được để trống. */
+  howTo?: ReactNode;
 }
 
 export default async function TodayPage() {
@@ -79,6 +85,7 @@ export default async function TodayPage() {
     hours,
     suggestedExam,
     due,
+    topRule,
     vocabToday,
     streak,
     profile,
@@ -115,6 +122,10 @@ export default async function TodayPage() {
   // A blocked step is not something the learner can act on, so it never
   // becomes "the next thing" and never counts against the day.
   const remaining = steps.filter((s) => !s.done && !s.blocked);
+  for (const step of steps) {
+    step.howTo = howToNode(step.key, phase.id, topRule);
+  }
+
   // Quỹ thời gian thật. `dailyMinutes` là buổi tối ngày thường sau khi đi làm;
   // cuối tuần rộng hơn nên không cắt. Trước đây trường này nằm trong hồ sơ mà
   // không chỗ nào đọc, nên lịch có thể đòi 100 phút mà app vẫn im lặng.
@@ -467,7 +478,55 @@ function StepRow({
         <p className="text-xs text-muted-foreground">{step.hint}</p>
       </div>
       {step.action}
+      {step.howTo && <div className="w-full">{step.howTo}</div>}
     </div>
+  );
+}
+
+/**
+ * Trước đây mỗi ô chỉ có một dòng gợi ý, kiểu "đánh vào nhóm lỗi lặp nhiều nhất
+ * trong kho lỗi của bạn" — đúng nhưng không làm theo được. Đây là chỗ trả lời
+ * "làm thế nào", và với ô drill thì trả lời luôn "nhóm nào".
+ */
+function howToNode(
+  key: string,
+  phase: PhaseId,
+  topRule: { rule: string; count: number } | null,
+): ReactNode {
+  const howTo = howToFor(key as Parameters<typeof howToFor>[0]);
+  if (!howTo) return null;
+
+  let extra: ReactNode = null;
+  if (key === "grammar") {
+    extra =
+      topRule && isErrorRule(topRule.rule) ? (
+        <p>
+          Nhóm bạn lặp nhiều nhất:{" "}
+          <strong>{ERROR_RULES[topRule.rule].label}</strong> ({topRule.count}{" "}
+          thẻ).{" "}
+          <Link
+            href={`/ielts/errors?rule=${topRule.rule}`}
+            className="text-primary underline underline-offset-2"
+          >
+            Mở đúng nhóm này
+          </Link>
+          {RULE_STUDY_HINT[topRule.rule]
+            ? ` · Tra: ${RULE_STUDY_HINT[topRule.rule]}`
+            : ""}
+        </p>
+      ) : (
+        <p className="text-muted-foreground">
+          Kho lỗi chưa đủ dữ liệu để chỉ ra nhóm nào. Viết vài bài trước đã.
+        </p>
+      );
+  }
+
+  return (
+    <HowToBlock
+      howTo={howTo}
+      sources={sourcesFor(key as Parameters<typeof sourcesFor>[0], phase)}
+      extra={extra}
+    />
   );
 }
 

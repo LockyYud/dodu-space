@@ -20,6 +20,7 @@ import {
 } from "@/lib/ielts/plan";
 import { type LearnerProfile, learnerProfile } from "@/lib/ielts/profile";
 import type { ProgressReport } from "@/lib/ielts/progress";
+import { topErrorRule } from "./errors";
 import { planAnchorDate } from "./plan-state";
 import { loadProgress } from "./progress";
 import { countDueSplit, type DueSplit } from "./reviews";
@@ -33,6 +34,8 @@ export interface TodayData {
   suggestedExam: string;
   /** Hàng đợi ôn tập hôm nay, tách thẻ lỗi và thẻ từ vựng. */
   due: DueSplit;
+  /** Nhóm lỗi lặp nhiều nhất, để ô drill trỏ đúng chỗ. */
+  topRule: { rule: string; count: number } | null;
   /** Thẻ từ vựng mới đã bắt hôm nay — trần và tiến độ đều đọc từ đây. */
   vocabToday: number;
   streak: number;
@@ -45,15 +48,23 @@ export interface TodayData {
  * create two opening phase rows on a fresh database.
  */
 export async function loadToday(): Promise<TodayData> {
-  const [progress, profile, studyDates, due, studiedHours, vocabToday] =
-    await Promise.all([
-      loadProgress(),
-      learnerProfile(),
-      listStudyDates(),
-      countDueSplit(),
-      guidedHoursStudied(),
-      countVocabToday(),
-    ]);
+  const [
+    progress,
+    profile,
+    studyDates,
+    due,
+    studiedHours,
+    vocabToday,
+    topRule,
+  ] = await Promise.all([
+    loadProgress(),
+    learnerProfile(),
+    listStudyDates(),
+    countDueSplit(),
+    guidedHoursStudied(),
+    countVocabToday(),
+    topErrorRule(),
+  ]);
 
   // Read after loadProgress(): that call is what opens the first phase row.
   const anchor = await planAnchorDate();
@@ -89,6 +100,7 @@ export async function loadToday(): Promise<TodayData> {
     hours,
     suggestedExam: suggestedExamDate(planned),
     due,
+    topRule,
     vocabToday,
     streak: computeStreak(studyDates),
     profile,
