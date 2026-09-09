@@ -451,3 +451,56 @@ soạn nội dung, và nó đúng nguyên tắc retrieval practice trên vật l
 của giai đoạn 0 đều tra được.
 
 **Test:** `npm run ielts:test` — 7 bộ, 98 check.
+
+---
+
+## 12. Bắt từ mới: app dựng thẻ, người học chỉ đưa từ (2026-09-09)
+
+Phản hồi: *"chỉ cần đưa các từ mới và app phải tự build các thành phần tương ứng kèm theo chứ
+không phải để user điền hết"*. Đúng — bản đầu bắt người học chọn cụm, tìm câu chứa nó, dán cả
+hai, rồi chọn loại. Bốn việc, trong đó ba việc app làm được.
+
+### 12.1 Luồng mới
+
+Dán một danh sách, mỗi dòng một cụm, bấm **Tra và dựng thẻ**. Một lời gọi LLM cho cả lô trả về,
+cho mỗi cụm: dạng chuẩn (sửa chính tả, đưa về nguyên thể), loại (cụm / từ đơn), nghĩa tiếng
+Việt ngắn, một câu ví dụ ở giọng học thuật, và 2–3 cụm hay đi cùng. Người học xem lại, bỏ tick
+cụm không đáng học, rồi lưu một lượt.
+
+**Nguyên tắc giữ lại từ bản đầu:** câu ví dụ lấy từ **bài người học vừa đọc** vẫn tốt hơn câu do
+máy sinh, vì thứ cần nhớ là cách dùng trong ngữ cảnh đã gặp. Nên ô dán đoạn văn là **tuỳ chọn**:
+có thì `sentenceContaining()` tìm câu thật trong đó và thẻ ghi rõ "câu từ bài bạn đọc"; không có
+thì mới dùng câu model sinh.
+
+Prompt có một luật đáng chú ý: **không được đoán nghĩa cho cụm không nhận ra** — phải ghi vào
+`note` thay vì bịa. Cụm bị gắn cờ hiện mờ và không được tick sẵn.
+
+### 12.2 Trần thẻ tính trên cả lô
+
+`addVocabCards()` xử lý toàn bộ danh sách trong một transaction, đếm phòng còn lại từ đầu rồi
+trừ dần. Nếu mỗi cụm tự kiểm tra riêng thì một lần dán 12 cụm sẽ làm trần thành vô nghĩa. Trả
+về `{added, repeated, capped}` để người học biết chuyện gì đã xảy ra với từng phần. Kiểm thật:
+đã có 2 thẻ, gửi 7 cụm → thêm 3, dừng ở trần 5, 4 cụm để mai.
+
+### 12.3 Lỗi thật phát hiện khi kiểm chứng: mặt trước thẻ lộ đáp án
+
+Người học ghi cụm ở dạng nguyên thể (`raise concerns`) còn bài đọc dùng dạng đã biến đổi
+(`raised concerns`). `blankOut()` tìm nguyên dạng nên không khớp, và **mặt trước thẻ giữ nguyên
+cả câu** — tức đáp án nằm ngay trên câu hỏi, thẻ vô dụng mà vẫn trông như bình thường.
+
+Sửa bằng `termPattern()`: dựng regex theo từng từ của cụm, cho phép đuôi `s|es|ed|d|ing`, và bỏ
+`-e` cuối trước khi thêm đuôi để bắt `mitigate → mitigating`. Khớp theo biên từ, nên `art` không
+khớp vào giữa `startup`. `sentenceContaining()` nay dùng **chung** bộ khớp đó: tìm được câu bằng
+luật này thì chắc chắn che được chỗ trống.
+
+Khi vẫn không khớp nổi, thẻ **không** rơi về dạng hiện cả câu nữa mà chuyển sang hỏi cụm với
+ngữ cảnh ở mặt sau — thà thẻ yếu hơn là thẻ lộ đáp án.
+
+### 12.4 Ghi chú môi trường
+
+`LLM_API_KEY` trong `.env` local đang bị từ chối: `401 Incorrect API key`. Phần tra cứu vì thế
+được kiểm bằng một endpoint giả tương thích OpenAI, chạy trọn chuỗi tra → xem trước → lưu →
+dựng thẻ. **Nếu key trên Vercel cũng là key này thì chấm Writing đang chết trên production** —
+cần kiểm riêng.
+
+**Test:** `npm run ielts:test` — 8 bộ, 111 check.
