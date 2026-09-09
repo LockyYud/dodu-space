@@ -33,12 +33,49 @@ export function normalizeTerm(term: string): string {
     .trim();
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Mẫu khớp `term` kể cả khi câu dùng dạng biến đổi.
+ *
+ * Cần thiết vì người học ghi cụm ở dạng nguyên thể ("raise concerns") còn bài
+ * đọc dùng dạng đã biến đổi ("raised concerns"). Không khớp được thì mặt trước
+ * thẻ không bị che chỗ trống, tức đáp án nằm ngay trên câu hỏi.
+ */
+export function termPattern(term: string): RegExp {
+  const words = term
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => {
+      const base = escapeRegex(word);
+      const alts = [`${base}(?:s|es|ed|d|ing)?`];
+      // "mitigate" → "mitigating": bỏ -e cuối trước khi thêm đuôi.
+      if (/e$/i.test(word) && word.length > 3) {
+        alts.push(`${escapeRegex(word.slice(0, -1))}(?:ing|ed)`);
+      }
+      return `(?:${alts.join("|")})`;
+    });
+  return new RegExp(`\\b${words.join("\\s+")}\\b`, "i");
+}
+
+/** Vị trí `term` xuất hiện trong `text`, tính cả dạng biến đổi. */
+export function findTermSpan(
+  text: string,
+  term: string,
+): { start: number; end: number } | null {
+  const match = termPattern(term).exec(text);
+  if (!match) return null;
+  return { start: match.index, end: match.index + match[0].length };
+}
+
 /** Thay lần xuất hiện đầu tiên của `term` trong `context` bằng chỗ trống. */
 function blankOut(context: string, term: string): string | null {
-  const index = context.toLowerCase().indexOf(term.toLowerCase());
-  if (index < 0) return null;
-  const after = context.slice(index + term.length);
-  return `${context.slice(0, index)}____${after}`;
+  const span = findTermSpan(context, term);
+  if (!span) return null;
+  return `${context.slice(0, span.start)}____${context.slice(span.end)}`;
 }
 
 /**
@@ -57,9 +94,11 @@ export function makeVocabCard(input: VocabInput): VocabCard {
   return {
     // Không tìm thấy nguyên dạng thì thường là do biến thể (số nhiều, thì).
     // Vẫn giữ nguyên câu làm mặt trước, chỉ mất chỗ trống.
-    front: blanked ?? context,
+    // Không che được chỗ trống thì câu chứa nguyên đáp án, nên thẻ vô dụng —
+    // rơi về dạng hỏi nghĩa, có ngữ cảnh ở mặt sau.
+    front: blanked ?? `Cụm nào? ${term.replace(/\S/g, "•")}`,
     back: term,
-    explanation: blanked ? null : "Cụm từ xuất hiện ở dạng biến thể trong câu.",
+    explanation: blanked ? null : `Câu đã gặp: ${context}`,
     key: normalizeTerm(term),
   };
 }

@@ -100,8 +100,9 @@ const HOW_TO: Record<HowToKey, HowTo> = {
     steps: [
       "Lấy 3–5 cụm đã gạch chân ở bài vừa đọc.",
       "Chọn cụm nào bạn hiểu nghĩa nhưng sẽ không tự viết ra được — đó mới là cụm đáng học.",
-      "Dán cụm vào ô trên, rồi dán nguyên câu chứa nó vào ô dưới.",
-      "Thẻ sẽ hiện ra ở dạng điền chỗ trống trong chính câu đó, nên bạn ôn cách dùng chứ không ôn nghĩa.",
+      "Dán cả danh sách vào ô, mỗi dòng một cụm, rồi bấm Tra và dựng thẻ. App tự lo nghĩa, câu ví dụ và các cụm hay đi cùng.",
+      "Xem lại kết quả, bỏ tick cụm nào không đáng học, rồi lưu.",
+      "Muốn câu ví dụ lấy từ chính bài bạn đọc thay vì câu máy sinh thì dán thêm đoạn văn vào ô tuỳ chọn.",
     ],
     sources: [
       {

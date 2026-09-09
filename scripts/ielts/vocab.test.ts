@@ -3,6 +3,7 @@ import {
   appendContext,
   makeVocabCard,
   normalizeTerm,
+  termPattern,
 } from "../../src/lib/ielts/vocab";
 
 let passed = 0;
@@ -23,14 +24,40 @@ check("thẻ dựng ở dạng điền chỗ trống trong chính câu đã gặ
   assert.equal(card.explanation, null);
 });
 
-check("biến thể không khớp thì giữ nguyên câu, không vứt thẻ", () => {
+check("dạng biến đổi vẫn bị che chỗ trống", () => {
+  // Người học ghi "raise concerns", bài đọc dùng "raised concerns". Không khớp
+  // được thì mặt trước thẻ chứa nguyên đáp án, tức thẻ vô dụng.
   const card = makeVocabCard({
     term: "raise concerns",
     context: "The report raised concerns about air quality.",
     kind: "collocation",
   });
-  assert.equal(card.front, "The report raised concerns about air quality.");
-  assert.ok(card.explanation);
+  assert.equal(card.front, "The report ____ about air quality.");
+  assert.equal(card.explanation, null);
+});
+
+check("đuôi -ing sau khi bỏ e cuối cũng khớp", () => {
+  const card = makeVocabCard({
+    term: "mitigate",
+    context: "They are mitigating the worst effects already.",
+    kind: "vocab",
+  });
+  assert.equal(card.front, "They are ____ the worst effects already.");
+});
+
+check("không khớp nổi thì không để đáp án lộ trên mặt trước", () => {
+  const card = makeVocabCard({
+    term: "at odds with",
+    context: "Câu này hoàn toàn không chứa cụm đó.",
+    kind: "collocation",
+  });
+  assert.ok(!card.front.includes("at odds with"), card.front);
+  assert.match(card.explanation ?? "", /Câu đã gặp/);
+});
+
+check("khớp theo biên từ, không khớp giữa từ khác", () => {
+  assert.equal(termPattern("art").test("The startup grew."), false);
+  assert.equal(termPattern("art").test("Modern art matters."), true);
 });
 
 check("từ đứng một mình bị từ chối", () => {

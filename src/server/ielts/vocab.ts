@@ -4,6 +4,7 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
+import { isLLMConfigured } from "@/lib/ielts/llm";
 import { VOCAB_DAILY_CAP } from "@/lib/ielts/plan";
 import { type ActionResult, fail, ok } from "@/lib/ielts/result";
 import { VOCAB_CARD_MARKER } from "@/lib/ielts/schema";
@@ -14,11 +15,19 @@ import {
   normalizeTerm,
   type VocabKind,
 } from "@/lib/ielts/vocab";
+import {
+  type EnrichedTerm,
+  enrichTerms,
+  MAX_TERMS_PER_LOOKUP,
+  parseTermList,
+} from "@/lib/ielts/vocab-enrich";
 
 export interface AddVocabInput {
   term: string;
   context: string;
   kind: VocabKind;
+  /** Nghĩa và các cụm hay đi cùng, do bước tra cứu dựng sẵn. */
+  explanation?: string;
 }
 
 export interface AddVocabResult {
@@ -92,7 +101,7 @@ export async function addVocabCard(
       errorType: input.kind,
       front: card.front,
       back: card.back,
-      explanation: card.explanation,
+      explanation: input.explanation?.trim() || card.explanation,
       context: input.context.trim(),
       dueDate: today,
       createdAt: toLocalTimestamp(),
@@ -138,5 +147,154 @@ export async function addVocabCard(
   return ok({
     repeated: outcome === "repeated",
     todayCount: await countVocabToday(),
+  });
+}
+
+/**
+ * Tra một loạt cụm từ: người học chỉ đưa từ mới, app dựng phần còn lại.
+ *
+ * Không ghi gì vào database — đây là bước xem trước, để người học bỏ bớt những
+ * cụm không đáng học trước khi chúng thành thẻ.
+ */
+export async function lookupVocab(
+  raw: string,
+  passage?: string,
+): Promise<ActionResult<EnrichedTerm[]>> {
+  await requireIeltsUser();
+  if (!isLLMConfigured()) {
+    return fail("Chưa cấu hình LLM_API_KEY nên không tra cứu được.");
+  }
+
+  const terms = parseTermList(raw);
+  if (terms.length === 0) return fail("Chưa nhập cụm từ nào.");
+  if (terms.length > MAX_TERMS_PER_LOOKUP) {
+    return fail(
+      `Mỗi lần tra tối đa ${MAX_TERMS_PER_LOOKUP} cụm. Bạn vừa dán ${terms.length}.`,
+    );
+  }
+
+  try {
+    return ok(
+      await enrichTerms({ terms, passage: passage?.trim() || undefined }),
+    );
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "Tra cứu thất bại.");
+  }
+}
+
+export interface SaveVocabResult {
+  added: number;
+  repeated: number;
+  /** Số cụm bị bỏ vì đã chạm trần thẻ mới trong ngày. */
+  capped: number;
+  todayCount: number;
+}
+
+/**
+ * Lưu nhiều thẻ một lượt.
+ *
+ * Trần thẻ mỗi ngày phải tính **trên cả lô**, không phải từng cụm một: một lần
+ * dán 12 cụm mà mỗi cụm tự kiểm tra riêng thì trần thành vô nghĩa.
+ */
+export async function addVocabCards(
+  inputs: AddVocabInput[],
+): Promise<ActionResult<SaveVocabResult>> {
+  await requireIeltsUser();
+  if (inputs.length === 0) return fail("Chưa chọn cụm nào để lưu.");
+
+  const today = toISODate();
+  let added = 0;
+  let repeated = 0;
+  let capped = 0;
+
+  await db.transaction(async (tx) => {
+    const existing = await tx
+      .select()
+      .from(schema.errorCard)
+      .where(eq(schema.errorCard.sourceRef, VOCAB_CARD_MARKER));
+    const byKey = new Map(
+      existing.map((row) => [normalizeTerm(row.back), row] as const),
+    );
+    let room =
+      VOCAB_DAILY_CAP -
+      existing.filter((row) => (row.createdAt ?? "").startsWith(today)).length;
+
+    for (const input of inputs) {
+      let card: ReturnType<typeof makeVocabCard>;
+      try {
+        card = makeVocabCard(input);
+      } catch {
+        continue; // cụm thiếu ngữ cảnh: bỏ qua, đừng làm hỏng cả lô
+      }
+
+      const match = byKey.get(card.key);
+      if (match) {
+        await tx
+          .update(schema.errorCard)
+          .set({
+            dueDate: today,
+            context: appendContext(match.context, input.context.trim()),
+          })
+          .where(eq(schema.errorCard.id, match.id));
+        repeated++;
+        continue;
+      }
+
+      if (room <= 0) {
+        capped++;
+        continue;
+      }
+
+      await tx.insert(schema.errorCard).values({
+        sourceType: "reading",
+        sourceRef: VOCAB_CARD_MARKER,
+        errorType: input.kind,
+        front: card.front,
+        back: card.back,
+        explanation: input.explanation?.trim() || card.explanation,
+        context: input.context.trim(),
+        dueDate: today,
+        createdAt: toLocalTimestamp(),
+      });
+      room--;
+      added++;
+    }
+  });
+
+  if (added > 0 || repeated > 0) await touchVocabSession(added + repeated);
+
+  revalidatePath("/ielts/today");
+  revalidatePath("/ielts/review");
+  return ok({ added, repeated, capped, todayCount: await countVocabToday() });
+}
+
+/** Một dòng buổi học mỗi ngày cho ô từ vựng, cộng dồn chứ không nhân bản. */
+async function touchVocabSession(count: number): Promise<void> {
+  const today = toISODate();
+  const [session] = await db
+    .select()
+    .from(schema.studySession)
+    .where(
+      and(
+        eq(schema.studySession.date, today),
+        eq(schema.studySession.slot, "vocab"),
+      ),
+    )
+    .limit(1);
+
+  if (session) {
+    await db
+      .update(schema.studySession)
+      .set({ durationMin: (session.durationMin ?? 0) + count })
+      .where(eq(schema.studySession.id, session.id));
+    return;
+  }
+  await db.insert(schema.studySession).values({
+    date: today,
+    skill: "vocab",
+    slot: "vocab",
+    durationMin: count,
+    status: "done",
+    notes: "Bắt từ mới từ bài đọc",
   });
 }
