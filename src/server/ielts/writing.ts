@@ -15,8 +15,10 @@ import {
   type TaskType,
 } from "@/lib/ielts/grading";
 import { topErrorThemes } from "@/lib/ielts/insights";
+import { LLM_MODEL } from "@/lib/ielts/llm";
 import { learnerProfile, targetSummary } from "@/lib/ielts/profile";
 import { promptById } from "@/lib/ielts/prompts";
+import { type ActionResult, fail, ok } from "@/lib/ielts/result";
 import { toISODate } from "@/lib/ielts/srs";
 import { loadProgress } from "./progress";
 
@@ -36,7 +38,7 @@ export interface GradeActionInput {
  */
 export async function gradeAction(
   input: GradeActionInput,
-): Promise<GradingResult> {
+): Promise<ActionResult<GradingResult>> {
   await requireIeltsUser();
   const [progress, profile, ruleHistory] = await Promise.all([
     loadProgress(),
@@ -49,16 +51,51 @@ export async function gradeAction(
     ? (promptById(input.promptId)?.text ?? input.prompt)
     : input.prompt;
 
-  return gradeWriting({
-    mode,
-    taskType: input.taskType,
-    prompt,
-    essay: input.essay,
-    targetBand: profile.targetBands.writing,
-    taskContext: taskContext(input, progress.phase.label),
-    learnerContext: await buildLearnerContext(),
-    ruleHistory,
-  });
+  try {
+    return ok(
+      await gradeWriting({
+        mode,
+        taskType: input.taskType,
+        prompt,
+        essay: input.essay,
+        targetBand: profile.targetBands.writing,
+        taskContext: taskContext(input, progress.phase.label),
+        learnerContext: await buildLearnerContext(),
+        ruleHistory,
+      }),
+    );
+  } catch (e) {
+    // Không để lỗi này ném ra: Next che thông điệp ở bản production và người
+    // học chỉ thấy một digest. Model chết hay hết hạn mức là chuyện lường
+    // trước được, và biết đúng lý do thì sửa mất một phút thay vì một buổi.
+    return fail(gradingErrorMessage(e));
+  }
+}
+
+/**
+ * Dịch lỗi từ endpoint LLM sang câu người học đọc được.
+ *
+ * Nguyên nhân thật gặp trên production 2026-09-09: `LLM_MODEL` trỏ tới một
+ * biến thể `:free` mà OpenRouter không còn provider nào phục vụ, nên mọi lời
+ * gọi hỏng. Trang chỉ hiện "Application error" kèm digest.
+ */
+function gradingErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const model = LLM_MODEL();
+
+  if (/no endpoints|not a valid model|404/i.test(raw)) {
+    return `Model "${model}" hiện không có endpoint nào phục vụ. Đổi LLM_MODEL sang một model còn sống rồi thử lại.`;
+  }
+  if (/401|invalid api key|incorrect api key/i.test(raw)) {
+    return "LLM_API_KEY bị từ chối. Kiểm tra lại key trong biến môi trường.";
+  }
+  if (/429|rate limit|quota/i.test(raw)) {
+    return `Model "${model}" đã hết hạn mức. Đợi một lúc, hoặc đổi sang model khác.`;
+  }
+  if (/response_format|json_object|unsupported/i.test(raw)) {
+    return `Model "${model}" không nhận tham số response_format mà phần chấm bài cần. Chọn model có hỗ trợ JSON output.`;
+  }
+  return `Chấm bài thất bại: ${raw.slice(0, 300)}`;
 }
 
 function taskContext(input: GradeActionInput, phaseLabel: string): string {

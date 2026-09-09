@@ -88,8 +88,14 @@ export function WritingWorkbench({
           essay,
           writeMinutes,
         });
-        setResult(r);
-        setSelected(new Set(r.cards.slice(0, MAX_KEPT_CARDS).map((_, i) => i)));
+        if (!r.ok) {
+          setError(r.error);
+          return;
+        }
+        setResult(r.data);
+        setSelected(
+          new Set(r.data.cards.slice(0, MAX_KEPT_CARDS).map((_, i) => i)),
+        );
       } catch (e) {
         setError(e instanceof Error ? e.message : "Gửi bài thất bại.");
       }
