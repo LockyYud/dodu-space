@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LocalizedText } from "@/components/custom/localized-text";
 import { getProjectBySlug, getProjects } from "@/lib/content/project";
+import { isPlaceholderUrl } from "@/lib/links";
 
 export async function generateStaticParams() {
   const projects = await getProjects();
@@ -17,37 +19,45 @@ export default async function ProjectPage({
 
   try {
     const { frontmatter, content } = await getProjectBySlug(slug);
+    const stack = (frontmatter.tags ?? []).join(" · ");
+    const hasSource = !isPlaceholderUrl(frontmatter.github);
 
     return (
-      <article className="mx-auto max-w-2xl space-y-8">
-        <header className="not-prose mb-8 space-y-4 border-b pb-8">
-          <p className="tech-mono text-xs font-medium uppercase text-[var(--color-accent-text)]">
-            <LocalizedText vi="Case study" en="Case study" />
+      <article className="max-w-[42rem]">
+        <header className="not-prose flex flex-col gap-5 pb-10">
+          <Link
+            href="/projects"
+            className="meta w-fit text-muted-foreground transition-colors hover:text-[var(--color-accent-text)]"
+          >
+            ← <LocalizedText vi="Tất cả dự án" en="All work" />
+          </Link>
+          <p className="eyebrow eyebrow-accent">
+            <LocalizedText vi="CASE STUDY" en="CASE STUDY" />
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+          <h1 className="text-[2.25rem] leading-[1.1] md:text-5xl">
             {frontmatter.title}
           </h1>
           {frontmatter.description ? (
-            <p className="text-base leading-7 text-muted-foreground">
+            <p className="text-xl leading-relaxed text-muted-foreground">
               {frontmatter.description}
             </p>
           ) : null}
-          {(frontmatter.tags ?? []).length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {(frontmatter.tags ?? []).map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-md border bg-background/60 px-2 py-1 tech-mono text-[10px] text-muted-foreground"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          ) : null}
+          <p className="meta flex flex-wrap items-baseline gap-x-3 text-muted-foreground">
+            {stack ? <span>{stack}</span> : null}
+            {hasSource && frontmatter.github ? (
+              <a
+                href={frontmatter.github}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[var(--color-accent-text)] hover:underline"
+              >
+                source →
+              </a>
+            ) : null}
+          </p>
         </header>
-        <div className="prose max-w-none dark:prose-invert prose-headings:font-sans prose-headings:tracking-tight prose-headings:text-foreground prose-p:leading-7 prose-p:text-muted-foreground prose-li:text-muted-foreground prose-strong:text-foreground prose-a:text-[var(--color-accent-text)]">
-          {content}
-        </div>
+
+        <div className="prose-post border-t border-border pt-10">{content}</div>
       </article>
     );
   } catch {

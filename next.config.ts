@@ -16,6 +16,13 @@ const nextConfig: NextConfig = {
         destination: "/ielts/history",
         permanent: false,
       },
+      // The Craft page was retired in the editorial redesign; its three
+      // visuals said less than the About page's own text.
+      {
+        source: "/craft",
+        destination: "/about",
+        permanent: true,
+      },
     ];
   },
 };

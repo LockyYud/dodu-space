@@ -8,11 +8,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-serif);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
   --color-accent: var(--accent);
   --color-accent-text: var(--accent-text);
-  --color-grid: var(--grid);
+  --color-border-soft: var(--border-soft);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -51,111 +52,250 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Editorial palette — warm cream ground, earth-orange accent.
+   Variable names stay shadcn-compatible so the IELTS/quiz sub-apps
+   keep working; only the values change. */
 :root {
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.62 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --accent-text: oklch(0.6 0.2 262);
-  --grid: oklch(0.145 0 0 / 3%);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: oklch(0.96 0.012 80);
+  --foreground: oklch(0.18 0.01 60);
+  --card: oklch(0.96 0.012 80);
+  --card-foreground: oklch(0.18 0.01 60);
+  --popover: oklch(0.98 0.008 80);
+  --popover-foreground: oklch(0.18 0.01 60);
+  --primary: oklch(0.18 0.01 60);
+  --primary-foreground: oklch(0.96 0.012 80);
+  --secondary: oklch(0.93 0.014 80);
+  --secondary-foreground: oklch(0.18 0.01 60);
+  --muted: oklch(0.93 0.014 80);
+  --muted-foreground: oklch(0.5 0.015 70);
+  --accent: oklch(0.93 0.014 80);
+  --accent-foreground: oklch(0.18 0.01 60);
+  --accent-text: oklch(0.48 0.14 45);
+  --destructive: oklch(0.51 0.17 27);
+  --border: oklch(0.18 0.01 60);
+  --border-soft: oklch(0.85 0.015 80);
+  --input: oklch(0.8 0.015 80);
+  --ring: oklch(0.48 0.14 45);
+  --chart-1: oklch(0.48 0.14 45);
+  --chart-2: oklch(0.58 0.12 60);
+  --chart-3: oklch(0.66 0.1 80);
+  --chart-4: oklch(0.42 0.09 40);
+  --chart-5: oklch(0.72 0.07 90);
+  --radius: 0.125rem;
+  --sidebar: oklch(0.94 0.014 80);
+  --sidebar-foreground: oklch(0.18 0.01 60);
+  --sidebar-primary: oklch(0.18 0.01 60);
+  --sidebar-primary-foreground: oklch(0.96 0.012 80);
+  --sidebar-accent: oklch(0.93 0.014 80);
+  --sidebar-accent-foreground: oklch(0.18 0.01 60);
+  --sidebar-border: oklch(0.85 0.015 80);
+  --sidebar-ring: oklch(0.48 0.14 45);
 }
 
 .dark {
-  --background: oklch(0.12 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.82 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --accent-text: oklch(0.7 0.18 262);
-  --grid: oklch(0.985 0 0 / 2.2%);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.19 0.008 60);
+  --foreground: oklch(0.9 0.015 80);
+  --card: oklch(0.19 0.008 60);
+  --card-foreground: oklch(0.9 0.015 80);
+  --popover: oklch(0.23 0.009 60);
+  --popover-foreground: oklch(0.9 0.015 80);
+  --primary: oklch(0.9 0.015 80);
+  --primary-foreground: oklch(0.19 0.008 60);
+  --secondary: oklch(0.25 0.009 60);
+  --secondary-foreground: oklch(0.9 0.015 80);
+  --muted: oklch(0.25 0.009 60);
+  --muted-foreground: oklch(0.68 0.015 75);
+  --accent: oklch(0.25 0.009 60);
+  --accent-foreground: oklch(0.9 0.015 80);
+  --accent-text: oklch(0.72 0.12 50);
+  --destructive: oklch(0.65 0.16 27);
+  --border: oklch(0.9 0.015 80 / 55%);
+  --border-soft: oklch(0.9 0.015 80 / 14%);
+  --input: oklch(0.9 0.015 80 / 22%);
+  --ring: oklch(0.72 0.12 50);
+  --chart-1: oklch(0.72 0.12 50);
+  --chart-2: oklch(0.66 0.11 65);
+  --chart-3: oklch(0.78 0.09 85);
+  --chart-4: oklch(0.58 0.1 40);
+  --chart-5: oklch(0.84 0.06 90);
+  --sidebar: oklch(0.22 0.009 60);
+  --sidebar-foreground: oklch(0.9 0.015 80);
+  --sidebar-primary: oklch(0.72 0.12 50);
+  --sidebar-primary-foreground: oklch(0.19 0.008 60);
+  --sidebar-accent: oklch(0.25 0.009 60);
+  --sidebar-accent-foreground: oklch(0.9 0.015 80);
+  --sidebar-border: oklch(0.9 0.015 80 / 14%);
+  --sidebar-ring: oklch(0.72 0.12 50);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border-soft outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
     overflow-x: hidden;
-    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-serif), "Iowan Old Style", Georgia, serif;
+    font-optical-sizing: auto;
+    font-size: 1.0625rem;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    background-image:
-      linear-gradient(to right, var(--grid) 1px, transparent 1px),
-      linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
-    background-size: 40px 40px;
-    background-position: center;
   }
   html {
-    @apply font-sans;
+    @apply font-serif;
     overflow-x: hidden;
   }
   h1,
   h2,
-  h3 {
-    @apply font-semibold tracking-tight;
-    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  h3,
+  h4 {
+    font-family: var(--font-serif), "Iowan Old Style", Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    text-wrap: pretty;
+  }
+  h1 {
+    font-weight: 300;
   }
 }
 
 @layer utilities {
+  /* Mono micro-typography: metadata, slugs, counters, labels. */
+  .meta {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Kept as an alias so existing call sites keep working. */
   .tech-mono {
-    @apply font-mono tracking-tight;
+    font-family: var(--font-mono), ui-monospace, monospace;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+  .eyebrow {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .eyebrow-accent {
+    color: var(--accent-text);
+  }
+  /* Hairlines do the work cards used to do. */
+  .rule {
+    border-top: 1px solid var(--border);
+  }
+  .rule-soft {
+    border-top: 1px solid var(--border-soft);
+  }
+  .link-action {
+    font-style: italic;
+    color: var(--accent-text);
+  }
+  .link-action:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+}
+
+/* Long-form article typography, shared by blog posts and project pages. */
+@layer components {
+  .prose-post {
+    @apply prose prose-neutral max-w-none dark:prose-invert;
+    --tw-prose-body: var(--foreground);
+    --tw-prose-headings: var(--foreground);
+    --tw-prose-bold: var(--foreground);
+    --tw-prose-quotes: var(--foreground);
+    --tw-prose-counters: var(--muted-foreground);
+    --tw-prose-bullets: var(--border-soft);
+    --tw-prose-hr: var(--border-soft);
+    --tw-prose-captions: var(--muted-foreground);
+    font-size: 1.125rem;
+    line-height: 1.7;
+  }
+  .prose-post :where(h2):not(:where([class~="not-prose"] *)) {
+    margin-top: 3rem;
+    padding-top: 1.75rem;
+    border-top: 1px solid var(--border);
+    font-size: 1.75rem;
+    font-weight: 400;
+  }
+  .prose-post :where(h3):not(:where([class~="not-prose"] *)) {
+    margin-top: 2.25rem;
+    font-size: 1.375rem;
+    font-weight: 500;
+  }
+  .prose-post :where(a):not(:where([class~="not-prose"] *)) {
+    color: var(--accent-text);
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+    font-weight: 400;
+  }
+  /* No left-border accent bar: an indented italic aside instead. */
+  .prose-post :where(blockquote):not(:where([class~="not-prose"] *)) {
+    border-left: 0;
+    padding-left: 0;
+    margin-left: 1.5rem;
+    font-style: italic;
+    font-weight: 400;
+    color: var(--muted-foreground);
+  }
+  .prose-post :where(blockquote p:first-of-type)::before,
+  .prose-post :where(blockquote p:last-of-type)::after {
+    content: none;
+  }
+  .prose-post :where(code):not(:where(pre *, [class~="not-prose"] *)) {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.875em;
+    font-weight: 400;
+    background: var(--muted);
+    padding: 0.1em 0.3em;
+  }
+  .prose-post :where(code):not(:where(pre *, [class~="not-prose"] *))::before,
+  .prose-post :where(code):not(:where(pre *, [class~="not-prose"] *))::after {
+    content: none;
+  }
+  .prose-post :where(table):not(:where([class~="not-prose"] *)) {
+    font-size: 0.9375rem;
+  }
+  .prose-post :where(th):not(:where([class~="not-prose"] *)) {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 400;
+    color: var(--muted-foreground);
+  }
+  /* The paper citation block that opens most reading notes. */
+  .paper-note {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    font-style: normal;
+    color: var(--muted-foreground);
+    border-top: 1px solid var(--border-soft);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 1rem 0;
+    margin: 0 0 2rem;
+  }
+  .paper-note strong {
+    font-weight: 500;
+    color: var(--foreground);
+  }
+  .paper-note p {
+    margin: 0;
+  }
+  .paper-note code {
+    background: none;
+    padding: 0;
+    color: var(--accent-text);
   }
 }
 

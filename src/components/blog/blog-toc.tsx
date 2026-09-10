@@ -50,11 +50,11 @@ export function BlogToc({ items }: BlogTocProps) {
   }, [items]);
 
   return (
-    <div className="sticky top-20 rounded-lg border border-border/70 bg-background/75 p-3 shadow-sm backdrop-blur-md supports-backdrop-filter:bg-background/65">
-      <p className="tech-mono px-2 pb-2 text-xs font-medium uppercase text-[var(--color-accent-text)]">
-        <LocalizedText vi="Mục lục" en="Contents" />
+    <div className="sticky top-10">
+      <p className="eyebrow pb-3">
+        <LocalizedText vi="MỤC LỤC" en="CONTENTS" />
       </p>
-      <nav className="relative space-y-0.5 border-l border-border/80">
+      <nav className="relative border-l border-border-soft">
         {items.map((item) => {
           const isActive = activeId === item.id;
 
@@ -63,16 +63,16 @@ export function BlogToc({ items }: BlogTocProps) {
               key={item.id}
               href={`#${item.id}`}
               className={cn(
-                "relative block py-1.5 pr-2 text-xs leading-5 transition-colors",
-                item.level === 3 ? "pl-5" : "pl-3",
+                "meta relative block py-1.5 pr-2 transition-colors",
+                item.level === 3 ? "pl-6" : "pl-4",
                 isActive
-                  ? "font-medium text-foreground"
+                  ? "text-[var(--color-accent-text)]"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               <span
                 className={cn(
-                  "absolute -left-px top-1.5 h-5 w-px rounded-full transition-colors",
+                  "absolute -left-px top-0 h-full w-px transition-colors",
                   isActive ? "bg-[var(--color-accent-text)]" : "bg-transparent",
                 )}
               />

@@ -1,173 +1,64 @@
-import {
-  ArrowRight,
-  Database,
-  GitBranch,
-  ServerCog,
-  Sparkles,
-} from "lucide-react";
 import Link from "next/link";
 
-import { AnimatedSection } from "@/components/custom/animated-section";
 import { LocalizedText } from "@/components/custom/localized-text";
-import { TypingSubtitle } from "@/components/custom/typing-subtitle";
-import { Separator } from "@/components/ui/separator";
-import { siteConfig } from "@/config/site";
-import { socialConfig } from "@/config/social";
-import { buttonVariants } from "@/lib/button-variants";
-import { isPlaceholderEmail } from "@/lib/links";
+import { getBlogPosts } from "@/lib/content/blog";
 
-const focusAreas = [
-  {
-    label: "RAG",
-    value: {
-      vi: "retrieval + evaluation",
-      en: "retrieval + evaluation",
-    },
-  },
-  {
-    label: "Backend",
-    value: {
-      vi: "FastAPI + data systems",
-      en: "FastAPI + data systems",
-    },
-  },
-  { label: "LLM Eval", value: { vi: "quality gates", en: "quality gates" } },
-  {
-    label: "Vector/Graph",
-    value: { vi: "Qdrant + Neo4j", en: "Qdrant + Neo4j" },
-  },
-] as const;
+/**
+ * The "Currently" note points at whatever the newest roadmap-ish post is, so
+ * the homepage says what I am working on without a second place to update.
+ */
+async function getCurrentFocusHref() {
+  const posts = await getBlogPosts();
+  const roadmap = posts.find((post) =>
+    (post.tags ?? []).some((tag) => tag === "Roadmap"),
+  );
+  return roadmap ? `/blogs/${roadmap.slug}` : "/blogs";
+}
 
-const pipelineSteps = [
-  { icon: Database, label: "Index", detail: "chunk + embed" },
-  { icon: GitBranch, label: "Retrieve", detail: "hybrid + rerank" },
-  { icon: ServerCog, label: "Serve", detail: "API + observability" },
-] as const;
-
-export function HeroSection() {
-  const hasEmail = !isPlaceholderEmail(socialConfig.email);
+export async function HeroSection() {
+  const focusHref = await getCurrentFocusHref();
 
   return (
-    <AnimatedSection>
-      <div className="mb-14 grid min-w-0 gap-8 py-14 md:mb-16 md:grid-cols-[1.1fr_0.9fr] md:items-center md:py-20">
-        <div className="flex min-w-0 flex-col gap-7">
-          <div className="flex min-w-0 flex-col gap-4">
-            <TypingSubtitle text="AI Engineer • RAG Systems • Backend" />
-            <h1 className="max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl">
-              {siteConfig.title}
-            </h1>
-            <p className="max-w-2xl text-base leading-7 text-foreground/80 md:text-lg md:leading-8">
-              <LocalizedText
-                vi="Tôi thiết kế hệ thống AI ứng dụng: pipeline RAG, backend phục vụ LLM, đánh giá chất lượng retrieval và hạ tầng dữ liệu vector/graph để sản phẩm chạy ổn định hơn."
-                en="I design applied AI systems: RAG pipelines, LLM backend services, retrieval evaluation, and vector/graph data infrastructure for more reliable products."
-              />
-            </p>
-          </div>
+    <section className="grid gap-10 pb-20 pt-16 md:grid-cols-12 md:gap-8 md:pb-28 md:pt-24">
+      <div className="flex min-w-0 flex-col gap-8 md:col-span-8">
+        <p className="eyebrow eyebrow-accent">
+          No. 01 &nbsp;·&nbsp;{" "}
+          <LocalizedText vi="AI ENGINEER, HÀ NỘI" en="AI ENGINEER, HANOI" />
+        </p>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/projects"
-              className={buttonVariants({
-                variant: "outline",
-                className:
-                  "border-foreground/15 bg-background/70 shadow-sm hover:border-[var(--color-accent-text)] hover:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-accent-text),transparent_80%)]",
-              })}
-            >
-              <LocalizedText vi="Xem dự án" en="View projects" />
-              <ArrowRight className="size-4" />
-            </Link>
-            <Link
-              href="/blogs"
-              className={buttonVariants({
-                variant: "outline",
-                className:
-                  "border-foreground/15 bg-background/70 hover:border-[var(--color-accent-text)]",
-              })}
-            >
-              <LocalizedText vi="Đọc bài viết" en="Read blogs" />
-            </Link>
-            {hasEmail ? (
-              <a
-                href={`mailto:${socialConfig.email}`}
-                className={buttonVariants({
-                  variant: "ghost",
-                  className:
-                    "tech-mono text-xs text-muted-foreground hover:text-foreground",
-                })}
-              >
-                <LocalizedText vi="Liên hệ" en="Contact" />
-              </a>
-            ) : (
-              <span className="tech-mono text-xs text-muted-foreground">
-                <LocalizedText
-                  vi="Liên hệ: đang cập nhật"
-                  en="Contact: updating"
-                />
-              </span>
-            )}
-          </div>
+        <h1 className="max-w-[40ch] text-[2.75rem] leading-[1.05] sm:text-6xl md:text-[4.25rem]">
+          <LocalizedText
+            vi="Ghi chép về việc xây hệ thống retrieval có thể "
+            en="Notes on making retrieval systems that can be "
+          />
+          <em className="font-light">
+            <LocalizedText vi="đo được" en="measured" />
+          </em>
+          <LocalizedText vi=", không chỉ demo được." en=", not just demoed." />
+        </h1>
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            {focusAreas.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg border bg-background/65 px-3 py-2"
-              >
-                <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-accent-text)]">
-                  {item.label}
-                </p>
-                <p className="mt-1 text-sm leading-relaxed text-foreground/75">
-                  <LocalizedText vi={item.value.vi} en={item.value.en} />
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-card/75 p-4 shadow-sm backdrop-blur">
-          <div className="flex items-center justify-between gap-3 border-b pb-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <LocalizedText vi="current focus" en="current focus" />
-              </p>
-              <h2 className="mt-1 text-base font-semibold">
-                RAG reliability loop
-              </h2>
-            </div>
-            <Sparkles className="size-4 text-[var(--color-accent-text)]" />
-          </div>
-
-          <div className="mt-4 grid gap-3">
-            {pipelineSteps.map((step) => {
-              const Icon = step.icon;
-              return (
-                <div
-                  key={step.label}
-                  className="flex items-center gap-3 rounded-md border bg-background/65 p-3"
-                >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent-text)]/10 text-[var(--color-accent-text)]">
-                    <Icon className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{step.label}</p>
-                    <p className="text-sm text-foreground/65">{step.detail}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 rounded-md bg-muted/50 px-3 py-2 tech-mono text-xs text-foreground/75">
-            <span className="text-foreground">status:</span>{" "}
-            <LocalizedText
-              vi="cải thiện retrieval, eval và observability cho hệ thống LLM."
-              en="improving retrieval, evaluation, and observability for LLM systems."
-            />
-          </div>
-        </div>
-
-        <Separator className="md:col-span-2" />
+        <p className="max-w-[38rem] text-xl leading-relaxed text-muted-foreground">
+          <LocalizedText
+            vi="Tôi xây pipeline RAG và backend phục vụ LLM, và viết ghi chú đọc paper về những kỹ thuật đứng sau chúng: ý tưởng là gì, cái gì thật sự quan trọng khi lên production, và thí nghiệm nào tôi sẽ chạy trước khi tin nó."
+            en="I build RAG pipelines and LLM backend services, and I write reading notes on the papers behind them: what the idea is, what actually matters in production, and the experiment I would run before trusting it."
+          />
+        </p>
       </div>
-    </AnimatedSection>
+
+      <div className="flex flex-col gap-3 border-t border-border pt-6 md:col-span-3 md:col-start-10 md:mt-10">
+        <p className="eyebrow">
+          <LocalizedText vi="ĐANG LÀM" en="CURRENTLY" />
+        </p>
+        <p className="text-[17px] leading-relaxed text-muted-foreground">
+          <LocalizedText
+            vi="Dựng bộ đánh giá cho hybrid retrieval và reranking. Mười hai kỹ thuật, một benchmark, theo thứ tự."
+            en="Building an evaluation harness for hybrid retrieval and reranking. Twelve techniques, one benchmark, in order."
+          />
+        </p>
+        <Link href={focusHref} className="link-action text-[17px]">
+          <LocalizedText vi="Đọc roadmap →" en="Read the roadmap →" />
+        </Link>
+      </div>
+    </section>
   );
 }

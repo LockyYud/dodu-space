@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 
 type SectionHeaderProps = Readonly<{
@@ -28,31 +27,30 @@ export function SectionHeader({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
+        "flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between",
         className,
       )}
     >
-      <div className="min-w-0 space-y-2">
-        {eyebrow ? (
-          <p className="text-xs font-medium uppercase tracking-wider text-[var(--color-accent-text)]">
-            {eyebrow}
-          </p>
-        ) : null}
-        <Title className="text-xl font-semibold tracking-tight md:text-2xl">
+      <div className="flex min-w-0 flex-col gap-4">
+        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+        <Title
+          className={cn(
+            titleAs === "h1"
+              ? "text-5xl leading-[1.05] md:text-6xl"
+              : "text-3xl md:text-4xl",
+          )}
+        >
           {title}
         </Title>
         {description ? (
-          <p className="max-w-2xl text-sm leading-6 text-foreground/70">
+          <p className="max-w-[36rem] text-xl leading-relaxed text-muted-foreground">
             {description}
           </p>
         ) : null}
       </div>
 
       {action ? (
-        <Link
-          href={action.href}
-          className={buttonVariants({ variant: "ghost", className: "w-fit" })}
-        >
+        <Link href={action.href} className="link-action w-fit text-[17px]">
           {action.label}
         </Link>
       ) : null}

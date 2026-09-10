@@ -11,17 +11,26 @@ function toOptionalNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+/**
+ * YAML parses an unquoted `date: 2026-05-16` into a Date, not a string, so a
+ * string-only check silently dated every post to today. Accept both.
+ */
+function toDateString(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim().length > 0) return value;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  return undefined;
+}
+
 export function parseBlogFrontmatter(
   slug: string,
   data: Record<string, unknown>,
 ): BlogFrontmatter {
-  let date = new Date().toISOString().slice(0, 10);
-  if (typeof data.publishedAt === "string") {
-    date = data.publishedAt;
-  }
-  if (typeof data.date === "string") {
-    date = data.date;
-  }
+  const date =
+    toDateString(data.date) ??
+    toDateString(data.publishedAt) ??
+    new Date().toISOString().slice(0, 10);
 
   return {
     title: typeof data.title === "string" ? data.title : slug,
@@ -45,7 +54,7 @@ export function parseProjectFrontmatter(
   return {
     title: typeof data.title === "string" ? data.title : slug,
     description: typeof data.description === "string" ? data.description : "",
-    date: typeof data.date === "string" ? data.date : "",
+    date: toDateString(data.date) ?? "",
     tags: toStringArray(data.tags),
     featured: typeof data.featured === "boolean" ? data.featured : false,
     github: typeof data.github === "string" ? data.github : undefined,

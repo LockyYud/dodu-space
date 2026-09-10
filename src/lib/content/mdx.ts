@@ -25,10 +25,10 @@ export async function compileMdx<TFrontmatter extends Record<string, unknown>>({
             // pretty-code uses shiki under the hood.
             rehypePrettyCode,
             {
-              theme: {
-                dark: "vitesse-dark",
-                light: "vitesse-light",
-              },
+              // Code blocks stay dark in both themes (see CodeBlock), so a
+              // single theme is correct here — a light variant would render
+              // dark-on-dark.
+              theme: "vitesse-dark",
               keepBackground: false,
             },
           ],

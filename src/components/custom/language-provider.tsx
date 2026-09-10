@@ -1,9 +1,8 @@
 "use client";
 
-import { Languages } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type Language = "vi" | "en";
 
@@ -59,23 +58,39 @@ export function useLanguage() {
   return context;
 }
 
+/**
+ * Both languages, always visible, the active one lit. A translate icon plus
+ * the *next* language was two puzzles at once: an unreadable glyph at 14px,
+ * and a label that showed the state you were leaving.
+ */
 export function LanguageToggle() {
-  const { language, toggleLanguage } = useLanguage();
-  const next = language === "vi" ? "EN" : "VI";
+  const { language, setLanguage } = useLanguage();
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className="gap-1.5 px-2 tech-mono text-xs text-muted-foreground"
-      aria-label={
-        language === "vi" ? "Switch to English" : "Chuyển sang tiếng Việt"
-      }
-      onClick={toggleLanguage}
-    >
-      <Languages className="size-3.5" />
-      {next}
-    </Button>
+    <div className="meta flex items-baseline gap-1 text-muted-foreground">
+      {(["vi", "en"] as const).map((code, index) => (
+        <span key={code} className="flex items-baseline gap-1">
+          {index > 0 ? (
+            <span aria-hidden="true" className="text-muted-foreground/50">
+              /
+            </span>
+          ) : null}
+          <button
+            type="button"
+            aria-label={
+              code === "vi" ? "Chuyển sang tiếng Việt" : "Switch to English"
+            }
+            aria-current={language === code}
+            onClick={() => setLanguage(code)}
+            className={cn(
+              "transition-colors",
+              language === code ? "text-foreground" : "hover:text-foreground",
+            )}
+          >
+            {code}
+          </button>
+        </span>
+      ))}
+    </div>
   );
 }

@@ -4,19 +4,12 @@ import { MenuIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { openCommandPalette } from "@/components/custom/command-palette";
 import {
   LanguageToggle,
   useLanguage,
 } from "@/components/custom/language-provider";
 import { ThemeToggle } from "@/components/custom/theme-toggle";
 import { Button } from "@/components/ui/button";
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-} from "@/components/ui/navigation-menu";
 import {
   Sheet,
   SheetClose,
@@ -36,44 +29,37 @@ export function Header() {
     href === "/" ? pathname === href : pathname.startsWith(href);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/80 shadow-[0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-md supports-backdrop-filter:bg-background/70">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-        <Link href="/" className="font-semibold tracking-tight">
+    <header className="border-b border-border">
+      <div className="mx-auto flex max-w-6xl items-baseline justify-between gap-6 px-6 py-6 md:px-12">
+        <Link
+          href="/"
+          className="text-xl font-medium tracking-tight whitespace-nowrap"
+        >
           {siteConfig.title}
         </Link>
 
-        <nav className="hidden md:block">
-          <NavigationMenu>
-            <NavigationMenuList>
-              {navigationConfig.map((item) => (
-                <NavigationMenuItem key={item.href}>
-                  <NavigationMenuLink
-                    href={item.href}
-                    className={cn(
-                      "relative text-muted-foreground transition-colors hover:text-foreground",
-                      isActive(item.href) && "font-medium text-foreground",
-                      isActive(item.href) &&
-                        "after:absolute after:inset-x-2 after:-bottom-1 after:h-px after:rounded-full after:bg-[var(--color-accent-text)]",
-                    )}
-                  >
-                    {language === "vi" ? item.title : item.titleEn}
-                  </NavigationMenuLink>
-                </NavigationMenuItem>
-              ))}
-            </NavigationMenuList>
-          </NavigationMenu>
+        <nav className="hidden items-baseline gap-8 md:flex">
+          {navigationConfig.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "text-[17px] italic transition-colors hover:text-[var(--color-accent-text)]",
+                isActive(item.href)
+                  ? "text-[var(--color-accent-text)]"
+                  : "text-foreground",
+              )}
+            >
+              {language === "vi" ? item.title : item.titleEn}
+            </Link>
+          ))}
         </nav>
 
-        <div className="flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="hidden tech-mono text-xs text-muted-foreground md:inline-flex"
-            onClick={openCommandPalette}
-          >
-            ⌘K
-          </Button>
+        {/* Two controls, not three: with four nav items and one archive page a
+            header search button went unused, and a third mono word made the
+            cluster read as a list rather than as controls. ⌘K still opens the
+            palette — the command palette binds that itself. */}
+        <div className="flex items-baseline gap-6">
           <LanguageToggle />
           <ThemeToggle />
 
@@ -93,10 +79,10 @@ export function Header() {
 
             <SheetContent side="right" className="w-[320px] sm:w-[360px]">
               <SheetHeader>
-                <SheetTitle>Menu</SheetTitle>
+                <SheetTitle className="eyebrow">Menu</SheetTitle>
               </SheetHeader>
 
-              <div className="flex flex-col gap-1 px-4">
+              <div className="flex flex-col px-4">
                 {navigationConfig.map((item) => (
                   <SheetClose
                     key={item.href}
@@ -104,8 +90,9 @@ export function Header() {
                       <Link
                         href={item.href}
                         className={cn(
-                          "rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                          isActive(item.href) && "bg-muted text-foreground",
+                          "border-t border-border-soft py-3 text-lg italic transition-colors first:border-t-0 hover:text-[var(--color-accent-text)]",
+                          isActive(item.href) &&
+                            "text-[var(--color-accent-text)]",
                         )}
                       />
                     }

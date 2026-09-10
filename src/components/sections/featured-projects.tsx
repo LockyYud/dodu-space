@@ -1,35 +1,36 @@
-import { AnimatedSection } from "@/components/custom/animated-section";
+import Link from "next/link";
+
 import { LocalizedText } from "@/components/custom/localized-text";
-import { SectionHeader } from "@/components/custom/section-header";
-import { ProjectCard } from "@/components/project/project-card";
+import { ProjectRow } from "@/components/project/project-row";
 import { getProjects } from "@/lib/content/project";
 
 export async function FeaturedProjectsSection() {
   const projects = await getProjects();
   const featured = projects.filter((p) => p.featured).slice(0, 3);
 
-  return (
-    <AnimatedSection>
-      <SectionHeader
-        eyebrow="case studies"
-        title={<LocalizedText vi="Dự án nổi bật" en="Featured projects" />}
-        description={
-          <LocalizedText
-            vi="Một số hệ thống và thử nghiệm thể hiện cách tôi tiếp cận dữ liệu, retrieval và vận hành sản phẩm AI."
-            en="Selected systems and experiments showing how I approach data, retrieval, and AI product operations."
-          />
-        }
-        action={{
-          label: <LocalizedText vi="Xem tất cả" en="View all" />,
-          href: "/projects",
-        }}
-      />
+  if (featured.length === 0) return null;
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        {featured.map((project) => (
-          <ProjectCard key={project.slug} project={project} />
+  return (
+    <section className="grid gap-8 pb-20 md:grid-cols-12 md:pb-24">
+      <div className="flex flex-col gap-3 md:col-span-3">
+        <p className="eyebrow">
+          <LocalizedText vi="DỰ ÁN CHỌN LỌC" en="SELECTED WORK" />
+        </p>
+        <Link href="/projects" className="link-action text-[17px]">
+          <LocalizedText vi="Tất cả dự án →" en="All work →" />
+        </Link>
+      </div>
+
+      <div className="grid gap-10 border-t border-border pt-7 md:col-span-9 md:grid-cols-3 md:gap-12">
+        {featured.map((project, index) => (
+          <ProjectRow
+            key={project.slug}
+            project={project}
+            index={index}
+            layout="column"
+          />
         ))}
       </div>
-    </AnimatedSection>
+    </section>
   );
 }

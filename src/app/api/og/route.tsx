@@ -15,17 +15,21 @@ export async function GET(req: NextRequest) {
         display: "flex",
         height: "100%",
         width: "100%",
-        background: "#050816",
-        color: "white",
+        background: "#f4efe6",
+        color: "#1e1a14",
         padding: "64px",
         flexDirection: "column",
         justifyContent: "space-between",
+        fontFamily: "Georgia, serif",
       }}
     >
-      <div style={{ fontSize: 40, fontWeight: 600, maxWidth: "80%" }}>
+      <div style={{ fontSize: 44, fontWeight: 400, maxWidth: "85%" }}>
         {title}
       </div>
-      <div style={{ fontSize: 24, opacity: 0.7 }}>{siteConfig.title}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ height: 1, background: "#1e1a14", width: "100%" }} />
+        <div style={{ fontSize: 22, color: "#6b6259" }}>{siteConfig.title}</div>
+      </div>
     </div>,
     {
       width: 1200,

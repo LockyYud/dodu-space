@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Newsreader } from "next/font/google";
 import "./globals.css";
 
 import {
@@ -16,14 +16,19 @@ import { getBlogPosts } from "@/lib/content/blog";
 import { getProjects } from "@/lib/content/project";
 import { createMetadata } from "@/lib/seo";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const serif = Newsreader({
+  variable: "--font-serif",
+  subsets: ["latin", "latin-ext", "vietnamese"],
+  weight: ["300", "400", "500", "600"],
+  style: ["normal", "italic"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const mono = IBM_Plex_Mono({
+  variable: "--font-mono",
+  subsets: ["latin", "latin-ext", "vietnamese"],
+  weight: ["400", "500"],
+  display: "swap",
 });
 
 export const metadata = createMetadata();
@@ -60,14 +65,14 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${serif.variable} ${mono.variable} antialiased`}
         suppressHydrationWarning
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <LanguageProvider>
             <TooltipProvider>
               <Header />
-              <main className="mx-auto min-h-[calc(100svh-3.5rem)] w-full max-w-5xl overflow-x-hidden px-4 py-10">
+              <main className="mx-auto min-h-[calc(100svh-3.5rem)] w-full max-w-6xl overflow-x-hidden px-6 py-14 md:px-12">
                 <PageTransition>{children}</PageTransition>
               </main>
               <Footer />

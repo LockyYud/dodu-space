@@ -2,76 +2,56 @@
 
 import Link from "next/link";
 
-import { useLanguage } from "@/components/custom/language-provider";
 import { LocalizedText } from "@/components/custom/localized-text";
-import { navigationConfig } from "@/config/navigation";
 import { socialConfig } from "@/config/social";
 import { isPlaceholderEmail, isPlaceholderUrl } from "@/lib/links";
 
 export function Footer() {
-  const { language } = useLanguage();
   const socialLinks = [
-    { label: "GitHub", href: socialConfig.github },
-    { label: "LinkedIn", href: socialConfig.linkedin },
+    { label: "github", href: socialConfig.github },
+    { label: "linkedin", href: socialConfig.linkedin },
   ].filter((link) => !isPlaceholderUrl(link.href));
   const hasEmail = !isPlaceholderEmail(socialConfig.email);
 
   return (
-    <footer className="border-t">
-      <div className="mx-auto grid max-w-5xl gap-8 px-4 py-10 md:grid-cols-[1fr_auto_auto]">
-        <div>
-          <p className="font-semibold">Đỗ Minh Duy</p>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-            <LocalizedText
-              vi="Personal portfolio về AI systems, RAG, backend và bài viết kỹ thuật."
-              en="Personal portfolio for AI systems, RAG, backend engineering, and technical posts."
-            />
+    <footer className="mt-8">
+      <div className="mx-auto max-w-6xl px-6 md:px-12">
+        <div className="flex flex-wrap items-baseline justify-between gap-4 border-t border-border py-6">
+          <p className="meta text-muted-foreground">
+            © {new Date().getFullYear()} Đỗ Minh Duy
           </p>
-          <p className="mt-4 text-xs text-muted-foreground">
-            © {new Date().getFullYear()}
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2 text-sm">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            <LocalizedText vi="Site" en="Site" />
-          </p>
-          {navigationConfig.map((item) => (
+          <div className="flex flex-wrap items-baseline gap-6">
+            {socialLinks.map((link) => (
+              <Link
+                key={link.label}
+                className="meta text-muted-foreground transition-colors hover:text-[var(--color-accent-text)]"
+                href={link.href}
+              >
+                {link.label}
+              </Link>
+            ))}
             <Link
-              key={item.href}
-              className="text-muted-foreground hover:text-[var(--color-accent-text)]"
-              href={item.href}
+              className="meta text-muted-foreground transition-colors hover:text-[var(--color-accent-text)]"
+              href="/rss.xml"
             >
-              {language === "vi" ? item.title : item.titleEn}
+              rss
             </Link>
-          ))}
-        </div>
-
-        <div className="flex flex-col gap-2 text-sm">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            <LocalizedText vi="Liên hệ" en="Contact" />
-          </p>
-          {hasEmail ? (
-            <Link
-              className="text-muted-foreground hover:text-[var(--color-accent-text)]"
-              href={`mailto:${socialConfig.email}`}
-            >
-              Email
-            </Link>
-          ) : (
-            <span className="text-muted-foreground">
-              <LocalizedText vi="Email đang cập nhật" en="Email updating" />
-            </span>
-          )}
-          {socialLinks.map((link) => (
-            <Link
-              key={link.label}
-              className="text-muted-foreground hover:text-[var(--color-accent-text)]"
-              href={link.href}
-            >
-              {link.label}
-            </Link>
-          ))}
+            {hasEmail ? (
+              <Link
+                className="meta text-muted-foreground transition-colors hover:text-[var(--color-accent-text)]"
+                href={`mailto:${socialConfig.email}`}
+              >
+                email
+              </Link>
+            ) : (
+              <span className="meta text-muted-foreground">
+                <LocalizedText
+                  vi="email — đang cập nhật"
+                  en="email — updating"
+                />
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </footer>
