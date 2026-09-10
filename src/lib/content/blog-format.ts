@@ -43,3 +43,57 @@ export function extractToc(source: string): TocItem[] {
     };
   }).filter((item) => item.id && item.text);
 }
+
+export type SourceNoteItem = {
+  label: string;
+  value: string;
+};
+
+/**
+ * Reading notes open with a blockquote naming the paper, its authors, venue and
+ * kind. That belongs beside the article as a standing reference, not buried in
+ * the first screen of prose, so it is lifted out of the MDX before compiling.
+ *
+ * Only a LEADING blockquote carrying a "Loại:" line qualifies; every other
+ * blockquote stays in the body as an ordinary quote.
+ */
+export function extractSourceNote(source: string): {
+  items: SourceNoteItem[];
+  rest: string;
+} {
+  const lines = source.split("\n");
+  let start = 0;
+  while (start < lines.length && lines[start].trim() === "") start += 1;
+
+  let end = start;
+  while (end < lines.length && lines[end].trimStart().startsWith(">")) end += 1;
+
+  const block = lines.slice(start, end);
+  if (block.length === 0) return { items: [], rest: source };
+
+  const text = block.join("\n");
+  const isCitation =
+    /\*\*\s*Loại\s*\*\*\s*:/i.test(text) ||
+    (/\*\*\s*Paper\s*\*\*\s*:/i.test(text) && /Venue|arXiv/i.test(text));
+  if (!isCitation) return { items: [], rest: source };
+
+  const items: SourceNoteItem[] = [];
+  for (const raw of block) {
+    const line = raw.trimStart().replace(/^>\s?/, "").trim();
+    if (line === "") continue;
+
+    const labelled = line.match(/^\*\*(.+?)\*\*\s*:\s*(.*)$/);
+    if (labelled) {
+      items.push({ label: labelled[1].trim(), value: labelled[2].trim() });
+      continue;
+    }
+
+    // A wrapped continuation of the previous line.
+    const previous = items.at(-1);
+    if (previous) previous.value = `${previous.value} ${line}`.trim();
+  }
+
+  if (items.length === 0) return { items: [], rest: source };
+
+  return { items, rest: lines.slice(end).join("\n").replace(/^\n+/, "") };
+}

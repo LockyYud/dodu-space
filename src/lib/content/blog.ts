@@ -3,7 +3,7 @@ import path from "node:path";
 
 import matter from "gray-matter";
 
-import { extractToc } from "@/lib/content/blog-format";
+import { extractSourceNote, extractToc } from "@/lib/content/blog-format";
 import { compileMdx, contentPaths } from "@/lib/content/mdx";
 import { parseBlogFrontmatter } from "@/lib/content/schema";
 
@@ -111,12 +111,17 @@ export async function getBlogPostBySlug(slug: string) {
     throw new Error("Blog post is not published.");
   }
 
+  // The citation block is rendered beside the article, so it is lifted out
+  // before compiling to keep it from appearing twice.
+  const { items: sourceNote, rest: body } = extractSourceNote(content);
+
   return compileMdx({
     frontmatter: {
       ...frontmatter,
       readingMinutes: estimateReadingMinutes(content),
-      toc: extractToc(content),
+      toc: extractToc(body),
+      sourceNote,
     },
-    source: content,
+    source: body,
   });
 }

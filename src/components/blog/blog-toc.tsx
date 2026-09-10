@@ -50,7 +50,7 @@ export function BlogToc({ items }: BlogTocProps) {
   }, [items]);
 
   return (
-    <div className="sticky top-10">
+    <div>
       <p className="eyebrow pb-3">
         <LocalizedText vi="MỤC LỤC" en="CONTENTS" />
       </p>

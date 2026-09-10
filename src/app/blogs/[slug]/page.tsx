@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BlogToc } from "@/components/blog/blog-toc";
 import { PostRow } from "@/components/blog/post-row";
 import { ReadingProgress } from "@/components/blog/reading-progress";
+import { SourceNote } from "@/components/blog/source-note";
 import { LocalizedText } from "@/components/custom/localized-text";
 import { getBlogPostBySlug, getBlogPosts } from "@/lib/content/blog";
 import { formatBlogTitle } from "@/lib/content/blog-format";
@@ -44,6 +45,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
       .map(({ post }) => post);
     const title = formatBlogTitle(frontmatter.title);
     const thread = currentPost ? findThreadForPost(currentPost) : null;
+    const sourceNote = frontmatter.sourceNote ?? [];
+    const toc = frontmatter.toc ?? [];
     const formattedDate = new Date(frontmatter.date).toLocaleDateString(
       "en-GB",
       {
@@ -62,38 +65,58 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     return (
       <>
         <ReadingProgress />
-        <div className="grid w-full gap-12 lg:grid-cols-[minmax(0,42rem)_13rem] lg:gap-16">
-          <article className="min-w-0">
-            <header className="not-prose flex flex-col gap-5 pb-10">
-              <Link
-                href="/blogs"
-                className="meta w-fit text-muted-foreground transition-colors hover:text-[var(--color-accent-text)]"
-              >
-                ← <LocalizedText vi="Tất cả bài viết" en="All posts" />
-              </Link>
-              <p className="eyebrow eyebrow-accent">
-                {thread ? (
-                  thread.title
-                ) : (
-                  <LocalizedText vi="Bài viết" en="Writing" />
-                )}
-              </p>
-              <h1 className="text-[2.25rem] leading-[1.1] md:text-5xl">
-                {title.title}
-              </h1>
-              <p className="meta flex flex-wrap items-baseline gap-x-2 text-muted-foreground">
-                {metaParts.map((part, index) => (
-                  <span key={part} className="flex items-baseline gap-x-2">
-                    {index > 0 ? <span aria-hidden="true">·</span> : null}
-                    <span>{part}</span>
-                  </span>
-                ))}
-              </p>
-            </header>
 
-            <div className="prose-post border-t border-border pt-10">
-              {content}
-            </div>
+        {/* Title runs the full measure like a paper's masthead; the reference
+            rail and the 42rem column of prose sit under it. */}
+        <header className="flex flex-col gap-5 border-b border-border pb-10">
+          <Link
+            href="/blogs"
+            className="meta w-fit text-muted-foreground transition-colors hover:text-[var(--color-accent-text)]"
+          >
+            ← <LocalizedText vi="Tất cả bài viết" en="All posts" />
+          </Link>
+          <p className="eyebrow eyebrow-accent">
+            {thread ? (
+              thread.title
+            ) : (
+              <LocalizedText vi="Bài viết" en="Writing" />
+            )}
+          </p>
+          <h1 className="max-w-[26ch] text-[2.5rem] leading-[1.08] md:text-[3.5rem]">
+            {title.title}
+          </h1>
+          <p className="meta flex flex-wrap items-baseline gap-x-2 text-muted-foreground">
+            {metaParts.map((part, index) => (
+              <span key={part} className="flex items-baseline gap-x-2">
+                {index > 0 ? <span aria-hidden="true">·</span> : null}
+                <span>{part}</span>
+              </span>
+            ))}
+          </p>
+        </header>
+
+        <div className="grid gap-10 pt-10 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-16">
+          {/* The rail travels with the reader. It is capped to the viewport so a
+              long contents list can never push the citation out of reach: the
+              source stays put and only the contents scroll inside the rail. */}
+          <aside className="flex flex-col gap-8 lg:sticky lg:top-10 lg:max-h-[calc(100svh-5rem)] lg:self-start">
+            {sourceNote.length > 0 ? (
+              <div className="flex shrink-0 flex-col gap-2.5">
+                <p className="eyebrow">
+                  <LocalizedText vi="NGUỒN" en="SOURCE" />
+                </p>
+                <SourceNote items={sourceNote} />
+              </div>
+            ) : null}
+            {toc.length > 0 ? (
+              <div className="hidden min-h-0 overflow-y-auto lg:block">
+                <BlogToc items={toc} />
+              </div>
+            ) : null}
+          </aside>
+
+          <article className="min-w-0 lg:max-w-[42rem]">
+            <div className="prose-post">{content}</div>
 
             <nav className="mt-16 grid gap-6 border-t border-border pt-8 sm:grid-cols-2">
               {newerPost ? (
@@ -136,12 +159,6 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               </section>
             ) : null}
           </article>
-
-          <aside className="hidden lg:block">
-            {(frontmatter.toc ?? []).length > 0 ? (
-              <BlogToc items={frontmatter.toc} />
-            ) : null}
-          </aside>
         </div>
       </>
     );
