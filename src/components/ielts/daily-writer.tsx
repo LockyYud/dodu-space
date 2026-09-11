@@ -73,6 +73,7 @@ export function DailyWriter({ view }: { view: DailyView }) {
 
   function handleSpin() {
     setError(null);
+    setRevealed(false);
     startSpin(async () => {
       const r = await spinToday();
       if (!r.ok) {
@@ -165,7 +166,11 @@ export function DailyWriter({ view }: { view: DailyView }) {
   }
 
   const activeIds: ClusterId[] = view.cycle.clusters.map((c) => c.id);
-  const showWheel = !prompt || (isFree && !revealed);
+  // Bánh xe hiện đúng tới khi đã "revealed" — không phải tới khi đã có
+  // `prompt`. Đề tới trước khi bánh xe kịp quay tới đích (network trả nhanh
+  // hơn animation), nên gate theo prompt từng làm bánh xe biến mất giữa
+  // chừng và không gì hiện ra thay vào đó.
+  const showWheel = !revealed;
 
   return (
     <div className="space-y-6">
@@ -180,21 +185,23 @@ export function DailyWriter({ view }: { view: DailyView }) {
       )}
 
       {showWheel && (
-        <Card>
-          <CardContent className="space-y-4 py-6">
+        <Card className="overflow-hidden">
+          <CardContent className="flex flex-col items-center gap-5 py-8">
             <SpinWheel
               clusters={CLUSTERS}
-              activeIds={activeIds}
+              activeIds={isFree ? [] : activeIds}
               target={cluster?.id ?? null}
               onRest={() => window.setTimeout(() => setRevealed(true), 200)}
             />
-            <div className="flex flex-wrap justify-center gap-1.5">
-              {view.cycle.clusters.map((c) => (
-                <Badge key={c.id} variant="secondary">
-                  {c.emoji} {c.label}
-                </Badge>
-              ))}
-            </div>
+            {!isFree && (
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {view.cycle.clusters.map((c) => (
+                  <Badge key={c.id} variant="secondary">
+                    {c.emoji} {c.label}
+                  </Badge>
+                ))}
+              </div>
+            )}
             <div className="text-center">
               <Button
                 size="lg"
@@ -204,9 +211,11 @@ export function DailyWriter({ view }: { view: DailyView }) {
                 {spinning ? "Đang quay…" : "Quay"}
               </Button>
               <p className="mt-2 text-xs text-muted-foreground">
-                {view.spent && !isFree
-                  ? "Hôm nay đã dùng lượt quay."
-                  : "Một lượt mỗi ngày. Quay xong là đề của hôm nay."}
+                {isFree
+                  ? "Quay tự do — không tính vào chuỗi ngày."
+                  : view.spent
+                    ? "Hôm nay đã dùng lượt quay."
+                    : "Một lượt mỗi ngày. Quay xong là đề của hôm nay."}
               </p>
             </div>
           </CardContent>
