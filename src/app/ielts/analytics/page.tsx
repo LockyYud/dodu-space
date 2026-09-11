@@ -3,11 +3,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getLearningAnalytics } from "@/server/ielts/analytics";
+import { dailyDensityTrend } from "@/server/ielts/daily";
 
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
-  const data = await getLearningAnalytics();
+  const [data, dailyTrend] = await Promise.all([
+    getLearningAnalytics(),
+    dailyDensityTrend(),
+  ]);
   const topTheme = data.errorThemes[0];
   const weakestCriterion = [...data.criteria]
     .filter((criterion) => criterion.value != null)
@@ -109,6 +113,32 @@ export default async function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base">
+              Viết mỗi ngày — lỗi / 100 từ
+            </CardTitle>
+            <Link
+              href="/ielts/daily"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Viết hôm nay →
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {dailyTrend.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Chưa có bài viết mỗi ngày nào. Đây là chỉ số duy nhất trang đó
+              theo dõi theo thời gian.
+            </p>
+          ) : (
+            <DensityTrend points={dailyTrend} />
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -253,4 +283,38 @@ function Bar({
 function formatTheme(value: string): string {
   const [skill, type] = value.split(":");
   return `${skill === "writing" ? "Writing" : skill === "listening" ? "Listening" : skill === "reading" ? "Reading" : skill} · ${type}`;
+}
+
+/**
+ * Lỗi/100 từ theo thời gian. Thấp là tốt, nên cột được vẽ theo mốc cao nhất
+ * trong dải chứ không theo một trần cố định — trần cố định thì mấy tuần đầu
+ * cột nào cũng kịch khung và không thấy được xu hướng.
+ */
+function DensityTrend({
+  points,
+}: {
+  points: { date: string; density: number }[];
+}) {
+  const max = Math.max(...points.map((p) => p.density), 1);
+  const latest = points[points.length - 1];
+  const average = points.reduce((sum, p) => sum + p.density, 0) / points.length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex h-24 items-end gap-1">
+        {points.map((point) => (
+          <div
+            key={point.date}
+            title={`${point.date}: ${point.density.toFixed(1)}`}
+            className="flex-1 rounded-t-sm bg-primary/60"
+            style={{ height: `${Math.max((point.density / max) * 100, 4)}%` }}
+          />
+        ))}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Gần nhất {latest.density.toFixed(1)} · trung bình {average.toFixed(1)}{" "}
+        qua {points.length} bài.
+      </p>
+    </div>
+  );
 }

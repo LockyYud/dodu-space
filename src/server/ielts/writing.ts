@@ -135,6 +135,16 @@ export interface RewriteSource {
   rules: string[];
 }
 
+/**
+ * Bài của "Viết mỗi ngày" (`task_type = "free"`) có đường viết lại riêng theo
+ * chu kỳ hai tuần, nên nó không được rơi vào hàng đợi viết lại của Writing.
+ */
+function isExamSubmission(
+  row: typeof schema.writingSubmission.$inferSelect,
+): boolean {
+  return row.taskType !== "free";
+}
+
 async function toRewriteSource(
   row: typeof schema.writingSubmission.$inferSelect,
 ): Promise<RewriteSource> {
@@ -163,7 +173,7 @@ async function toRewriteSource(
 
   return {
     id: row.id,
-    taskType: row.taskType,
+    taskType: row.taskType === "free" ? "task2" : row.taskType,
     topic: row.topic,
     prompt: row.prompt,
     essayText: row.essayText,
@@ -189,7 +199,8 @@ export async function latestRewritableSubmission(): Promise<RewriteSource | null
       .filter((id): id is number => id != null),
   );
   const original = rows.find(
-    (row) => !row.isRewrite && !rewrittenParents.has(row.id),
+    (row) =>
+      isExamSubmission(row) && !row.isRewrite && !rewrittenParents.has(row.id),
   );
   return original ? toRewriteSource(original) : null;
 }
@@ -210,7 +221,7 @@ export async function getRewriteSource(
     .select()
     .from(schema.writingSubmission)
     .where(eq(schema.writingSubmission.id, submissionId));
-  return row ? toRewriteSource(row) : null;
+  return row && isExamSubmission(row) ? toRewriteSource(row) : null;
 }
 
 /* ──────────────────────────────── saving ──────────────────────────────── */

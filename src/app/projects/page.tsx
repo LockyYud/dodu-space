@@ -11,21 +11,30 @@ export default async function ProjectsPage() {
       <div className="pb-14 pt-10">
         <SectionHeader
           eyebrow="PORTFOLIO"
-          title={<LocalizedText vi="Dự án" en="Work" />}
+          title={<LocalizedText vi="Dự án" en="Projects" />}
           titleAs="h1"
           description={
             <LocalizedText
-              vi="Các hệ thống, thử nghiệm và side project xoay quanh RAG, backend, automation và AI systems."
-              en="Selected work, experiments, and side projects around RAG, backend, automation, and AI systems."
+              vi="Các sản phẩm cá nhân và thử nghiệm xoay quanh RAG, backend, automation và AI systems."
+              en="Personal projects and experiments around RAG, backend, automation, and AI systems."
             />
           }
         />
       </div>
 
       <div className="border-t border-border">
-        {projects.map((project, index) => (
-          <ProjectRow key={project.slug} project={project} index={index} />
-        ))}
+        {projects.length === 0 ? (
+          <p className="py-10 text-muted-foreground">
+            <LocalizedText
+              vi="Chưa có dự án nào được công bố ở đây."
+              en="No projects published here yet."
+            />
+          </p>
+        ) : (
+          projects.map((project, index) => (
+            <ProjectRow key={project.slug} project={project} index={index} />
+          ))
+        )}
       </div>
     </div>
   );

@@ -52,6 +52,7 @@ export const REVIEW_SESSION_MARKER = "ielts:review";
  * cả thẻ lỗi, và tệ hơn, so trùng có thể sửa nhầm vào thẻ lỗi của bài viết.
  */
 export const VOCAB_CARD_MARKER = "ielts:vocab";
+export const DAILY_SESSION_MARKER = "ielts:daily";
 export const DICTATION_CARD_MARKER = "ielts:dictation";
 
 /** `study_session.status` for that row. */
@@ -81,7 +82,10 @@ export const studySession = sqliteTable("study_session", {
 export const writingSubmission = sqliteTable("writing_submission", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   sessionId: integer("session_id").references(() => studySession.id),
-  taskType: text("task_type").$type<"task1" | "task2">().notNull(),
+  // "free" là bài của "Viết mỗi ngày": không phải Task 1 hay Task 2, không bao
+  // giờ chấm band. Cột là text không có CHECK nên chỉ nới kiểu TS, không cần
+  // đụng tới dữ liệu cũ.
+  taskType: text("task_type").$type<"task1" | "task2" | "free">().notNull(),
   topic: text("topic"),
   // Which prompt from the bank this answered, so the app can hand out a fresh
   // one next time instead of repeating.
@@ -227,6 +231,35 @@ export const weekLoad = sqliteTable("week_load", {
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 
+/**
+ * Một lượt quay của "Viết mỗi ngày". Xem docs/ielts/DAILY-WRITING.md §7.
+ *
+ * `date` là UNIQUE — đó là chỗ ép "mỗi ngày một lượt", ép ở tầng DB chứ không
+ * ở tầng UI. Kết quả quay là ngẫu nhiên thật và được ghi ngay lúc quay, nên tải
+ * lại trang không quay lại được: lượt đã tiêu, chứ không phải đề bị định sẵn.
+ */
+export const dailySpin = sqliteTable("daily_spin", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull().unique(), // YYYY-MM-DD
+  cycleId: integer("cycle_id").notNull(),
+  // Ba cụm của chu kỳ, ngăn bằng dấu phẩy. Lặp trên mọi hàng của cùng chu kỳ,
+  // nhưng chép ra thế này thì lượt quay ĐẦU của chu kỳ cũng đã biết bộ cụm —
+  // suy ngược từ các cụm đã xuất hiện thì hàng đầu tiên không suy ra nổi.
+  cycleClusters: text("cycle_clusters").notNull(),
+  cycleIndex: integer("cycle_index").notNull(), // 0..13, đếm theo bài đã viết
+  half: text("half").$type<"fresh" | "rewrite">().notNull(),
+  clusterId: text("cluster_id").notNull(),
+  promptId: text("prompt_id").notNull(),
+  // Chỉ ở half="rewrite": bài lần một, để so hai lần viết sau khi chấm.
+  rewriteOfSubmissionId: integer("rewrite_of_submission_id"),
+  status: text("status")
+    .$type<"spun" | "written" | "skipped">()
+    .notNull()
+    .default("spun"),
+  submissionId: integer("submission_id"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
 export type StudySession = typeof studySession.$inferSelect;
 export type WritingSubmission = typeof writingSubmission.$inferSelect;
 export type ErrorCard = typeof errorCard.$inferSelect;
@@ -236,3 +269,4 @@ export type SpeakingSession = typeof speakingSession.$inferSelect;
 export type PhaseStateRow = typeof phaseState.$inferSelect;
 export type LearnerProfileRow = typeof learnerProfile.$inferSelect;
 export type WeekLoadRow = typeof weekLoad.$inferSelect;
+export type DailySpinRow = typeof dailySpin.$inferSelect;

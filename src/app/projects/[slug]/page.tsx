@@ -35,7 +35,7 @@ export default async function ProjectPage({
             href="/projects"
             className="meta w-fit text-muted-foreground transition-colors hover:text-[var(--color-accent-text)]"
           >
-            ← <LocalizedText vi="Tất cả dự án" en="All work" />
+            ← <LocalizedText vi="Tất cả dự án" en="All projects" />
           </Link>
           <p className="eyebrow eyebrow-accent">CASE STUDY</p>
           <h1 className="max-w-[26ch] text-[2.5rem] leading-[1.08] md:text-[3.5rem]">

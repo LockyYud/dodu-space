@@ -14,10 +14,10 @@ export async function FeaturedProjectsSection() {
     <section className="grid gap-8 pb-20 md:grid-cols-12 md:pb-24">
       <div className="flex flex-col gap-3 md:col-span-3">
         <p className="eyebrow">
-          <LocalizedText vi="DỰ ÁN CHỌN LỌC" en="SELECTED WORK" />
+          <LocalizedText vi="DỰ ÁN CHỌN LỌC" en="SELECTED PROJECTS" />
         </p>
         <Link href="/projects" className="link-action text-[17px]">
-          <LocalizedText vi="Tất cả dự án →" en="All work →" />
+          <LocalizedText vi="Tất cả dự án →" en="All projects →" />
         </Link>
       </div>
 

@@ -12,7 +12,7 @@
     "ielts:generate": "drizzle-kit generate",
     "ielts:migrate": "tsx --env-file-if-exists=.env scripts/ielts/migrate.ts",
     "ielts:seed": "tsx --env-file-if-exists=.env scripts/ielts/seed.ts",
-    "ielts:test": "tsx scripts/ielts/srs.test.ts && tsx scripts/ielts/plan.test.ts && tsx scripts/ielts/pace.test.ts && tsx scripts/ielts/progress.test.ts && tsx scripts/ielts/vocab.test.ts && tsx scripts/ielts/vocab-enrich.test.ts && tsx scripts/ielts/howto.test.ts && tsx scripts/ielts/grading.test.ts",
+    "ielts:test": "tsx scripts/ielts/srs.test.ts && tsx scripts/ielts/plan.test.ts && tsx scripts/ielts/pace.test.ts && tsx scripts/ielts/progress.test.ts && tsx scripts/ielts/vocab.test.ts && tsx scripts/ielts/vocab-enrich.test.ts && tsx scripts/ielts/howto.test.ts && tsx scripts/ielts/grading.test.ts && tsx scripts/ielts/daily.test.ts",
     "ielts:eval": "tsx --env-file-if-exists=.env scripts/ielts/grading-eval.ts"
   },
   "dependencies": {
