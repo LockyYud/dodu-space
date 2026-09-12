@@ -50,6 +50,7 @@ export function DailyWriter({ view }: { view: DailyView }) {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [elapsedAtGrade, setElapsedAtGrade] = useState<number | null>(null);
   const [started, setStarted] = useState(false);
 
   const [spinning, startSpin] = useTransition();
@@ -111,6 +112,7 @@ export function DailyWriter({ view }: { view: DailyView }) {
       setSaved(null);
       setSelected(new Set());
       setElapsed(0);
+      setElapsedAtGrade(null);
       setStarted(false);
     });
   }
@@ -118,6 +120,10 @@ export function DailyWriter({ view }: { view: DailyView }) {
   function handleGrade() {
     if (!prompt) return;
     setError(null);
+    // Stop at the hand-off to grading. Feedback/card selection should not be
+    // counted as time spent writing this entry.
+    setElapsedAtGrade(elapsed);
+    setStarted(false);
     startGrading(async () => {
       const r = await gradeDaily({ promptId: prompt.id, essay });
       if (!r.ok) {
@@ -141,6 +147,7 @@ export function DailyWriter({ view }: { view: DailyView }) {
         result,
         selectedCards: result.cards.filter((_, i) => selected.has(i)),
         free: isFree,
+        durationMin: durationMinutes(elapsedAtGrade ?? elapsed),
       });
       if (!r.ok) {
         setError(r.error);
@@ -632,4 +639,8 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function durationMinutes(seconds: number): number | undefined {
+  return seconds > 0 ? Math.max(1, Math.ceil(seconds / 60)) : undefined;
 }

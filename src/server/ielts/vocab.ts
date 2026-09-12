@@ -104,6 +104,7 @@ export async function addVocabCard(
       explanation: input.explanation?.trim() || card.explanation,
       context: input.context.trim(),
       dueDate: today,
+      observedOn: today,
       createdAt: toLocalTimestamp(),
     });
     return "added" as const;
@@ -254,6 +255,7 @@ export async function addVocabCards(
         explanation: input.explanation?.trim() || card.explanation,
         context: input.context.trim(),
         dueDate: today,
+        observedOn: today,
         createdAt: toLocalTimestamp(),
       });
       room--;

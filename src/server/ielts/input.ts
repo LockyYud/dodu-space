@@ -4,6 +4,11 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
+import {
+  EVALUATION_METADATA_VERSION,
+  type EvaluationMetadata,
+  SPEAKING_RUBRIC_VERSION,
+} from "@/lib/ielts/evaluation";
 import { isSelfLoggable } from "@/lib/ielts/plan";
 import { type ActionResult, fail, ok } from "@/lib/ielts/result";
 import { toISODate } from "@/lib/ielts/srs";
@@ -71,8 +76,7 @@ export async function logDailyInput(
  * Ghi một buổi 4/3/2 — METHOD-REVIEW §5.
  *
  * Kỹ thuật này (nói cùng nội dung trong 4 phút, rồi 3, rồi 2) có bằng chứng về
- * cải thiện độ trôi chảy và **không cần người nghe, không cần AI chấm** — đúng
- * thứ cần cho khoảng trống giữa hai buổi gia sư.
+ * cải thiện độ trôi chảy và **không cần người nghe, không cần AI chấm**.
  *
  * Chỉ ghi đúng một con số: lượt ba có gọn trong 2 phút hay không. Đủ để thấy
  * tiến bộ, nhẹ đủ để không bỏ.
@@ -80,18 +84,62 @@ export async function logDailyInput(
 export async function logSpeakDrill(
   fitInTwoMinutes: boolean,
   minutes = 10,
+  transcript?: string,
 ): Promise<{ date: string }> {
   await requireIeltsUser();
   const date = toISODate();
-  await db.insert(schema.studySession).values({
-    date,
-    skill: "speaking",
-    slot: "speak-drill",
-    durationMin: Math.round(minutes),
-    status: "done",
-    notes: fitInTwoMinutes
+  const transcriptText = transcript?.trim() ?? "";
+  if (!transcriptText) {
+    throw new Error("Hãy nhập transcript của lượt 4/3/2 trước khi lưu.");
+  }
+  if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 600) {
+    throw new Error("Số phút phải nằm trong khoảng 1 đến 600.");
+  }
+  const durationMin = Math.max(1, Math.round(minutes));
+  const evaluationMeta: EvaluationMetadata = {
+    version: EVALUATION_METADATA_VERSION,
+    method: "manual",
+    source: "self",
+    stages: [
+      {
+        purpose: "speaking_drill",
+        rubric_version: SPEAKING_RUBRIC_VERSION,
+        sample_count: 1,
+        evaluated_at: new Date().toISOString(),
+      },
+    ],
+  };
+
+  await db.transaction(async (tx) => {
+    const notes = fitInTwoMinutes
       ? "4/3/2 — lượt ba gọn trong 2 phút"
-      : "4/3/2 — lượt ba chưa kịp 2 phút",
+      : "4/3/2 — lượt ba chưa kịp 2 phút";
+    const [study] = await tx
+      .insert(schema.studySession)
+      .values({
+        date,
+        skill: "speaking",
+        slot: "speak-drill",
+        durationMin,
+        status: "done",
+        notes,
+      })
+      .returning({ id: schema.studySession.id });
+    await tx.insert(schema.speakingSession).values({
+      date,
+      durationMin,
+      sessionId: study.id,
+      transcript: transcriptText,
+      fitInTwoMinutes,
+      feedbackJson: JSON.stringify({
+        summary: notes,
+        next_steps: [
+          "Lặp lại cùng chủ đề và cố gắng giữ ý chính trong 2 phút.",
+        ],
+      }),
+      evaluationMetaJson: evaluationMeta,
+      tutorNotes: notes,
+    });
   });
   revalidatePath("/ielts/today");
   revalidatePath("/ielts/progress");

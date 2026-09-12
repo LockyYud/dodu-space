@@ -24,6 +24,7 @@ async function main() {
       explanation: "Subject–verb agreement: 'people' is plural → 'prefer'.",
       context: "Task 2 — Work/Technology",
       dueDate: today,
+      observedOn: today,
     },
     {
       sourceType: "writing",
@@ -33,6 +34,7 @@ async function main() {
       explanation: "Collocation: 'make an effort', not 'do an effort'.",
       context: "Task 2 — Environment",
       dueDate: today,
+      observedOn: today,
     },
     {
       sourceType: "writing",
@@ -44,6 +46,7 @@ async function main() {
         "Band 7 CC cần liên kết tự nhiên, không nhồi từ nối máy móc.",
       context: "Task 2 — chung",
       dueDate: today,
+      observedOn: today,
     },
     {
       sourceType: "reading",
@@ -53,6 +56,7 @@ async function main() {
       explanation: "Bẫy paraphrase: đúng chủ đề nhưng sai phạm vi.",
       context: "Reading — T/F/NG",
       dueDate: today,
+      observedOn: today,
     },
     {
       sourceType: "listening",
@@ -62,6 +66,7 @@ async function main() {
       explanation: "Lỗi nghe số phổ biến ở Section 1.",
       context: "Listening — Section 1 form completion",
       dueDate: today,
+      observedOn: today,
     },
   ]);
 

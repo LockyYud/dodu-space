@@ -293,10 +293,6 @@ check("weekly targets follow the load", () => {
     r.weekly.find((i) => i.slot === slot)?.target;
   assert.equal(target(light, "grammar"), 1);
   assert.equal(target(full, "grammar"), 3);
-  // Gia sư giữ nguyên hai buổi ở mọi mức tải: cả hai nằm ở cuối tuần, nơi
-  // tuần bận không cắt vào.
-  assert.equal(target(light, "tutor"), 2);
-  assert.equal(target(full, "tutor"), 2);
 });
 
 check("a rewrite with nothing to rewrite is blocked, not offered", () => {

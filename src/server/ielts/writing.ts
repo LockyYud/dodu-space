@@ -236,6 +236,8 @@ export interface SaveSubmissionInput {
   result: GradingResult;
   selectedCards: SuggestedCard[];
   repairNote: string;
+  /** Elapsed writing timer, in minutes, captured when the learner graded. */
+  durationMin?: number;
 }
 
 export interface SaveSubmissionResult {
@@ -273,6 +275,8 @@ export async function saveSubmission(
     );
   }
 
+  const durationMin = normalizeDuration(input.durationMin);
+
   const bands = isBandResult(input.result) ? input.result.bands : null;
   const parentRules = input.parentSubmissionId
     ? ((await getRewriteSource(input.parentSubmissionId))?.rules ?? [])
@@ -286,7 +290,7 @@ export async function saveSubmission(
         skill: "writing",
         slot: isRewrite ? "rewrite" : "writing",
         bandEstimate: bands?.overall ?? null,
-        durationMin: null,
+        durationMin,
         notes: [
           input.topic ? `Chủ đề: ${input.topic}` : null,
           `${input.result.error_count} lỗi / ${input.result.word_count} từ (${input.result.density}/100)`,
@@ -302,6 +306,7 @@ export async function saveSubmission(
       .insert(schema.writingSubmission)
       .values({
         sessionId: session.id,
+        date: today,
         taskType: input.taskType,
         topic: input.topic ?? null,
         promptId: input.promptId ?? null,
@@ -322,6 +327,7 @@ export async function saveSubmission(
         errorDensity: input.result.density,
         gradingMode: input.result.mode,
         graderSpread: isBandResult(input.result) ? input.result.spread : null,
+        evaluationMetaJson: input.result.evaluation_meta,
         isRewrite,
         parentSubmissionId: input.parentSubmissionId ?? null,
       })
@@ -339,6 +345,7 @@ export async function saveSubmission(
           explanation: card.explanation,
           context: input.topic ?? input.taskType,
           dueDate: today,
+          observedOn: today,
         })),
       );
     }
@@ -364,6 +371,14 @@ export async function saveSubmission(
     rulesFixed: [...new Set(rulesFixed)],
     rulesRemaining: [...new Set(rulesRemaining)],
   };
+}
+
+function normalizeDuration(value: number | undefined): number | null {
+  if (value == null) return null;
+  if (!Number.isFinite(value) || value <= 0 || value > 600) {
+    throw new Error("Thời lượng phải nằm trong khoảng 1 đến 600 phút.");
+  }
+  return Math.max(1, Math.round(value));
 }
 
 async function buildLearnerContext(): Promise<string> {

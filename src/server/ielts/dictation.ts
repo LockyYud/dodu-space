@@ -84,6 +84,7 @@ export async function logDictation(
           explanation: "Nghe sai khi chép chính tả.",
           context: `Chép chính tả ${today}`,
           dueDate: today,
+          observedOn: today,
           createdAt: toLocalTimestamp(),
         })),
       );

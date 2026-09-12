@@ -10,7 +10,7 @@ import { toISODate } from "./srs";
  *
  * v3 models three things instead:
  *  - DAILY targets (input + SRS) — the habit unit, ~25-30 minutes.
- *  - WEEKLY slots (writing, timed practice, tutor, mock) — cadence per skill.
+ *  - WEEKLY slots (writing, timed practice, mock) — cadence per skill.
  *  - PHASES with EXIT CRITERIA evaluated against real data, never the date.
  *
  * Everything here is pure. Evaluating progress against it lives in
@@ -29,7 +29,6 @@ export type SlotId =
   | "timed-listening"
   | "timed-reading"
   | "mock"
-  | "tutor"
   | "grammar"
   // Ba bổ sung từ METHOD-REVIEW §4–6, và cũng chính là phần giờ tăng thêm mà
   // quyết định quỹ giờ ở §3.3b cam kết.
@@ -56,9 +55,9 @@ export const WEEK_LOAD_LABEL: Record<WeekLoad, string> = {
   full: "Tuần rảnh",
 };
 export const WEEK_LOAD_HINT: Record<WeekLoad, string> = {
-  light: "Giữ bốn buổi lõi. Đủ để không mất đà.",
-  normal: "Năm buổi. Nhịp mặc định của lộ trình.",
-  full: "Sáu buổi, chạy hết lịch tuần.",
+  light: "Giữ các buổi lõi. Đủ để không mất đà.",
+  normal: "Nhịp mặc định của lộ trình.",
+  full: "Chạy hết lịch tuần.",
 };
 
 const LOAD_RANK: Record<WeekLoad, number> = { light: 0, normal: 1, full: 2 };
@@ -285,15 +284,6 @@ function daily(opts: {
 
 /* ─────────────────────────── weekly slots ─────────────────────────── */
 
-const TUTOR: WeeklySlot = {
-  slot: "tutor",
-  key: "tutor",
-  label: "Buổi gia sư",
-  minutes: 45,
-  hint: "Ghi band ước tính và 1–3 lỗi gia sư sửa. Nhờ gia sư để ý cùng nhóm lỗi bạn hay sai khi viết.",
-  tool: "speaking",
-};
-
 const GRAMMAR: WeeklySlot = {
   slot: "grammar",
   key: "grammar",
@@ -387,7 +377,6 @@ export const PHASES: Phase[] = [
       ),
       rewriteSlot(20),
       GRAMMAR,
-      TUTOR,
     ],
     // Ngày thường (T2–T6) là buổi tối sau khi đi làm: chỉ phần hằng ngày cộng
     // một việc ngắn, tối đa WEEKDAY_DESK_CAP phút. Thứ Sáu nghỉ hẳn. Việc dài
@@ -397,8 +386,8 @@ export const PHASES: Phase[] = [
       { day: 2, keys: ["grammar"], minLoad: "normal" },
       { day: 3, keys: ["rewrite"], minLoad: "light" },
       { day: 4, keys: ["grammar"], minLoad: "full" },
-      { day: 6, keys: ["writing-free", "tutor"], minLoad: "light" },
-      { day: 7, keys: ["writing-free", "grammar", "tutor"], minLoad: "light" },
+      { day: 6, keys: ["writing-free"], minLoad: "light" },
+      { day: 7, keys: ["writing-free", "grammar"], minLoad: "light" },
     ],
     exit: [
       {
@@ -437,7 +426,6 @@ export const PHASES: Phase[] = [
       TIMED_READING,
       TIMED_LISTENING,
       GRAMMAR,
-      TUTOR,
     ],
     // Ngày thường (T2–T6) là buổi tối sau khi đi làm: chỉ phần hằng ngày cộng
     // một việc ngắn, tối đa WEEKDAY_DESK_CAP phút. Thứ Sáu nghỉ hẳn. Việc dài
@@ -449,12 +437,12 @@ export const PHASES: Phase[] = [
       { day: 4, keys: ["grammar"], minLoad: "full" },
       {
         day: 6,
-        keys: ["writing-structured", "timed-listening", "tutor"],
+        keys: ["writing-structured", "timed-listening"],
         minLoad: "light",
       },
       {
         day: 7,
-        keys: ["writing-structured", "timed-reading", "grammar", "tutor"],
+        keys: ["writing-structured", "timed-reading", "grammar"],
         minLoad: "light",
       },
     ],
@@ -516,7 +504,6 @@ export const PHASES: Phase[] = [
       { ...TIMED_READING, minutes: 50 },
       DICTATION,
       MOCK,
-      TUTOR,
     ],
     // Ngày thường (T2–T6) là buổi tối sau khi đi làm: chỉ phần hằng ngày cộng
     // một việc ngắn, tối đa WEEKDAY_DESK_CAP phút. Thứ Sáu nghỉ hẳn. Việc dài
@@ -530,12 +517,12 @@ export const PHASES: Phase[] = [
       // bài bấm giờ nhường chỗ — chính mock đã đo cả Listening và Reading.
       {
         day: 6,
-        keys: ["timed-listening", "timed-reading", "mock", "tutor"],
+        keys: ["timed-listening", "timed-reading", "mock"],
         minLoad: "light",
       },
       {
         day: 7,
-        keys: ["writing-task2", "writing-task1", "tutor"],
+        keys: ["writing-task2", "writing-task1"],
         minLoad: "light",
       },
     ],
@@ -565,17 +552,15 @@ export const PHASES: Phase[] = [
       ),
       { ...TIMED_LISTENING, minutes: 30 },
       { ...TIMED_READING, minutes: 30 },
-      TUTOR,
     ],
     // Ngày thường (T2–T6) là buổi tối sau khi đi làm: chỉ phần hằng ngày cộng
     // một việc ngắn, tối đa WEEKDAY_DESK_CAP phút. Thứ Sáu nghỉ hẳn. Việc dài
     // — viết cả bài, bấm giờ, mock — dồn vào T7 và CN, nơi thời gian có thật.
     schedule: [
       { day: 1, keys: ["timed-listening"], minLoad: "light" },
-      { day: 2, keys: ["tutor"], minLoad: "light" },
       { day: 3, keys: ["timed-reading"], minLoad: "light" },
       { day: 4, keys: ["timed-listening"], minLoad: "normal" },
-      { day: 6, keys: ["writing-taper", "tutor"], minLoad: "light" },
+      { day: 6, keys: ["writing-taper"], minLoad: "light" },
       { day: 7, keys: ["timed-reading"], minLoad: "full" },
     ],
     exit: [{ id: "exam-date", label: "Đến ngày thi", target: 1 }],
@@ -673,11 +658,11 @@ export function daysForWeek(
 }
 
 /**
- * Suất diễn ra **ngoài** quỹ "ngồi xuống": buổi gia sư là hẹn với người thật,
- * mock là khối ba giờ cuối tuần. Cả hai không cạnh tranh với buổi tối ngày
- * thường, nên không tính vào `WEEKDAY_DESK_CAP`.
+ * Suất diễn ra **ngoài** quỹ "ngồi xuống": mock là khối ba giờ cuối tuần,
+ * nên không cạnh tranh với buổi tối ngày thường và không tính vào
+ * `WEEKDAY_DESK_CAP`.
  */
-const OUTSIDE_DESK = new Set<SlotId>(["tutor", "mock"]);
+const OUTSIDE_DESK = new Set<SlotId>(["mock"]);
 
 export function isOutsideDesk(slot: SlotId): boolean {
   return OUTSIDE_DESK.has(slot);
@@ -692,7 +677,7 @@ export function dailyDeskMinutes(phase: Phase): number {
 
 /**
  * Phút phải ngồi xuống trong một ngày cụ thể: phần hằng ngày cộng việc của thứ
- * đó, trừ gia sư và mock. Đây là con số phải nằm trong quỹ buổi tối.
+ * đó, trừ mock. Đây là con số phải nằm trong quỹ buổi tối.
  */
 export function deskMinutesForDay(
   phase: Phase,
@@ -709,7 +694,7 @@ export function deskMinutesForDay(
   return dailyDeskMinutes(phase) + work;
 }
 
-/** Study days the schedule asks for in this week — the "4-5 buổi" figure. */
+/** Study days the schedule asks for in this week. */
 export function studyDaysForWeek(
   phase: Phase,
   load: WeekLoad,

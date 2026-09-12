@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { logSpeakDrill } from "@/server/ielts/input";
 
 /**
@@ -16,13 +17,19 @@ export function SpeakDrill({
   done: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState("");
   const [pending, start] = useTransition();
 
   const log = (fit: boolean) => {
     setError(null);
+    if (!transcript.trim()) {
+      setError("Hãy nhập transcript của lượt 4/3/2 trước khi lưu.");
+      return;
+    }
     start(async () => {
       try {
-        await logSpeakDrill(fit, minutes);
+        await logSpeakDrill(fit, minutes, transcript);
+        setTranscript("");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Không ghi được.");
       }
@@ -31,12 +38,18 @@ export function SpeakDrill({
 
   return (
     <div className="flex flex-col items-end gap-1">
+      <Textarea
+        placeholder="Transcript / vài câu bạn đã nói…"
+        value={transcript}
+        onChange={(event) => setTranscript(event.target.value)}
+        className="min-h-20 w-full text-sm"
+      />
       <div className="flex gap-1">
         <Button
           size="sm"
           variant={done ? "outline" : "default"}
           onClick={() => log(true)}
-          disabled={pending}
+          disabled={pending || !transcript.trim()}
         >
           Kịp 2 phút
         </Button>
@@ -44,7 +57,7 @@ export function SpeakDrill({
           size="sm"
           variant="outline"
           onClick={() => log(false)}
-          disabled={pending}
+          disabled={pending || !transcript.trim()}
         >
           Chưa kịp
         </Button>

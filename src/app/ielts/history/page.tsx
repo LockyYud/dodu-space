@@ -13,7 +13,7 @@ const SLOT_LABEL: Record<string, string> = {
   "timed-listening": "Listening bấm giờ",
   "timed-reading": "Reading bấm giờ",
   mock: "Mock",
-  tutor: "Gia sư",
+  tutor: "Speaking (đã ghi)",
   grammar: "Ngữ pháp",
 };
 

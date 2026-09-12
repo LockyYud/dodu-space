@@ -13,7 +13,19 @@ type CardDraft = { front: string; back: string; explanation: string };
 export function SpeakingForm() {
   const [duration, setDuration] = useState("");
   const [band, setBand] = useState("");
+  const [bandFluencyCoherence, setBandFluencyCoherence] = useState("");
+  const [bandLexicalResource, setBandLexicalResource] = useState("");
+  const [bandGrammaticalAccuracy, setBandGrammaticalAccuracy] = useState("");
+  const [bandPronunciation, setBandPronunciation] = useState("");
+  const [transcript, setTranscript] = useState("");
+  const [drillApplicable, setDrillApplicable] = useState(false);
+  const [fitInTwoMinutes, setFitInTwoMinutes] = useState(false);
+  const [evaluator, setEvaluator] = useState("self");
   const [notes, setNotes] = useState("");
+  const [feedbackFluency, setFeedbackFluency] = useState("");
+  const [feedbackLexical, setFeedbackLexical] = useState("");
+  const [feedbackGrammar, setFeedbackGrammar] = useState("");
+  const [feedbackPronunciation, setFeedbackPronunciation] = useState("");
   const [cards, setCards] = useState<CardDraft[]>([]);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,15 +47,35 @@ export function SpeakingForm() {
       setError("Hãy nhập thời lượng buổi Speaking lớn hơn 0 phút.");
       return;
     }
+    if (!transcript.trim()) {
+      setError("Hãy nhập transcript của buổi Speaking trước khi lưu.");
+      return;
+    }
     if (notes.trim().length < 20) {
       setError(
         "Hãy ghi ít nhất một nhận xét cụ thể của buổi Speaking (20 ký tự).",
       );
       return;
     }
+    const criteria = [
+      band,
+      bandFluencyCoherence,
+      bandLexicalResource,
+      bandGrammaticalAccuracy,
+      bandPronunciation,
+    ];
+    if (criteria.some((value) => !value.trim())) {
+      setError("Hãy nhập Overall và đủ band của 4 tiêu chí Speaking.");
+      return;
+    }
     if (
-      band &&
-      (Number.isNaN(Number(band)) || Number(band) < 0 || Number(band) > 9)
+      criteria.some(
+        (value) =>
+          value &&
+          (Number.isNaN(Number(value)) ||
+            Number(value) < 0 ||
+            Number(value) > 9),
+      )
     ) {
       setError("Band phải nằm trong khoảng 0–9.");
       return;
@@ -53,13 +85,48 @@ export function SpeakingForm() {
         await addSpeaking({
           durationMin: duration ? Number(duration) : undefined,
           bandEstimate: band ? Number(band) : undefined,
+          bandOverall: band ? Number(band) : undefined,
+          bandFluencyCoherence: bandFluencyCoherence
+            ? Number(bandFluencyCoherence)
+            : undefined,
+          bandLexicalResource: bandLexicalResource
+            ? Number(bandLexicalResource)
+            : undefined,
+          bandGrammaticalAccuracy: bandGrammaticalAccuracy
+            ? Number(bandGrammaticalAccuracy)
+            : undefined,
+          bandPronunciation: bandPronunciation
+            ? Number(bandPronunciation)
+            : undefined,
+          transcript,
+          fitInTwoMinutes: drillApplicable ? fitInTwoMinutes : undefined,
+          evaluator: evaluator || undefined,
           tutorNotes: notes || undefined,
+          feedback: {
+            summary: notes,
+            fluency_coherence: feedbackFluency,
+            lexical_resource: feedbackLexical,
+            grammatical_accuracy: feedbackGrammar,
+            pronunciation: feedbackPronunciation,
+          },
           cards: cards.filter((c) => c.front && c.back),
         });
         setSaved(true);
         setDuration("");
         setBand("");
+        setBandFluencyCoherence("");
+        setBandLexicalResource("");
+        setBandGrammaticalAccuracy("");
+        setBandPronunciation("");
+        setTranscript("");
+        setDrillApplicable(false);
+        setFitInTwoMinutes(false);
+        setEvaluator("self");
         setNotes("");
+        setFeedbackFluency("");
+        setFeedbackLexical("");
+        setFeedbackGrammar("");
+        setFeedbackPronunciation("");
         setCards([]);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Lưu thất bại.");
@@ -81,18 +148,107 @@ export function SpeakingForm() {
             inputMode="numeric"
           />
           <Input
-            placeholder="Band gia sư đánh giá (vd 6.5)"
+            placeholder="Overall band (bắt buộc, vd 6.5)"
             value={band}
             onChange={(e) => setBand(e.target.value)}
             className="max-w-56"
           />
         </div>
         <Textarea
+          placeholder="Transcript của câu trả lời (bắt buộc)"
+          value={transcript}
+          onChange={(e) => setTranscript(e.target.value)}
+          className="min-h-28"
+        />
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={drillApplicable}
+            onChange={(e) => setDrillApplicable(e.target.checked)}
+          />
+          Đây là bài 4/3/2
+        </label>
+        {drillApplicable && (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={fitInTwoMinutes}
+              onChange={(e) => setFitInTwoMinutes(e.target.checked)}
+            />
+            Lượt ba gọn trong 2 phút
+          </label>
+        )}
+        <Input
+          placeholder="Người đánh giá (mặc định: tự đánh giá)"
+          value={evaluator}
+          onChange={(e) => setEvaluator(e.target.value)}
+        />
+        <Textarea
           placeholder="Điểm mạnh/yếu, phát âm, fluency… (ít nhất 20 ký tự; mỗi lỗi một dòng nếu có)"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           className="min-h-24"
         />
+
+        <details className="rounded-md border p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            Feedback theo 4 tiêu chí (tuỳ chọn)
+          </summary>
+          <div className="mt-3 space-y-2">
+            <Textarea
+              placeholder="Fluency & Coherence"
+              value={feedbackFluency}
+              onChange={(e) => setFeedbackFluency(e.target.value)}
+            />
+            <Textarea
+              placeholder="Lexical Resource"
+              value={feedbackLexical}
+              onChange={(e) => setFeedbackLexical(e.target.value)}
+            />
+            <Textarea
+              placeholder="Grammatical Range & Accuracy"
+              value={feedbackGrammar}
+              onChange={(e) => setFeedbackGrammar(e.target.value)}
+            />
+            <Textarea
+              placeholder="Pronunciation"
+              value={feedbackPronunciation}
+              onChange={(e) => setFeedbackPronunciation(e.target.value)}
+            />
+          </div>
+        </details>
+
+        <details className="rounded-md border p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            Band theo 4 tiêu chí (bắt buộc)
+          </summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Input
+              placeholder="Fluency & Coherence"
+              value={bandFluencyCoherence}
+              onChange={(e) => setBandFluencyCoherence(e.target.value)}
+              inputMode="decimal"
+            />
+            <Input
+              placeholder="Lexical Resource"
+              value={bandLexicalResource}
+              onChange={(e) => setBandLexicalResource(e.target.value)}
+              inputMode="decimal"
+            />
+            <Input
+              placeholder="Grammatical Range & Accuracy"
+              value={bandGrammaticalAccuracy}
+              onChange={(e) => setBandGrammaticalAccuracy(e.target.value)}
+              inputMode="decimal"
+            />
+            <Input
+              placeholder="Pronunciation"
+              value={bandPronunciation}
+              onChange={(e) => setBandPronunciation(e.target.value)}
+              inputMode="decimal"
+            />
+          </div>
+        </details>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">

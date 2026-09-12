@@ -1,5 +1,10 @@
 import { ANCHORS, type CriterionKey, renderCriteria } from "./descriptors";
 import {
+  type EvaluationMetadata,
+  type EvaluationStage,
+  makeAiEvaluationMetadata,
+} from "./evaluation";
+import {
   cardTextFor,
   countWords,
   type ExtractionResult,
@@ -60,6 +65,8 @@ interface BaseResult {
   density: number;
   error_count: number;
   cards: SuggestedCard[];
+  /** Model/prompt/rubric provenance captured when this result was produced. */
+  evaluation_meta: EvaluationMetadata;
 }
 
 export interface CoachResult extends BaseResult {
@@ -86,6 +93,10 @@ export const isBandResult = (r: GradingResult): r is BandResult =>
 
 /** How many cards the extraction pass may propose. The UI keeps at most 3. */
 export const MAX_SUGGESTED_CARDS = 5;
+
+/** Version the feedback prompt and the rubric independently. */
+export const WRITING_FEEDBACK_PROMPT_VERSION = "writing-feedback.v1";
+export const WRITING_RUBRIC_VERSION = "ielts-writing-rubric.v1";
 
 export interface GradeRequest {
   mode: GradingMode;
@@ -118,19 +129,23 @@ export async function gradeWriting(
   const cards = buildCards(extraction.errors, request.ruleHistory ?? {});
 
   if (request.mode === "coach") {
-    const notes = await coachNotes(request, extraction);
+    const { notes, meta } = await coachNotes(request, extraction);
     return {
       mode: "coach",
       word_count: extraction.wordCount,
       density: extraction.density,
       error_count: extraction.errorCount,
       cards,
+      evaluation_meta: makeAiEvaluationMetadata([
+        extraction.evaluationMeta ?? unknownExtractionStage(),
+        meta,
+      ]),
       strength: notes.strength,
       next_fix: notes.next_fix,
     };
   }
 
-  const samples = await bandSamples(request, extraction);
+  const { samples, meta } = await bandSamples(request, extraction);
   const bands = medianBands(samples.map((s) => s.bands));
   const overalls = samples.map((s) => s.bands.overall).sort((a, b) => a - b);
   return {
@@ -139,11 +154,24 @@ export async function gradeWriting(
     density: extraction.density,
     error_count: extraction.errorCount,
     cards,
+    evaluation_meta: makeAiEvaluationMetadata([
+      extraction.evaluationMeta ?? unknownExtractionStage(),
+      meta,
+    ]),
     bands,
     feedback: samples[0].feedback,
     spread:
       overalls.length > 1 ? overalls[overalls.length - 1] - overalls[0] : 0,
     samples: samples.length,
+  };
+}
+
+function unknownExtractionStage(): EvaluationStage {
+  return {
+    purpose: "error_extraction",
+    model: "unknown",
+    prompt_version: "unknown",
+    evaluated_at: new Date().toISOString(),
   };
 }
 
@@ -180,10 +208,14 @@ Reply with ONLY a JSON object, no markdown fences:
 async function coachNotes(
   request: GradeRequest,
   extraction: ExtractionResult,
-): Promise<{ strength: string; next_fix: string }> {
+): Promise<{
+  notes: { strength: string; next_fix: string };
+  meta: EvaluationStage;
+}> {
   const client = getLLM();
+  const model = LLM_GRADER_MODEL();
   const completion = await client.chat.completions.create({
-    model: LLM_GRADER_MODEL(),
+    model,
     messages: [
       { role: "system", content: COACH_SYSTEM },
       { role: "user", content: coachUser(request, extraction) },
@@ -192,8 +224,18 @@ async function coachNotes(
   });
   const parsed = safeJson(completion.choices[0]?.message?.content ?? "");
   return {
-    strength: str(parsed.strength),
-    next_fix: str(parsed.next_fix),
+    notes: {
+      strength: str(parsed.strength),
+      next_fix: str(parsed.next_fix),
+    },
+    meta: {
+      purpose: "feedback",
+      model,
+      prompt_version: WRITING_FEEDBACK_PROMPT_VERSION,
+      rubric_version: WRITING_RUBRIC_VERSION,
+      sample_count: 1,
+      evaluated_at: new Date().toISOString(),
+    },
   };
 }
 
@@ -251,8 +293,9 @@ interface BandSample {
 async function bandSamples(
   request: GradeRequest,
   extraction: ExtractionResult,
-): Promise<BandSample[]> {
+): Promise<{ samples: BandSample[]; meta: EvaluationStage }> {
   const client = getLLM();
+  const model = LLM_GRADER_MODEL();
   const system = bandSystem(request);
   const user = coachUser(request, extraction);
   const wanted = Math.max(1, LLM_GRADER_SAMPLES());
@@ -260,7 +303,7 @@ async function bandSamples(
   const results = await Promise.allSettled(
     Array.from({ length: wanted }, () =>
       client.chat.completions.create({
-        model: LLM_GRADER_MODEL(),
+        model,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -293,7 +336,17 @@ async function bandSamples(
       }`,
     );
   }
-  return samples;
+  return {
+    samples,
+    meta: {
+      purpose: "feedback",
+      model,
+      prompt_version: WRITING_FEEDBACK_PROMPT_VERSION,
+      rubric_version: WRITING_RUBRIC_VERSION,
+      sample_count: samples.length,
+      evaluated_at: new Date().toISOString(),
+    },
+  };
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   ruleErrorType,
   ruleLabel,
 } from "./error-rules";
+import type { EvaluationStage } from "./evaluation";
 import { getLLM, LLM_MODEL } from "./llm";
 import { errorDensity } from "./progress";
 import type { ErrorType } from "./schema";
@@ -43,11 +44,15 @@ export interface ExtractionResult {
   density: number;
   /** Merged, one entry per rule, most frequent first. */
   errors: MergedError[];
+  /** Present for a live extraction; parser-only results omit provenance. */
+  evaluationMeta?: EvaluationStage;
 }
 
 export function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
+
+export const ERROR_EXTRACTION_PROMPT_VERSION = "writing-error-extraction.v1";
 
 const SYSTEM_PROMPT = `You are an English writing corrector. Find concrete language mistakes in the learner's text and return them as structured data. You are NOT grading and must NOT produce a score.
 
@@ -74,13 +79,14 @@ export async function extractErrors(
   input: ExtractInput,
 ): Promise<ExtractionResult> {
   const client = getLLM();
+  const model = input.model ?? LLM_MODEL();
   const userContent = [
     input.prompt ? `The learner was answering:\n${input.prompt}\n` : "",
     `Learner's text:\n${input.essay}`,
   ].join("\n");
 
   const completion = await client.chat.completions.create({
-    model: input.model ?? LLM_MODEL(),
+    model,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userContent },
@@ -88,10 +94,18 @@ export async function extractErrors(
     response_format: { type: "json_object" },
   });
 
-  return parseExtraction(
-    completion.choices[0]?.message?.content ?? "",
-    input.essay,
-  );
+  return {
+    ...parseExtraction(
+      completion.choices[0]?.message?.content ?? "",
+      input.essay,
+    ),
+    evaluationMeta: {
+      purpose: "error_extraction",
+      model,
+      prompt_version: ERROR_EXTRACTION_PROMPT_VERSION,
+      evaluated_at: new Date().toISOString(),
+    },
+  };
 }
 
 /** Defensive parse plus merge — exported so it can be tested without an LLM. */

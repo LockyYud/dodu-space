@@ -321,6 +321,8 @@ export interface SaveDailyInput {
   selectedCards: SuggestedCard[];
   /** Bài quay tự do: lưu và chấm như thường, nhưng không đụng chuỗi ngày. */
   free?: boolean;
+  /** Elapsed writing timer, in minutes, captured when the learner graded. */
+  durationMin?: number;
 }
 
 export interface SaveDailyResult {
@@ -355,6 +357,8 @@ export async function saveDaily(
     }
   }
 
+  const durationMin = normalizeDuration(input.durationMin);
+
   const previous = spinRow?.rewriteOfSubmissionId
     ? await loadPrevious(spinRow.rewriteOfSubmissionId)
     : null;
@@ -371,7 +375,7 @@ export async function saveDaily(
           skill: "writing",
           slot: "daily",
           sourceUrl: schema.DAILY_SESSION_MARKER,
-          durationMin: null,
+          durationMin,
           notes: [
             `Viết mỗi ngày · ${prompt.cluster}`,
             `${input.result.error_count} lỗi / ${input.result.word_count} từ (${input.result.density}/100)`,
@@ -386,6 +390,7 @@ export async function saveDaily(
       .insert(schema.writingSubmission)
       .values({
         sessionId,
+        date: today,
         taskType: "free",
         topic: prompt.cluster,
         promptId: prompt.id,
@@ -400,6 +405,7 @@ export async function saveDaily(
         }),
         errorDensity: input.result.density,
         gradingMode: "coach",
+        evaluationMetaJson: input.result.evaluation_meta,
         isRewrite: previous != null,
         parentSubmissionId: previous?.id ?? null,
       })
@@ -417,6 +423,7 @@ export async function saveDaily(
           explanation: card.explanation,
           context: prompt.cluster,
           dueDate: today,
+          observedOn: today,
         })),
       );
     }
@@ -454,6 +461,14 @@ export async function saveDaily(
         }
       : null,
   });
+}
+
+function normalizeDuration(value: number | undefined): number | null {
+  if (value == null) return null;
+  if (!Number.isFinite(value) || value <= 0 || value > 600) {
+    throw new Error("Thời lượng phải nằm trong khoảng 1 đến 600 phút.");
+  }
+  return Math.max(1, Math.round(value));
 }
 
 interface PreviousAttempt {

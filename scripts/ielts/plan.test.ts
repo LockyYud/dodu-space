@@ -101,19 +101,16 @@ check("chép chính tả chỉ có ở giai đoạn nâng band", () => {
   assert.equal(weeklyTargets(build, "full", 1).get("dictation"), 3);
 });
 
-check("every phase has a weekly tutor slot", () => {
+check("no phase has a removed weekly slot", () => {
   for (const phase of PHASES) {
-    const tutor = phase.weekly.filter((s) => s.slot === "tutor");
-    assert.equal(tutor.length, 1, `${phase.id} tutor slot`);
-    // Đúng hai buổi ở mọi mức tải: gia sư là hẹn với người thật, không phải
-    // suất để âm thầm bỏ khi tuần bận. Cả hai nằm ở cuối tuần.
-    for (const load of WEEK_LOADS) {
-      assert.equal(
-        weeklyTargets(phase, load, 1).get("tutor"),
-        2,
-        `${phase.id} ${load} tutor`,
-      );
-    }
+    assert.equal(
+      phase.weekly.some((s) => s.key === "tutor"),
+      false,
+    );
+    assert.equal(
+      phase.schedule.some((d) => d.keys.includes("tutor")),
+      false,
+    );
   }
 });
 
@@ -174,7 +171,7 @@ check("only tool-less slots may be ticked by hand", () => {
   assert.ok(selfLoggable.includes("grammar"));
   // Anything with a tool must be completed by saving real work: ticking a mock
   // by hand would skip the bands the mock exists to produce.
-  for (const slot of ["writing", "rewrite", "mock", "tutor", "timed-reading"]) {
+  for (const slot of ["writing", "rewrite", "mock", "timed-reading"]) {
     assert.equal(
       isSelfLoggable(slot),
       false,
@@ -236,12 +233,12 @@ check("every prompt carries a word target the grader can use", () => {
   }
 });
 
-check("the fixed week is 4 / 5 / 6 study days by load", () => {
+check("the fixed week expands with the selected load", () => {
   for (const phase of PHASES) {
     const light = studyDaysForWeek(phase, "light", 1);
     const normal = studyDaysForWeek(phase, "normal", 1);
     const full = studyDaysForWeek(phase, "full", 1);
-    assert.equal(light, 4, `${phase.id} light`);
+    assert.ok(light >= 3, `${phase.id}: light needs at least three days`);
     assert.ok(normal >= light, `${phase.id}: normal must not shrink`);
     assert.ok(full >= normal, `${phase.id}: full must not shrink`);
     assert.ok(full <= 6, `${phase.id}: ${full} days is more than six`);
@@ -391,8 +388,7 @@ check("việc dài nằm ở cuối tuần, và thứ Sáu luôn nghỉ", () => 
   }
 });
 
-check("gia sư và mock không tính vào quỹ ngồi xuống", () => {
-  assert.equal(isOutsideDesk("tutor"), true);
+check("mock không tính vào quỹ ngồi xuống", () => {
   assert.equal(isOutsideDesk("mock"), true);
   assert.equal(isOutsideDesk("writing"), false);
   assert.equal(isOutsideDesk("dictation"), false);

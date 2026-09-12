@@ -59,6 +59,7 @@ export function WritingWorkbench({
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [elapsedAtGrade, setElapsedAtGrade] = useState<number | null>(null);
   const [grading, startGrading] = useTransition();
   const [saving, startSaving] = useTransition();
 
@@ -79,6 +80,11 @@ export function WritingWorkbench({
     }
     setError(null);
     setSaved(null);
+    // Freeze the learner's writing time at submission. Time spent reading the
+    // feedback or choosing cards is review, not writing, and must not inflate
+    // the session duration.
+    setElapsedAtGrade(elapsed);
+    setStarted(false);
     startGrading(async () => {
       try {
         const r = await gradeAction({
@@ -117,6 +123,7 @@ export function WritingWorkbench({
           result,
           selectedCards: result.cards.filter((_, i) => selected.has(i)),
           repairNote,
+          durationMin: durationMinutes(elapsedAtGrade ?? elapsed),
         });
         setSaved(res);
       } catch (e) {
@@ -580,4 +587,8 @@ function minutesFor(taskType: "task1" | "task2", words: number): number {
 function formatTime(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function durationMinutes(seconds: number): number | undefined {
+  return seconds > 0 ? Math.max(1, Math.ceil(seconds / 60)) : undefined;
 }

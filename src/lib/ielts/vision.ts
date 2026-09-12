@@ -16,7 +16,16 @@ export interface ScreenshotResult {
     back: string;
     explanation: string;
   }[];
+  /** Capture/OCR provenance; this is not evaluator-scoring provenance. */
+  capture_meta: VisionCaptureMeta;
 }
+
+export interface VisionCaptureMeta {
+  model: string;
+  prompt_version: string;
+}
+
+export const VISION_CAPTURE_PROMPT_VERSION = "ielts-result-vision.v1";
 
 const VISION_PROMPT = `You are given a screenshot of an IELTS Reading or Listening practice test result. Extract what you can and reply with ONLY a JSON object (no markdown fences):
 {
@@ -31,8 +40,9 @@ export async function parseScreenshot(
   dataUrl: string,
 ): Promise<ScreenshotResult> {
   const client = getLLM();
+  const model = LLM_VISION_MODEL();
   const completion = await client.chat.completions.create({
-    model: LLM_VISION_MODEL(),
+    model,
     messages: [
       { role: "system", content: VISION_PROMPT },
       {
@@ -46,7 +56,10 @@ export async function parseScreenshot(
     response_format: { type: "json_object" },
   });
   const raw = completion.choices[0]?.message?.content ?? "";
-  return parseVision(raw);
+  return parseVision(raw, {
+    model,
+    prompt_version: VISION_CAPTURE_PROMPT_VERSION,
+  });
 }
 
 const VALID: ErrorType[] = [
@@ -56,7 +69,13 @@ const VALID: ErrorType[] = [
   "grammar",
 ];
 
-export function parseVision(raw: string): ScreenshotResult {
+export function parseVision(
+  raw: string,
+  captureMeta: VisionCaptureMeta = {
+    model: "unknown",
+    prompt_version: VISION_CAPTURE_PROMPT_VERSION,
+  },
+): ScreenshotResult {
   const cleaned = raw
     .trim()
     .replace(/^```(?:json)?/i, "")
@@ -86,5 +105,6 @@ export function parseVision(raw: string): ScreenshotResult {
         back: String(c.back),
         explanation: typeof c.explanation === "string" ? c.explanation : "",
       })),
+    capture_meta: captureMeta,
   };
 }

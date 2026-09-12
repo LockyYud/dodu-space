@@ -261,17 +261,6 @@ const HOW_TO: Record<HowToKey, HowTo> = {
     pitfall: "Mock để đo sức bền. Nghỉ giữa hai kỹ năng là tự làm sai phép đo.",
   },
 
-  tutor: {
-    steps: [
-      "Trước buổi: gửi gia sư nhóm lỗi bạn đang lặp nhiều nhất, nhờ để ý cả khi bạn nói.",
-      "Trong buổi: nói, đừng học lý thuyết. Nhờ gia sư ghi lại 1–3 lỗi cụ thể.",
-      "Sau buổi: nhập band ước tính và những lỗi đó vào app.",
-      "Mỗi tuần gửi thêm một bản ghi âm lượt ba của ô 4/3/2 để gia sư nghe.",
-    ],
-    pitfall:
-      "Buổi gia sư mà bạn nói dưới một nửa thời gian thì đó là buổi học ngữ pháp, không phải buổi luyện nói.",
-  },
-
   input: {
     steps: ["Ô này gộp phần Nghe và Đọc hằng ngày — xem hướng dẫn ở từng ô."],
   },

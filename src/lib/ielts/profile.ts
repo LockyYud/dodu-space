@@ -72,7 +72,7 @@ function envDefaults(): LearnerProfile {
       "Đẩy Listening/Reading lên 7.5 để bù Writing/Speaking 6.5; Writing là điểm yếu trần band nên cần feedback, viết lại, error log và SRS.",
     constraints: listEnv("IELTS_CONSTRAINTS", [
       "Học khoảng 1 giờ mỗi ngày.",
-      "Speaking luyện với gia sư ngoài app, app chỉ tracking và lưu lỗi.",
+      "Speaking tự luyện bằng bài 4/3/2 và tự nghe lại bản ghi âm.",
       "Ưu tiên luyện từ lỗi thật thay vì học lý thuyết lan man.",
     ]),
     priorities: listEnv("IELTS_PRIORITIES", [

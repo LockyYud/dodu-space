@@ -1,3 +1,4 @@
+import { type EvaluationStage, makeAiEvaluationMetadata } from "./evaluation";
 import {
   cardTextFor,
   type ExtractionResult,
@@ -40,7 +41,12 @@ export interface DailyCoachResult {
   /** Toàn bộ đoạn viết lại, giữ nguyên ý người viết. */
   rewrite: string;
   phrases: DailyPhrase[];
+  /** Model/prompt provenance for both live evaluator stages. */
+  evaluation_meta: ReturnType<typeof makeAiEvaluationMetadata>;
 }
+
+export const DAILY_FEEDBACK_PROMPT_VERSION = "daily-writing-feedback.v1";
+export const DAILY_FEEDBACK_RUBRIC_VERSION = "daily-writing-rubric.v1";
 
 const SYSTEM = `You are an English writing coach for a Vietnamese learner writing a short daily journal entry (60-100 words). You do NOT give scores or IELTS bands — this exercise is about the habit, and a band here would measure the wrong thing.
 
@@ -70,6 +76,7 @@ export async function coachDaily(
     prompt: input.prompt,
   });
   const polish = await polishEntry(input, extraction);
+  const { meta, ...feedback } = polish;
 
   return {
     word_count: extraction.wordCount,
@@ -77,7 +84,20 @@ export async function coachDaily(
     error_count: extraction.errorCount,
     cards: buildCards(extraction, input.ruleHistory ?? {}),
     rules: [...new Set(extraction.errors.map((e) => e.rule))],
-    ...polish,
+    evaluation_meta: makeAiEvaluationMetadata([
+      extraction.evaluationMeta ?? unknownExtractionStage(),
+      meta,
+    ]),
+    ...feedback,
+  };
+}
+
+function unknownExtractionStage(): EvaluationStage {
+  return {
+    purpose: "error_extraction",
+    model: "unknown",
+    prompt_version: "unknown",
+    evaluated_at: new Date().toISOString(),
   };
 }
 
@@ -100,14 +120,19 @@ function buildCards(
 async function polishEntry(
   input: DailyCoachInput,
   extraction: ExtractionResult,
-): Promise<Pick<DailyCoachResult, "strength" | "rewrite" | "phrases">> {
+): Promise<
+  Pick<DailyCoachResult, "strength" | "rewrite" | "phrases"> & {
+    meta: EvaluationStage;
+  }
+> {
   const client = getLLM();
+  const model = LLM_GRADER_MODEL();
   const mistakes = extraction.errors
     .map((e) => `- [${e.rule}] "${e.span}" → "${e.fix}"`)
     .join("\n");
 
   const completion = await client.chat.completions.create({
-    model: LLM_GRADER_MODEL(),
+    model,
     messages: [
       { role: "system", content: SYSTEM },
       {
@@ -124,10 +149,17 @@ async function polishEntry(
     response_format: { type: "json_object" },
   });
 
-  return parsePolish(
-    completion.choices[0]?.message?.content ?? "",
-    input.essay,
-  );
+  return {
+    ...parsePolish(completion.choices[0]?.message?.content ?? "", input.essay),
+    meta: {
+      purpose: "feedback",
+      model,
+      prompt_version: DAILY_FEEDBACK_PROMPT_VERSION,
+      rubric_version: DAILY_FEEDBACK_RUBRIC_VERSION,
+      sample_count: 1,
+      evaluated_at: new Date().toISOString(),
+    },
+  };
 }
 
 /**

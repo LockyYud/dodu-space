@@ -1,11 +1,13 @@
 import { sql } from "drizzle-orm";
 import {
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import type { EvaluationMetadata } from "./evaluation";
 
 /**
  * IELTS tracker — Drizzle schema (SQLite / libSQL).
@@ -82,6 +84,8 @@ export const studySession = sqliteTable("study_session", {
 export const writingSubmission = sqliteTable("writing_submission", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   sessionId: integer("session_id").references(() => studySession.id),
+  // Nullable for legacy rows; new writing flows should always populate it.
+  date: text("date"), // YYYY-MM-DD
   // "free" là bài của "Viết mỗi ngày": không phải Task 1 hay Task 2, không bao
   // giờ chấm band. Cột là text không có CHECK nên chỉ nới kiểu TS, không cần
   // đụng tới dữ liệu cũ.
@@ -106,6 +110,9 @@ export const writingSubmission = sqliteTable("writing_submission", {
   // Spread between the highest and lowest sampled overall band; high spread
   // means the grade is not trustworthy and the UI says so.
   graderSpread: real("grader_spread"),
+  evaluationMetaJson: text("evaluation_meta_json", {
+    mode: "json",
+  }).$type<EvaluationMetadata>(),
   isRewrite: integer("is_rewrite", { mode: "boolean" })
     .notNull()
     .default(false),
@@ -133,6 +140,7 @@ export const errorCard = sqliteTable("error_card", {
   lapses: integer("lapses").notNull().default(0),
   dueDate: text("due_date").notNull(), // YYYY-MM-DD
   lastReviewed: text("last_reviewed"),
+  observedOn: text("observed_on"), // YYYY-MM-DD; null for legacy cards
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
 });
 
@@ -161,14 +169,55 @@ export const bandHistory = sqliteTable("band_history", {
   note: text("note"),
 });
 
-/** Speaking sessions with the tutor (tracked, not graded by app). */
+/** Self-practice speaking sessions (tracked, not graded by app). */
 export const speakingSession = sqliteTable("speaking_session", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   date: text("date").notNull(),
   durationMin: integer("duration_min"),
+  sessionId: integer("session_id").references(() => studySession.id),
+  transcript: text("transcript"),
+  fitInTwoMinutes: integer("fit_in_two_minutes", { mode: "boolean" }),
+  bandFluencyCoherence: real("band_fluency_coherence"),
+  bandLexicalResource: real("band_lexical_resource"),
+  bandGrammaticalAccuracy: real("band_grammatical_accuracy"),
+  bandPronunciation: real("band_pronunciation"),
+  bandOverall: real("band_overall"),
+  feedbackJson: text("feedback_json"),
+  evaluationMetaJson: text("evaluation_meta_json", {
+    mode: "json",
+  }).$type<EvaluationMetadata>(),
+  // Kept for rows written by the original tutor workflow.
   tutorNotes: text("tutor_notes"),
   bandEstimate: real("band_estimate"),
 });
+
+export type ReceptiveSkill = Extract<Skill, "reading" | "listening">;
+
+/** Structured result for one Reading or Listening session. */
+export const receptiveResult = sqliteTable(
+  "receptive_result",
+  {
+    sessionId: integer("session_id")
+      .notNull()
+      .references(() => studySession.id),
+    skill: text("skill").$type<ReceptiveSkill>().notNull(),
+    // Keep the human-readable form used by legacy study_session rows (e.g.
+    // "32/40") alongside numeric fields for reporting and validation.
+    rawScore: text("raw_score"),
+    correctAnswers: integer("correct_answers"),
+    totalQuestions: integer("total_questions"),
+    accuracy: real("accuracy"),
+    difficulty: text("difficulty"),
+    sourceTitle: text("source_title"),
+    sourceUrl: text("source_url"),
+    feedbackJson: text("feedback_json"),
+    evaluationMetaJson: text("evaluation_meta_json", {
+      mode: "json",
+    }).$type<EvaluationMetadata>(),
+    createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  },
+  (table) => [primaryKey({ columns: [table.sessionId, table.skill] })],
+);
 
 /**
  * Single-row runtime-editable learner profile (see /ielts/settings).
@@ -266,6 +315,7 @@ export type ErrorCard = typeof errorCard.$inferSelect;
 export type ReviewLog = typeof reviewLog.$inferSelect;
 export type BandHistory = typeof bandHistory.$inferSelect;
 export type SpeakingSession = typeof speakingSession.$inferSelect;
+export type ReceptiveResult = typeof receptiveResult.$inferSelect;
 export type PhaseStateRow = typeof phaseState.$inferSelect;
 export type LearnerProfileRow = typeof learnerProfile.$inferSelect;
 export type WeekLoadRow = typeof weekLoad.$inferSelect;

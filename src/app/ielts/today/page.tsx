@@ -47,7 +47,6 @@ const SLOT_HREF: Partial<Record<SlotId, string>> = {
   "timed-listening": "/ielts/track?kind=timed&skill=listening",
   "timed-reading": "/ielts/track?kind=timed&skill=reading",
   mock: "/ielts/track?kind=mock",
-  tutor: "/ielts/speaking",
 };
 
 /**
@@ -226,7 +225,7 @@ export default async function TodayPage() {
             <p className="font-medium">Chế độ giữ nhịp</p>
             <p className="text-sm text-muted-foreground">
               14 ngày qua học quá thưa. Hạ tuần này xuống “Tuần bận” và chỉ giữ
-              bốn buổi lõi. Một ngày ngắn vẫn là một ngày.
+              các buổi lõi. Một ngày ngắn vẫn là một ngày.
             </p>
           </CardContent>
         </Card>

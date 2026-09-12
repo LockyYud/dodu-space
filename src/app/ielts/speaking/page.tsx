@@ -12,8 +12,8 @@ export default async function SpeakingPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Speaking</h1>
         <p className="text-sm text-muted-foreground">
-          Sau buổi gia sư, ghi lại band, 1–3 lỗi ưu tiên và một việc cần làm
-          lại. Buổi này tính vào suất gia sư của tuần.
+          Sau khi tự luyện hoặc tự ghi âm, ghi lại band ước tính, 1–3 lỗi ưu
+          tiên và một việc cần làm lại.
         </p>
       </header>
 
