@@ -8,6 +8,7 @@ import { SlotLog } from "@/components/ielts/slot-log";
 import { SpeakDrill } from "@/components/ielts/speak-drill";
 import { VocabCapture } from "@/components/ielts/vocab-capture";
 import { WeekLoadPicker } from "@/components/ielts/week-load-picker";
+import { WeeklyNotionSync } from "@/components/ielts/weekly-notion-sync";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -190,6 +191,7 @@ export default async function TodayPage() {
             </>
           )}
         </p>
+        <WeeklyNotionSync />
       </header>
 
       {!hours.fullyFunded && (

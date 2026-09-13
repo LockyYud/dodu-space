@@ -1,10 +1,15 @@
+import { ExternalBenchmarkForm } from "@/components/ielts/external-benchmark-form";
 import { ProfileForm } from "@/components/ielts/profile-form";
+import { listExternalBenchmarks } from "@/server/ielts/benchmarks";
 import { getProfile } from "@/server/ielts/profile";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const profile = await getProfile();
+  const [profile, benchmarks] = await Promise.all([
+    getProfile(),
+    listExternalBenchmarks(),
+  ]);
 
   return (
     <section className="max-w-2xl space-y-6">
@@ -16,6 +21,7 @@ export default async function SettingsPage() {
         </p>
       </header>
       <ProfileForm profile={profile} />
+      <ExternalBenchmarkForm benchmarks={benchmarks} />
     </section>
   );
 }

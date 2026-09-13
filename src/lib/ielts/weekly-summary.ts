@@ -7,7 +7,7 @@
  */
 
 export const WEEKLY_SUMMARY_SCHEMA_VERSION =
-  "weekly-english-summary.v1" as const;
+  "weekly-english-summary.v2" as const;
 
 export type WeeklySummarySkill =
   | "reading"
@@ -28,6 +28,19 @@ export interface WeeklyCriteriaAverages {
   lexical_resource: number | null;
   grammatical_range_accuracy: number | null;
   pronunciation: number | null;
+}
+
+export interface WeeklyCriteriaSampleCounts {
+  fluency_coherence: number;
+  lexical_resource: number;
+  grammatical_range_accuracy: number;
+  pronunciation: number;
+}
+
+export interface WritingBandTrend {
+  scored_sessions: number;
+  avg_score: number | null;
+  previous_week: number | null;
 }
 
 export interface ReceptiveWeeklyStats {
@@ -77,8 +90,7 @@ export interface WeeklyReceptiveResult {
 }
 
 /**
- * An untruncated evidence row.  Fields which do not apply to a skill remain
- * null so consumers can process the array without a skill-specific decoder.
+ * A deliberately selected, untruncated Writing/Speaking evidence row.
  */
 export interface WeeklyEvidenceSample {
   skill: EvidenceSkill;
@@ -129,9 +141,11 @@ export interface WeeklyEnglishSummary {
   };
   speaking: {
     sessions: number;
+    scored_sessions: number;
     avg_score: number | null;
     previous_week: number | null;
     criteria_averages: WeeklyCriteriaAverages;
+    criteria_scored_sessions: WeeklyCriteriaSampleCounts;
     common_errors: string[];
   };
   writing: {
@@ -139,8 +153,11 @@ export interface WeeklyEnglishSummary {
     scored_sessions: number;
     avg_score: number | null;
     previous_week: number | null;
-    avg_error_density: number | null;
     avg_errors_per_100_words: number | null;
+    by_task: {
+      task1: WritingBandTrend;
+      task2: WritingBandTrend;
+    };
   };
   reading: ReceptiveWeeklyStats;
   listening: ReceptiveWeeklyStats;
@@ -419,16 +436,14 @@ export function aggregateWeeklyEnglishSummary(
     writingDates,
     speakingDates,
   );
-  const sampleRows = [
+  const evidenceCandidates = [
     ...currentWritings.map((row) =>
       writingSample(row, writingDate(row, sessionById), sessionById),
     ),
     ...currentSpeakings.map((row) =>
       speakingSample(row, speakingDate(row, sessionById), sessionById),
     ),
-    ...currentReading.map((item) => receptiveSample(item)),
-    ...currentListening.map((item) => receptiveSample(item)),
-  ].sort(compareSamples);
+  ];
 
   const writingScore = (row: WritingSubmissionSummaryRow) =>
     bandValue(row, "bandOverall", "band_overall");
@@ -442,10 +457,16 @@ export function aggregateWeeklyEnglishSummary(
   const previousSpeakingScores = previousSpeakings
     .map(speakingScore)
     .filter(isNumber);
-  const currentWritingScores = currentWritings
+  const comparableCurrentWritings = currentWritings.filter(
+    isComparableBandWriting,
+  );
+  const comparablePreviousWritings = previousWritings.filter(
+    isComparableBandWriting,
+  );
+  const currentWritingScores = comparableCurrentWritings
     .map(writingScore)
     .filter(isNumber);
-  const previousWritingScores = previousWritings
+  const previousWritingScores = comparablePreviousWritings
     .map(writingScore)
     .filter(isNumber);
 
@@ -481,6 +502,28 @@ export function aggregateWeeklyEnglishSummary(
         .filter(isNumber),
     ),
   };
+  const currentSpeakingCriteriaCounts: WeeklyCriteriaSampleCounts = {
+    fluency_coherence: criterionCount(
+      currentSpeakings,
+      "bandFluencyCoherence",
+      "band_fluency_coherence",
+    ),
+    lexical_resource: criterionCount(
+      currentSpeakings,
+      "bandLexicalResource",
+      "band_lexical_resource",
+    ),
+    grammatical_range_accuracy: criterionCount(
+      currentSpeakings,
+      "bandGrammaticalAccuracy",
+      "band_grammatical_accuracy",
+    ),
+    pronunciation: criterionCount(
+      currentSpeakings,
+      "bandPronunciation",
+      "band_pronunciation",
+    ),
+  };
 
   const densityValues = currentWritings
     .map((row) => densityPer100(row))
@@ -509,9 +552,11 @@ export function aggregateWeeklyEnglishSummary(
     },
     speaking: {
       sessions: currentSpeakings.length,
+      scored_sessions: currentSpeakingScores.length,
       avg_score: average(currentSpeakingScores),
       previous_week: average(previousSpeakingScores),
       criteria_averages: currentSpeakingCriteria,
+      criteria_scored_sessions: currentSpeakingCriteriaCounts,
       common_errors: commonErrors(errors, "speaking"),
     },
     writing: {
@@ -519,14 +564,88 @@ export function aggregateWeeklyEnglishSummary(
       scored_sessions: currentWritingScores.length,
       avg_score: average(currentWritingScores),
       previous_week: average(previousWritingScores),
-      avg_error_density: avgErrorsPer100 == null ? null : avgErrorsPer100 / 100,
       avg_errors_per_100_words: avgErrorsPer100,
+      by_task: {
+        task1: writingTrend(
+          comparableCurrentWritings,
+          comparablePreviousWritings,
+          "task1",
+        ),
+        task2: writingTrend(
+          comparableCurrentWritings,
+          comparablePreviousWritings,
+          "task2",
+        ),
+      },
     },
     reading: receptiveStats(currentReading, previousReading),
     listening: receptiveStats(currentListening, previousListening),
     recurring_errors: errors.recurring,
-    representative_samples: sampleRows,
+    representative_samples: selectRepresentativeSamples(evidenceCandidates),
   };
+}
+
+function isComparableBandWriting(row: WritingSubmissionSummaryRow): boolean {
+  return (
+    stringField(row, "gradingMode", "grading_mode") === "band" &&
+    booleanField(row, "isRewrite", "is_rewrite") !== true
+  );
+}
+
+function writingTrend(
+  current: readonly WritingSubmissionSummaryRow[],
+  previous: readonly WritingSubmissionSummaryRow[],
+  taskType: "task1" | "task2",
+): WritingBandTrend {
+  const scoresFor = (rows: readonly WritingSubmissionSummaryRow[]) =>
+    rows
+      .filter((row) => stringField(row, "taskType", "task_type") === taskType)
+      .map((row) => bandValue(row, "bandOverall", "band_overall"))
+      .filter(isNumber);
+  const currentScores = scoresFor(current);
+  return {
+    scored_sessions: currentScores.length,
+    avg_score: average(currentScores),
+    previous_week: average(scoresFor(previous)),
+  };
+}
+
+function criterionCount(
+  rows: readonly SpeakingSessionSummaryRow[],
+  ...keys: string[]
+): number {
+  return rows.map((row) => bandValue(row, ...keys)).filter(isNumber).length;
+}
+
+/**
+ * Keep the payload useful to a weekly reviewer without dumping a whole week
+ * of raw essays/transcripts into Notion. All selected text remains complete.
+ */
+function selectRepresentativeSamples(
+  candidates: WeeklyEvidenceSample[],
+): WeeklyEvidenceSample[] {
+  const selected = new Map<string, WeeklyEvidenceSample>();
+  const key = (sample: WeeklyEvidenceSample) => `${sample.skill}:${sample.id}`;
+  const scored = candidates.filter((sample) => sample.score != null);
+  const byWeakest = [...scored].sort(
+    (a, b) =>
+      (a.score ?? Number.POSITIVE_INFINITY) -
+        (b.score ?? Number.POSITIVE_INFINITY) || compareSamples(a, b),
+  );
+  const byStrongest = [...scored].sort(
+    (a, b) =>
+      (b.score ?? Number.NEGATIVE_INFINITY) -
+        (a.score ?? Number.NEGATIVE_INFINITY) || compareSamples(a, b),
+  );
+  const byRecent = [...candidates].sort((a, b) => compareSamples(b, a));
+  for (const sample of [
+    ...byWeakest.slice(0, 2),
+    ...byStrongest.slice(0, 1),
+    ...byRecent.slice(0, 2),
+  ]) {
+    selected.set(key(sample), sample);
+  }
+  return [...selected.values()].sort(compareSamples);
 }
 
 interface ReceptiveEvidence {
@@ -829,54 +948,6 @@ function speakingSample(
     evaluation_metadata: jsonValue(
       field(row, "evaluationMetaJson", "evaluation_meta_json"),
     ),
-    task_type: null,
-    topic: null,
-    prompt_id: null,
-    prompt: null,
-    word_count: null,
-    error_density: null,
-    grading_mode: null,
-    grader_spread: null,
-    is_rewrite: null,
-    parent_submission_id: null,
-  };
-}
-
-function receptiveSample(item: ReceptiveEvidence): WeeklyEvidenceSample {
-  const result: WeeklyReceptiveResult = {
-    raw_score: item.raw_score,
-    correct_answers: item.correct_answers,
-    total_questions: item.total_questions,
-    accuracy: item.accuracy,
-    difficulty: item.difficulty,
-    source_title: item.source_title,
-    source_url: item.source_url,
-    feedback: item.feedback,
-    evaluation_metadata: item.evaluation_metadata,
-  };
-  return {
-    skill: item.skill,
-    id: item.sample_id,
-    date: item.date,
-    session_id: item.session_id,
-    duration_min: nonNegativeOrNull(
-      field(item.session, "durationMin", "duration_min"),
-    ),
-    score: null,
-    essay_text: null,
-    transcript: null,
-    bands: null,
-    criteria: null,
-    feedback: item.feedback,
-    result,
-    raw_score: item.raw_score,
-    correct_answers: item.correct_answers,
-    total_questions: item.total_questions,
-    accuracy: item.accuracy,
-    difficulty: item.difficulty,
-    source_title: item.source_title,
-    source_url: item.source_url,
-    evaluation_metadata: item.evaluation_metadata,
     task_type: null,
     topic: null,
     prompt_id: null,
@@ -1201,6 +1272,7 @@ function nonNegativeNumber(value: unknown): number {
 }
 
 function nonNegativeOrNull(value: unknown): number | null {
+  if (value == null || value === "") return null;
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) && number >= 0 ? number : null;
 }

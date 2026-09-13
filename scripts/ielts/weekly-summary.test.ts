@@ -79,6 +79,7 @@ function mixedInput(): WeeklySummaryInput {
         bandLr: 6,
         bandGra: 6,
         bandOverall: 6.5,
+        gradingMode: "band",
         feedbackJson: JSON.stringify({ next_steps: ["Use examples"] }),
         evaluationMetaJson: JSON.stringify({
           version: 1,
@@ -96,6 +97,7 @@ function mixedInput(): WeeklySummaryInput {
         essayText: "A legacy report with no band yet.",
         wordCount: 180,
         bandOverall: null,
+        gradingMode: "coach",
         errorDensity: 4,
       },
       {
@@ -106,6 +108,7 @@ function mixedInput(): WeeklySummaryInput {
         essayText: "A full free-writing attempt.",
         wordCount: 100,
         bandOverall: 7,
+        gradingMode: "coach",
         errorDensity: 2,
       },
       {
@@ -116,6 +119,7 @@ function mixedInput(): WeeklySummaryInput {
         taskType: "task2",
         essayText: "Sunday essay",
         bandOverall: 6,
+        gradingMode: "band",
         errorDensity: 6,
       },
       {
@@ -124,6 +128,7 @@ function mixedInput(): WeeklySummaryInput {
         taskType: "task2",
         essayText: "Previous week essay",
         bandOverall: 5.8,
+        gradingMode: "band",
         errorDensity: 10,
       },
     ],
@@ -287,7 +292,7 @@ check(
   () => {
     const summary = aggregateWeeklyEnglishSummary(mixedInput(), WEEK);
 
-    assert.equal(summary.schema_version, "weekly-english-summary.v1");
+    assert.equal(summary.schema_version, "weekly-english-summary.v2");
     assert.deepEqual(summary.period, {
       start_date: "2026-09-07",
       end_date: "2026-09-13",
@@ -299,13 +304,17 @@ check(
     });
 
     assert.equal(summary.writing.sessions, 4);
-    assert.equal(summary.writing.scored_sessions, 3);
-    assert.equal(summary.writing.avg_score, (6.5 + 7 + 6) / 3);
+    assert.equal(summary.writing.scored_sessions, 2);
+    assert.equal(summary.writing.avg_score, (6.5 + 6) / 2);
     assert.equal(summary.writing.previous_week, 5.8);
     assert.equal(summary.writing.avg_errors_per_100_words, 5);
-    assert.equal(summary.writing.avg_error_density, 0.05);
+    assert.deepEqual(summary.writing.by_task, {
+      task1: { scored_sessions: 0, avg_score: null, previous_week: null },
+      task2: { scored_sessions: 2, avg_score: 6.25, previous_week: 5.8 },
+    });
 
     assert.equal(summary.speaking.sessions, 2);
+    assert.equal(summary.speaking.scored_sessions, 2);
     assert.equal(summary.speaking.avg_score, 6);
     assert.equal(summary.speaking.previous_week, 5.8);
     assert.deepEqual(summary.speaking.criteria_averages, {
@@ -313,6 +322,12 @@ check(
       lexical_resource: 6,
       grammatical_range_accuracy: 6,
       pronunciation: 6,
+    });
+    assert.deepEqual(summary.speaking.criteria_scored_sessions, {
+      fluency_coherence: 2,
+      lexical_resource: 2,
+      grammatical_range_accuracy: 2,
+      pronunciation: 2,
     });
     assert.deepEqual(summary.speaking.common_errors, ["fluency"]);
 
@@ -354,17 +369,13 @@ check("keeps sub-one Writing density in its canonical per-100 unit", () => {
   );
 
   assert.equal(summary.writing.avg_errors_per_100_words, 0.5);
-  assert.equal(summary.writing.avg_error_density, 0.005);
 });
 
 check("does not double-count one mock session with two child results", () => {
   const summary = aggregateWeeklyEnglishSummary(mixedInput(), WEEK);
   assert.equal(summary.study.total_sessions, 6);
-  assert.equal(
-    summary.representative_samples.filter((sample) => sample.session_id === 103)
-      .length,
-    2,
-  );
+  assert.equal(summary.reading.sessions, 2);
+  assert.equal(summary.listening.sessions, 2);
 });
 
 check(
@@ -389,39 +400,16 @@ check(
 );
 
 check(
-  "keeps every current evidence sample complete and deterministically ordered",
+  "keeps selected Writing/Speaking samples complete and deterministically ordered",
   () => {
     const summary = aggregateWeeklyEnglishSummary(mixedInput(), WEEK);
-    assert.equal(summary.representative_samples.length, 10);
+    assert.equal(summary.representative_samples.length, 4);
     assert.deepEqual(
       summary.representative_samples.map(
         (sample) => `${sample.date}:${sample.id}`,
       ),
-      [
-        "2026-09-07:101:reading",
-        "2026-09-07:203",
-        "2026-09-08:102:listening",
-        "2026-09-08:301",
-        "2026-09-09:103:listening",
-        "2026-09-09:103:reading",
-        "2026-09-10:201",
-        "2026-09-11:202",
-        "2026-09-12:302",
-        "2026-09-13:204",
-      ],
+      ["2026-09-07:203", "2026-09-08:301", "2026-09-12:302", "2026-09-13:204"],
     );
-
-    const writing = summary.representative_samples.find(
-      (sample) => sample.id === 201,
-    );
-    assert.ok(writing);
-    assert.equal(writing.essay_text, longEssay);
-    assert.deepEqual(writing.feedback, { next_steps: ["Use examples"] });
-    assert.deepEqual(writing.evaluation_metadata, {
-      version: 1,
-      method: "ai",
-      stages: [{ purpose: "writing_feedback", model: "grader-v1" }],
-    });
 
     const speaking = summary.representative_samples.find(
       (sample) => sample.id === 301,
@@ -434,25 +422,11 @@ check(
       "Legacy speaking feedback kept as a fallback.",
     );
 
-    const receptive = summary.representative_samples.find(
-      (sample) => sample.id === "103:reading",
+    assert.ok(
+      summary.representative_samples.every(
+        (sample) => sample.skill === "writing" || sample.skill === "speaking",
+      ),
     );
-    assert.ok(receptive);
-    assert.deepEqual(receptive.result, {
-      raw_score: "30/40",
-      correct_answers: 30,
-      total_questions: 40,
-      accuracy: 0.75,
-      difficulty: "hard",
-      source_title: "Cambridge 19",
-      source_url: "https://example.test/c19-reading",
-      feedback: { traps: ["headings"] },
-      evaluation_metadata: {
-        version: 1,
-        method: "source",
-        stages: [{ purpose: "result_capture" }],
-      },
-    });
   },
 );
 
@@ -460,6 +434,7 @@ check("returns empty blocks and validates before processing rows", () => {
   const summary = aggregateWeeklyEnglishSummary({}, WEEK);
   assert.deepEqual(summary.speaking, {
     sessions: 0,
+    scored_sessions: 0,
     avg_score: null,
     previous_week: null,
     criteria_averages: {
@@ -468,6 +443,12 @@ check("returns empty blocks and validates before processing rows", () => {
       grammatical_range_accuracy: null,
       pronunciation: null,
     },
+    criteria_scored_sessions: {
+      fluency_coherence: 0,
+      lexical_resource: 0,
+      grammatical_range_accuracy: 0,
+      pronunciation: 0,
+    },
     common_errors: [],
   });
   assert.deepEqual(summary.writing, {
@@ -475,8 +456,11 @@ check("returns empty blocks and validates before processing rows", () => {
     scored_sessions: 0,
     avg_score: null,
     previous_week: null,
-    avg_error_density: null,
     avg_errors_per_100_words: null,
+    by_task: {
+      task1: { scored_sessions: 0, avg_score: null, previous_week: null },
+      task2: { scored_sessions: 0, avg_score: null, previous_week: null },
+    },
   });
   for (const skill of ["reading", "listening"] as const) {
     assert.deepEqual(summary[skill], {

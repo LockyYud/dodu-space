@@ -38,6 +38,16 @@ export type ErrorType = (typeof ERROR_TYPES)[number];
 export const REVIEW_GRADES = ["again", "hard", "good", "easy"] as const;
 export type ReviewGrade = (typeof REVIEW_GRADES)[number];
 
+/** Scores imported from an external assessment must retain its native scale. */
+export const EXTERNAL_BENCHMARK_PROVIDERS = [
+  "ef_set",
+  "toeic",
+  "ielts",
+  "other",
+] as const;
+export type ExternalBenchmarkProvider =
+  (typeof EXTERNAL_BENCHMARK_PROVIDERS)[number];
+
 /** One completed study activity of any skill. */
 /**
  * `study_session.source_url` marker for the once-a-day row written when the
@@ -219,6 +229,30 @@ export const receptiveResult = sqliteTable(
   (table) => [primaryKey({ columns: [table.sessionId, table.skill] })],
 );
 
+/** An external benchmark (EF SET, TOEIC, IELTS…) in its original scale. */
+export const externalBenchmark = sqliteTable("external_benchmark", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  provider: text("provider").$type<ExternalBenchmarkProvider>().notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD
+  readingRaw: real("reading_raw"),
+  listeningRaw: real("listening_raw"),
+  writingRaw: real("writing_raw"),
+  speakingRaw: real("speaking_raw"),
+  overallRaw: real("overall_raw"),
+  cefr: text("cefr"),
+  sourceUrl: text("source_url"),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
+/** Idempotency record for a user-triggered export of one ISO week to Notion. */
+export const weeklyNotionSync = sqliteTable("weekly_notion_sync", {
+  week: text("week").primaryKey(),
+  notionPageId: text("notion_page_id").notNull(),
+  syncedAt: text("synced_at").notNull(),
+  summaryHash: text("summary_hash").notNull(),
+});
+
 /**
  * Single-row runtime-editable learner profile (see /ielts/settings).
  * `.env` values are only the seed/default used while this table is empty.
@@ -316,6 +350,7 @@ export type ReviewLog = typeof reviewLog.$inferSelect;
 export type BandHistory = typeof bandHistory.$inferSelect;
 export type SpeakingSession = typeof speakingSession.$inferSelect;
 export type ReceptiveResult = typeof receptiveResult.$inferSelect;
+export type ExternalBenchmark = typeof externalBenchmark.$inferSelect;
 export type PhaseStateRow = typeof phaseState.$inferSelect;
 export type LearnerProfileRow = typeof learnerProfile.$inferSelect;
 export type WeekLoadRow = typeof weekLoad.$inferSelect;

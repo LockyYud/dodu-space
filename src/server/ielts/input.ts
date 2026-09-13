@@ -7,7 +7,6 @@ import { db, schema } from "@/lib/ielts/db";
 import {
   EVALUATION_METADATA_VERSION,
   type EvaluationMetadata,
-  SPEAKING_RUBRIC_VERSION,
 } from "@/lib/ielts/evaluation";
 import { isSelfLoggable } from "@/lib/ielts/plan";
 import { type ActionResult, fail, ok } from "@/lib/ielts/result";
@@ -103,7 +102,7 @@ export async function logSpeakDrill(
     stages: [
       {
         purpose: "speaking_drill",
-        rubric_version: SPEAKING_RUBRIC_VERSION,
+        rubric_version: "speaking-432.v1",
         sample_count: 1,
         evaluated_at: new Date().toISOString(),
       },
