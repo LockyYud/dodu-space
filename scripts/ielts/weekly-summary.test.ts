@@ -316,7 +316,7 @@ check(
   () => {
     const summary = aggregateWeeklyEnglishSummary(mixedInput(), WEEK);
 
-    assert.equal(summary.schema_version, "weekly-english-summary.v2");
+    assert.equal(summary.schema_version, "weekly-english-summary.v3");
     assert.deepEqual(summary.period, {
       start_date: "2026-09-07",
       end_date: "2026-09-13",

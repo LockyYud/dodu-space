@@ -54,6 +54,7 @@ export async function getWeeklyEnglishSummary(
     db
       .select()
       .from(schema.externalBenchmark)
+      .where(lte(schema.externalBenchmark.date, period.end_date))
       .orderBy(
         desc(schema.externalBenchmark.date),
         desc(schema.externalBenchmark.id),

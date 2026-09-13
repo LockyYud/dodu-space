@@ -7,7 +7,7 @@
  */
 
 export const WEEKLY_SUMMARY_SCHEMA_VERSION =
-  "weekly-english-summary.v2" as const;
+  "weekly-english-summary.v3" as const;
 
 export type WeeklySummarySkill =
   | "reading"

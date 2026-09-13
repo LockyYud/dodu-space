@@ -3,6 +3,7 @@
 import { desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireIeltsUser } from "@/lib/auth/guard";
+import { benchmarkScoreError } from "@/lib/ielts/benchmarks";
 import { db, schema } from "@/lib/ielts/db";
 import { type ActionResult, fail, ok } from "@/lib/ielts/result";
 import {
@@ -52,18 +53,11 @@ export async function addExternalBenchmark(
     input.speakingRaw,
     input.overallRaw,
   ];
-  if (!scores.some((score) => score != null && Number.isFinite(score))) {
-    return fail("Nhập ít nhất một điểm gốc của bài benchmark.");
-  }
-  if (scores.some((score) => score != null && !Number.isFinite(score))) {
-    return fail("Điểm benchmark phải là số hợp lệ.");
-  }
-  if (
-    input.sectionScores &&
-    Object.values(input.sectionScores).some((score) => !Number.isFinite(score))
-  ) {
-    return fail("Điểm theo phần benchmark phải là số hợp lệ.");
-  }
+  const scoreError = benchmarkScoreError({
+    scores,
+    sectionScores: input.sectionScores,
+  });
+  if (scoreError) return fail(scoreError);
   await db.insert(schema.externalBenchmark).values({
     provider: input.provider,
     date: input.date,

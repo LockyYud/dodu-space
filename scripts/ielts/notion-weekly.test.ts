@@ -46,7 +46,7 @@ check("maps the real English Weekly Data properties with Week as Title", () => {
     "Synced At": { date: { start: "2026-09-13T12:00:00.000Z" } },
     "Data Version": {
       rich_text: [
-        { type: "text", text: { content: "weekly-english-summary.v2" } },
+        { type: "text", text: { content: "weekly-english-summary.v3" } },
       ],
     },
   });
