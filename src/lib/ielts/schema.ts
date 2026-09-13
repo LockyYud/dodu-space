@@ -239,6 +239,10 @@ export const externalBenchmark = sqliteTable("external_benchmark", {
   writingRaw: real("writing_raw"),
   speakingRaw: real("speaking_raw"),
   overallRaw: real("overall_raw"),
+  // Native sections which do not map to four skills, e.g. {"LR":720,"SW":280}.
+  sectionScoresJson: text("section_scores_json", { mode: "json" }).$type<
+    Record<string, number>
+  >(),
   cefr: text("cefr"),
   sourceUrl: text("source_url"),
   notes: text("notes"),

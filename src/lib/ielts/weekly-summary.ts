@@ -161,8 +161,24 @@ export interface WeeklyEnglishSummary {
   };
   reading: ReceptiveWeeklyStats;
   listening: ReceptiveWeeklyStats;
+  /** Latest external assessments retained in their native provider scale. */
+  external_benchmarks: WeeklyExternalBenchmark[];
   recurring_errors: WeeklyError[];
   representative_samples: WeeklyEvidenceSample[];
+}
+
+export interface WeeklyExternalBenchmark {
+  provider: string;
+  date: string;
+  reading_raw: number | null;
+  listening_raw: number | null;
+  writing_raw: number | null;
+  speaking_raw: number | null;
+  overall_raw: number | null;
+  section_scores: Record<string, number> | null;
+  cefr: string | null;
+  source_url: string | null;
+  notes: string | null;
 }
 
 /** Rows accepted by the pure aggregator.  Snake-case aliases are accepted at
@@ -299,6 +315,30 @@ export interface ErrorCardSummaryRow {
   [key: string]: unknown;
 }
 
+export interface ExternalBenchmarkSummaryRow {
+  provider?: string | null;
+  date?: string | null;
+  readingRaw?: number | null;
+  reading_raw?: number | null;
+  listeningRaw?: number | null;
+  listening_raw?: number | null;
+  writingRaw?: number | null;
+  writing_raw?: number | null;
+  speakingRaw?: number | null;
+  speaking_raw?: number | null;
+  overallRaw?: number | null;
+  overall_raw?: number | null;
+  sectionScoresJson?: unknown;
+  section_scores_json?: unknown;
+  cefr?: string | null;
+  sourceUrl?: string | null;
+  source_url?: string | null;
+  notes?: string | null;
+  createdAt?: string | null;
+  created_at?: string | null;
+  [key: string]: unknown;
+}
+
 export interface WeeklySummaryInput {
   studySessions?: readonly StudySessionSummaryRow[];
   /** Alias useful for small unit-test fixtures. */
@@ -311,6 +351,8 @@ export interface WeeklySummaryInput {
   receptive?: readonly ReceptiveResultSummaryRow[];
   errorCards?: readonly ErrorCardSummaryRow[];
   errors?: readonly ErrorCardSummaryRow[];
+  externalBenchmarks?: readonly ExternalBenchmarkSummaryRow[];
+  external_benchmarks?: readonly ExternalBenchmarkSummaryRow[];
 }
 
 const ISO_WEEK_RE = /^(\d{4})-W(\d{2})$/;
@@ -371,6 +413,8 @@ export function aggregateWeeklyEnglishSummary(
   const speakings = input.speakingSessions ?? input.speakings ?? [];
   const receptiveResults = input.receptiveResults ?? input.receptive ?? [];
   const errorCards = input.errorCards ?? input.errors ?? [];
+  const externalBenchmarks =
+    input.externalBenchmarks ?? input.external_benchmarks ?? [];
 
   const sessionById = indexById(sessions);
   const writingById = indexById(writings);
@@ -580,6 +624,7 @@ export function aggregateWeeklyEnglishSummary(
     },
     reading: receptiveStats(currentReading, previousReading),
     listening: receptiveStats(currentListening, previousListening),
+    external_benchmarks: latestExternalBenchmarks(externalBenchmarks),
     recurring_errors: errors.recurring,
     representative_samples: selectRepresentativeSamples(evidenceCandidates),
   };
@@ -646,6 +691,38 @@ function selectRepresentativeSamples(
     selected.set(key(sample), sample);
   }
   return [...selected.values()].sort(compareSamples);
+}
+
+function latestExternalBenchmarks(
+  rows: readonly ExternalBenchmarkSummaryRow[],
+): WeeklyExternalBenchmark[] {
+  return [...rows]
+    .filter((row) => validDate(field(row, "date")) != null)
+    .sort(
+      (a, b) =>
+        (validDate(field(b, "date")) ?? "").localeCompare(
+          validDate(field(a, "date")) ?? "",
+        ) ||
+        (stringField(b, "createdAt", "created_at") ?? "").localeCompare(
+          stringField(a, "createdAt", "created_at") ?? "",
+        ),
+    )
+    .slice(0, 2)
+    .map((row) => ({
+      provider: stringField(row, "provider") ?? "other",
+      date: validDate(field(row, "date")) ?? "",
+      reading_raw: numberField(row, "readingRaw", "reading_raw"),
+      listening_raw: numberField(row, "listeningRaw", "listening_raw"),
+      writing_raw: numberField(row, "writingRaw", "writing_raw"),
+      speaking_raw: numberField(row, "speakingRaw", "speaking_raw"),
+      overall_raw: numberField(row, "overallRaw", "overall_raw"),
+      section_scores: numericRecord(
+        field(row, "sectionScoresJson", "section_scores_json"),
+      ),
+      cefr: stringField(row, "cefr"),
+      source_url: stringField(row, "sourceUrl", "source_url"),
+      notes: stringField(row, "notes"),
+    }));
 }
 
 interface ReceptiveEvidence {
@@ -1343,6 +1420,19 @@ function jsonValue(value: unknown): unknown {
     // evidence; it also guarantees the aggregator never truncates raw data.
     return value;
   }
+}
+
+function numericRecord(value: unknown): Record<string, number> | null {
+  const parsed = jsonValue(value);
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object")
+    return null;
+  const entries = Object.entries(parsed as Record<string, unknown>).filter(
+    ([key, score]) =>
+      key.trim() && typeof score === "number" && Number.isFinite(score),
+  );
+  return entries.length > 0
+    ? (Object.fromEntries(entries) as Record<string, number>)
+    : null;
 }
 
 function parseRawScore(

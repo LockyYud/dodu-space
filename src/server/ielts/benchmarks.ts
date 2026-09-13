@@ -18,6 +18,7 @@ export interface AddExternalBenchmarkInput {
   writingRaw?: number | null;
   speakingRaw?: number | null;
   overallRaw?: number | null;
+  sectionScores?: Record<string, number> | null;
   cefr?: string | null;
   sourceUrl?: string | null;
   notes?: string | null;
@@ -57,6 +58,12 @@ export async function addExternalBenchmark(
   if (scores.some((score) => score != null && !Number.isFinite(score))) {
     return fail("Điểm benchmark phải là số hợp lệ.");
   }
+  if (
+    input.sectionScores &&
+    Object.values(input.sectionScores).some((score) => !Number.isFinite(score))
+  ) {
+    return fail("Điểm theo phần benchmark phải là số hợp lệ.");
+  }
   await db.insert(schema.externalBenchmark).values({
     provider: input.provider,
     date: input.date,
@@ -65,6 +72,7 @@ export async function addExternalBenchmark(
     writingRaw: input.writingRaw ?? null,
     speakingRaw: input.speakingRaw ?? null,
     overallRaw: input.overallRaw ?? null,
+    sectionScoresJson: input.sectionScores ?? null,
     cefr: input.cefr?.trim() || null,
     sourceUrl: input.sourceUrl?.trim() || null,
     notes: input.notes?.trim() || null,

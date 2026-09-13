@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, gte, inArray, lte, or } from "drizzle-orm";
+import { and, desc, gte, inArray, lte, or } from "drizzle-orm";
 import { db, schema } from "@/lib/ielts/db";
 import {
   aggregateWeeklyEnglishSummary,
@@ -34,7 +34,7 @@ export async function getWeeklyEnglishSummary(
     .filter((id): id is number => Number.isInteger(id));
   const sessionIdRefs = sessionIds.map((id) => String(id));
 
-  const [writingRows, speakingRows] = await Promise.all([
+  const [writingRows, externalBenchmarkRows, speakingRows] = await Promise.all([
     db
       .select()
       .from(schema.writingSubmission)
@@ -51,6 +51,14 @@ export async function getWeeklyEnglishSummary(
             : []),
         ),
       ),
+    db
+      .select()
+      .from(schema.externalBenchmark)
+      .orderBy(
+        desc(schema.externalBenchmark.date),
+        desc(schema.externalBenchmark.id),
+      )
+      .limit(2),
     db
       .select()
       .from(schema.speakingSession)
@@ -102,6 +110,7 @@ export async function getWeeklyEnglishSummary(
       speakingSessions: speakingRows,
       receptiveResults: receptiveRows,
       errorCards: errorRows,
+      externalBenchmarks: externalBenchmarkRows,
     },
     week,
   );

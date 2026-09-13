@@ -191,6 +191,30 @@ function mixedInput(): WeeklySummaryInput {
         sourceUrl: "https://example.test/c19-listening",
       },
     ],
+    externalBenchmarks: [
+      {
+        provider: "toeic",
+        date: "2026-08-01",
+        sectionScoresJson: { LR: 720, SW: 280 },
+      },
+      {
+        provider: "ef_set",
+        date: "2026-09-03",
+        readingRaw: 58,
+        listeningRaw: 61,
+        overallRaw: 60,
+        cefr: "B2",
+      },
+      {
+        provider: "ielts",
+        date: "2026-09-10",
+        readingRaw: 7,
+        listeningRaw: 7.5,
+        writingRaw: 6,
+        speakingRaw: 6.5,
+        overallRaw: 6.5,
+      },
+    ],
     errorCards: [
       {
         id: 401,
@@ -350,6 +374,34 @@ check(
     assert.equal(summary.listening.total_questions, 30);
     assert.equal(summary.listening.accuracy, 20 / 30);
     assert.equal(summary.listening.previous_week, 7 / 10);
+    assert.deepEqual(summary.external_benchmarks, [
+      {
+        provider: "ielts",
+        date: "2026-09-10",
+        reading_raw: 7,
+        listening_raw: 7.5,
+        writing_raw: 6,
+        speaking_raw: 6.5,
+        overall_raw: 6.5,
+        section_scores: null,
+        cefr: null,
+        source_url: null,
+        notes: null,
+      },
+      {
+        provider: "ef_set",
+        date: "2026-09-03",
+        reading_raw: 58,
+        listening_raw: 61,
+        writing_raw: null,
+        speaking_raw: null,
+        overall_raw: 60,
+        section_scores: null,
+        cefr: "B2",
+        source_url: null,
+        notes: null,
+      },
+    ]);
   },
 );
 
@@ -474,6 +526,7 @@ check("returns empty blocks and validates before processing rows", () => {
     });
   }
   assert.deepEqual(summary.representative_samples, []);
+  assert.deepEqual(summary.external_benchmarks, []);
   assert.throws(
     () =>
       aggregateWeeklyEnglishSummary(

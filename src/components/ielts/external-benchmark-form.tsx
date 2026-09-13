@@ -33,12 +33,30 @@ export function ExternalBenchmarkForm({
   const [cefr, setCefr] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [notes, setNotes] = useState("");
+  const [sectionScores, setSectionScores] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const parse = (value: string) => (value.trim() ? Number(value) : null);
 
   function save() {
     setMessage(null);
+    let parsedSections: Record<string, number> | null = null;
+    if (sectionScores.trim()) {
+      try {
+        const parsed = JSON.parse(sectionScores) as unknown;
+        if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+          throw new Error();
+        }
+        parsedSections = Object.fromEntries(
+          Object.entries(parsed as Record<string, unknown>).map(
+            ([key, value]) => [key, Number(value)],
+          ),
+        );
+      } catch {
+        setMessage('Điểm theo phần phải là JSON, ví dụ {"LR":720,"SW":280}.');
+        return;
+      }
+    }
     startTransition(async () => {
       const result = await addExternalBenchmark({
         provider,
@@ -48,6 +66,7 @@ export function ExternalBenchmarkForm({
         writingRaw: parse(scores.writing),
         speakingRaw: parse(scores.speaking),
         overallRaw: parse(scores.overall),
+        sectionScores: parsedSections,
         cefr,
         sourceUrl,
         notes,
@@ -64,6 +83,7 @@ export function ExternalBenchmarkForm({
       setCefr("");
       setSourceUrl("");
       setNotes("");
+      setSectionScores("");
     });
   }
 
@@ -121,6 +141,12 @@ export function ExternalBenchmarkForm({
           placeholder="CEFR (vd B2/C1, nếu có)"
           value={cefr}
           onChange={(e) => setCefr(e.target.value)}
+        />
+        <Textarea
+          placeholder={'Điểm theo phần gốc (JSON, vd {"LR":720,"SW":280})'}
+          value={sectionScores}
+          onChange={(e) => setSectionScores(e.target.value)}
+          rows={2}
         />
         <Input
           placeholder="Link kết quả (nếu có)"

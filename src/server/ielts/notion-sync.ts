@@ -5,13 +5,16 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireIeltsUser } from "@/lib/auth/guard";
 import { db, schema } from "@/lib/ielts/db";
+import {
+  type NotionPropertySchema,
+  weeklyNotionPageProperties,
+} from "@/lib/ielts/notion-weekly";
 import { type ActionResult, fail, ok } from "@/lib/ielts/result";
 import { isoWeekPeriod } from "@/lib/ielts/weekly-summary";
 import { getWeeklyEnglishSummary } from "./weekly-summary";
 
 const NOTION_VERSION = "2022-06-28";
 const NOTION_API = "https://api.notion.com/v1";
-type NotionProperty = { type: string; [key: string]: unknown };
 
 function notionConfig() {
   const token = process.env.NOTION_TOKEN;
@@ -42,37 +45,6 @@ async function notionRequest<T>(
     throw new Error(`Notion trả ${response.status}: ${await response.text()}`);
   }
   return response.json() as Promise<T>;
-}
-
-function textProperty(type: "title" | "rich_text", content: string) {
-  return { [type]: [{ type: "text", text: { content } }] };
-}
-
-function pageProperties(
-  properties: Record<string, NotionProperty>,
-  week: string,
-) {
-  const title = Object.entries(properties).find(
-    ([, value]) => value.type === "title",
-  );
-  const weekProperty = properties.Week;
-  const status = properties.Status;
-  if (!title || !weekProperty || !status) {
-    throw new Error(
-      'Notion database phải có các property: một Title, "Week", và "Status".',
-    );
-  }
-  if (weekProperty.type !== "rich_text") {
-    throw new Error('Property Notion "Week" phải là Rich text.');
-  }
-  if (status.type !== "select" && status.type !== "status") {
-    throw new Error('Property Notion "Status" phải là Select hoặc Status.');
-  }
-  return {
-    [title[0]]: textProperty("title", `English Weekly Data · ${week}`),
-    Week: textProperty("rich_text", week),
-    Status: { [status.type]: { name: "Ready" } },
-  };
 }
 
 function summaryBlocks(summary: unknown) {
@@ -140,10 +112,15 @@ export async function syncWeeklyEnglishData(
       return ok({ pageId: existing.notionPageId, unchanged: true });
     }
 
+    const syncedAt = new Date().toISOString();
     const database = await notionRequest<{
-      properties: Record<string, NotionProperty>;
+      properties: Record<string, NotionPropertySchema>;
     }>(token, `/databases/${databaseId}`);
-    const properties = pageProperties(database.properties, week);
+    const properties = weeklyNotionPageProperties(
+      database.properties,
+      summary,
+      syncedAt,
+    );
     let pageId = existing?.notionPageId;
     if (pageId) {
       await notionRequest(token, `/pages/${pageId}`, {
@@ -168,13 +145,13 @@ export async function syncWeeklyEnglishData(
       await replaceBlocks(token, pageId, summaryBlocks(summary));
       await db
         .update(schema.weeklyNotionSync)
-        .set({ syncedAt: new Date().toISOString(), summaryHash })
+        .set({ syncedAt, summaryHash })
         .where(eq(schema.weeklyNotionSync.week, week));
     } else {
       await db.insert(schema.weeklyNotionSync).values({
         week,
         notionPageId: pageId,
-        syncedAt: new Date().toISOString(),
+        syncedAt,
         summaryHash,
       });
     }

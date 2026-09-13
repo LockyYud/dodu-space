@@ -1,0 +1,1 @@
+ALTER TABLE `external_benchmark` ADD `section_scores_json` text;
